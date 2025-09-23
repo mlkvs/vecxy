@@ -1,9 +1,0 @@
-﻿{
-    "name": "root",
-    "entry": "./main.ms",
-    "boxes": {
-        "system": "ms:system",
-        "math": "./math",
-        "game": "./game"
-    }
-}
