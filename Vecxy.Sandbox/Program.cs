@@ -1,4 +1,4 @@
-﻿using Vecxy.UI;
+﻿using Vecxy.Rendering;
 
 namespace Vecxy.Sandbox;
 
@@ -6,8 +6,8 @@ internal static class Program
 {
     public static void Main(string[] args)
     {
-        var app = new UIApp();
+        var render = new RenderPipeline();
         
-        var window = app.CreateWindow("E:\\Projects\\vecxy\\Vecxy.Sandbox\\UI\\MainWindow.xml");
+        render.Start();
     }
 }

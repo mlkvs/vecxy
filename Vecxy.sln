@@ -4,6 +4,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Vecxy.UI", "Vecxy.UI\Vecxy.
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Vecxy.Sandbox", "Vecxy.Sandbox\Vecxy.Sandbox.csproj", "{952BEE88-D477-45D0-A148-F164735A257D}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Vecxy.Rendering", "Vecxy.Rendering\Vecxy.Rendering.csproj", "{2ADB7B35-EF06-45E7-82B3-24BE944F2900}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -18,5 +20,9 @@ Global
 		{952BEE88-D477-45D0-A148-F164735A257D}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{952BEE88-D477-45D0-A148-F164735A257D}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{952BEE88-D477-45D0-A148-F164735A257D}.Release|Any CPU.Build.0 = Release|Any CPU
+		{2ADB7B35-EF06-45E7-82B3-24BE944F2900}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{2ADB7B35-EF06-45E7-82B3-24BE944F2900}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{2ADB7B35-EF06-45E7-82B3-24BE944F2900}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{2ADB7B35-EF06-45E7-82B3-24BE944F2900}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal
