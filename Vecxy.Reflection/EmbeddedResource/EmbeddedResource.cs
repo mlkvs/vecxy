@@ -73,8 +73,10 @@ public class EmbeddedResource
         {
             var resourcePath = resources[index];
 
-            var name = resourcePath.Split(".")[^2];
-            var extension = resourcePath.Split(".")[^1];
+            var pathSplit = resourcePath.Split(".");
+
+            var name = pathSplit[^2];
+            var extension = pathSplit[^1];
             
             var resourceName = string.Join(".", name, extension);
             
