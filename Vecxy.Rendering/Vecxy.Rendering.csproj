@@ -10,4 +10,13 @@
       <PackageReference Include="OpenTK" Version="4.9.4" />
     </ItemGroup>
 
+    <ItemGroup>
+      <ProjectReference Include="..\Vecxy.IO\Vecxy.IO.csproj" />
+      <ProjectReference Include="..\Vecxy.Reflection\Vecxy.Reflection.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <EmbeddedResource Include="EmbeddedResources\Shaders\**\*.glsl" />
+    </ItemGroup>
+
 </Project>
