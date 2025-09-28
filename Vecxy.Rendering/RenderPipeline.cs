@@ -3,7 +3,8 @@ using OpenTK.Graphics.OpenGL;
 using OpenTK.Windowing.Common;
 using Vecxy.Diagnostics;
 using Vecxy.Reflection;
-using Vecxy.Rendering;
+
+namespace Vecxy.Rendering;
 
 public class RenderPipeline : IDisposable
 {
@@ -37,39 +38,22 @@ public class RenderPipeline : IDisposable
     {
         try
         {
+            
+            
             Logger.Info("Initializing render pipeline...");
             
             var assembly = Assembly.GetExecutingAssembly();
             
-            // Проверяем доступные ресурсы
-            var resourceNames = assembly.GetManifestResourceNames();
-            Logger.Info("Available embedded resources:");
-            foreach (var name in resourceNames)
-            {
-                Logger.Info($"  - {name}");
-            }
+            var vertexSource = assembly.GetEmbeddedResource("Shaders.base.vert")!.Text();
+            var fragmentSource = assembly.GetEmbeddedResource("Shaders.base.frag")!.Text();
             
-            var vertexSource = assembly.GetEmbeddedResource("Shaders.base.vert")?.Text();
-            var fragmentSource = assembly.GetEmbeddedResource("Shaders.base.frag")?.Text();
-
-            if (string.IsNullOrEmpty(vertexSource))
-                throw new Exception("Vertex shader not found or empty");
-            if (string.IsNullOrEmpty(fragmentSource))
-                throw new Exception("Fragment shader not found or empty");
-
-            Logger.Info($"Vertex shader source loaded ({vertexSource.Length} chars)");
-            Logger.Info($"Fragment shader source loaded ({fragmentSource.Length} chars)");
-
-            // Создаем и компилируем шейдеры
             shader = new ShaderProgram(vertexSource, fragmentSource);
             shader.Initialize();
             shader.Compile();
             shader.Link();
-
-            // Создаем геометрию
+            
             CreateTriangle();
             
-            // Устанавливаем цвет очистки (темный, чтобы оранжевый треугольник был виден)
             GL.ClearColor(0.1f, 0.1f, 0.1f, 1.0f);
             
             CheckGLError("OnLoad complete");
@@ -89,8 +73,8 @@ public class RenderPipeline : IDisposable
         
         float[] vertices = {
             -0.5f, -0.5f, 0.0f, // Bottom-left
-             0.5f, -0.5f, 0.0f, // Bottom-right  
-             0.0f,  0.5f, 0.0f  // Top
+            0.5f, -0.5f, 0.0f, // Bottom-right  
+            0.0f,  0.5f, 0.0f  // Top
         };
 
         // Генерируем VAO
@@ -145,6 +129,7 @@ public class RenderPipeline : IDisposable
     private void CheckGLError(string context)
     {
         var error = GL.GetError();
+        
         if (error != ErrorCode.NoError)
         {
             Logger.Error($"OpenGL error in {context}: {error}");

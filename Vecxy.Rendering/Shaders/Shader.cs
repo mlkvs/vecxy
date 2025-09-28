@@ -2,21 +2,14 @@
 
 namespace Vecxy.Rendering;
 
-public class Shader : IDisposable
+public class Shader(string source, ShaderType type) : IDisposable
 {
     public int Id { get; private set; }
     public int ProgramId { get; private set; } = -1;
-
-    public readonly string Source;
-    public readonly ShaderType Type;
+    public string Source { get; } = source;
+    public ShaderType Type { get; } = type;
 
     private bool _isDisposed;
-
-    public Shader(string source, ShaderType type)
-    {
-        Source = source;
-        Type = type;
-    }
 
     public void Initialize()
     {
