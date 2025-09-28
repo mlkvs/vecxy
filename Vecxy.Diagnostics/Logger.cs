@@ -30,7 +30,10 @@ public static class Logger
     
     private static void Log(LogLevel level, string message, string caller)
     {
-        if (level < Level) return;
+        if (level < Level)
+        {
+            return;
+        }
         
         var timestamp = DateTime.Now.ToString("HH:mm:ss.fff");
         
@@ -40,6 +43,6 @@ public static class Logger
 
         var log = new Log(level, message, caller, timestamp);
         
-        OnLog(log);
+        OnLog?.Invoke(log);
     }
 }
