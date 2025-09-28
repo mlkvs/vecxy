@@ -24,6 +24,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Vecxy.Reflection.Tests", "V
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Vecxy.Graphics", "Vecxy.Graphics\Vecxy.Graphics.csproj", "{6966E11F-7F5D-4C61-A628-6B277CF684CD}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Vecxy.Diagnostics", "Vecxy.Diagnostics\Vecxy.Diagnostics.csproj", "{30BC5735-FCC8-4DB6-851D-7DB49C8ABA19}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -78,5 +80,9 @@ Global
 		{6966E11F-7F5D-4C61-A628-6B277CF684CD}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{6966E11F-7F5D-4C61-A628-6B277CF684CD}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{6966E11F-7F5D-4C61-A628-6B277CF684CD}.Release|Any CPU.Build.0 = Release|Any CPU
+		{30BC5735-FCC8-4DB6-851D-7DB49C8ABA19}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{30BC5735-FCC8-4DB6-851D-7DB49C8ABA19}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{30BC5735-FCC8-4DB6-851D-7DB49C8ABA19}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{30BC5735-FCC8-4DB6-851D-7DB49C8ABA19}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal

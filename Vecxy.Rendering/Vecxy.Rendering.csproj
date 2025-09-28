@@ -11,7 +11,9 @@
     </ItemGroup>
 
     <ItemGroup>
+      <ProjectReference Include="..\Vecxy.Diagnostics\Vecxy.Diagnostics.csproj" />
       <ProjectReference Include="..\Vecxy.IO\Vecxy.IO.csproj" />
+      <ProjectReference Include="..\Vecxy.Math\Vecxy.Math.csproj" />
       <ProjectReference Include="..\Vecxy.Reflection\Vecxy.Reflection.csproj" />
     </ItemGroup>
 
