@@ -23,9 +23,20 @@ public class RenderPipeline
 
     private void OnLoad()
     {
-        var shaderSource = Assembly
-            .GetExecutingAssembly()
-            .GetEmbeddedResource("sprite.frag.glsl")
-            ?.Text();
+        var assembly = Assembly.GetExecutingAssembly();
+        
+        var fragment = assembly
+            .GetEmbeddedResource("base.frag")
+            !.Text();
+
+        var vertex = assembly
+            .GetEmbeddedResource("base.vert")
+            !.Text();
+
+        var shader = new ShaderProgram(vertex, fragment);
+        
+        shader.Initialize();
+        shader.Compile();
+        shader.Link();
     }
 }

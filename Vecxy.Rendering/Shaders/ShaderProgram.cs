@@ -67,6 +67,9 @@ public class ShaderProgram : IDisposable
             result.Log = log;
             result.Success = false;
         }
+        
+        _vertexShader.Dispose();
+        _fragmentShader.Dispose();
 
         return result;
     }
