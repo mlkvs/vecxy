@@ -1,7 +1,6 @@
 ﻿using OpenTK.Graphics.OpenGL;
 using Vecxy.Diagnostics;
-
-namespace Vecxy.Rendering;
+using Vecxy.Rendering;
 
 public class ShaderProgram : IDisposable
 {
@@ -30,28 +29,28 @@ public class ShaderProgram : IDisposable
 
     public void Compile()
     {
-        var result = _vertexShader.Compile();
+        Logger.Info("Compiling vertex shader...");
+        var vertexResult = _vertexShader.Compile();
         
-        if (result.Success == false)
+        if (!vertexResult.Success)
         {
-            Logger.Error($"Shader {_vertexShader.Type} is not compiled. LogInfo: {result.Log}");
+            throw new Exception($"Vertex shader compilation failed: {vertexResult.Log}");
         }
+        Logger.Info("Vertex shader compiled successfully");
         
-        result = _fragmentShader.Compile();
+        Logger.Info("Compiling fragment shader...");
+        var fragmentResult = _fragmentShader.Compile();
         
-        if (result.Success == false)
+        if (!fragmentResult.Success)
         {
-            Logger.Error($"Shader {_fragmentShader.Type} is not compiled. LogInfo: {result.Log}");
+            throw new Exception($"Fragment shader compilation failed: {fragmentResult.Log}");
         }
+        Logger.Info("Fragment shader compiled successfully");
     }
 
-    public LinkResult Link()
+    public void Link()
     {
-        var result = new LinkResult
-        {
-            Log = null,
-            Success = true
-        };
+        Logger.Info("Linking shader program...");
         
         _vertexShader.Attach(Id);
         _fragmentShader.Attach(Id);
@@ -63,15 +62,23 @@ public class ShaderProgram : IDisposable
         if (success == 0)
         {
             var log = GL.GetProgramInfoLog(Id);
-            
-            result.Log = log;
-            result.Success = false;
+            throw new Exception($"Shader program linking failed: {log}");
         }
         
+        Logger.Info("Shader program linked successfully");
+        
+        // Валидация программы (опционально, но полезно для отладки)
+        GL.ValidateProgram(Id);
+        GL.GetProgram(Id, GetProgramParameterName.ValidateStatus, out var validateStatus);
+        if (validateStatus == 0)
+        {
+            var log = GL.GetProgramInfoLog(Id);
+            Logger.Warning($"Shader program validation warnings: {log}");
+        }
+
+        // Удаляем шейдеры после успешной линковки
         _vertexShader.Dispose();
         _fragmentShader.Dispose();
-
-        return result;
     }
 
     public void Use()
@@ -81,22 +88,14 @@ public class ShaderProgram : IDisposable
 
     public void Dispose()
     {
-        if (_isDisposed)
-        {
-            return;
-        }
+        if (_isDisposed) return;
         
         _vertexShader.Dispose();
         _fragmentShader.Dispose();
         
         GL.DeleteProgram(Id);
-
         _isDisposed = true;
-    }
-    
-    public struct LinkResult
-    {
-        public bool Success;
-        public string? Log;
+        
+        Logger.Info("Shader program disposed");
     }
 }
