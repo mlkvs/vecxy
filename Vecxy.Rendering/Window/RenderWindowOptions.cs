@@ -1,6 +1,6 @@
 ﻿namespace Vecxy.Rendering;
 
-public struct RenderingWindowOptions
+public struct RenderWindowOptions
 {
     public int Width;
     public int Height;

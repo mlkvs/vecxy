@@ -6,25 +6,25 @@ using Vecxy.Reflection;
 
 namespace Vecxy.Rendering;
 
-public class RenderPipeline : IDisposable
+public class RenderPipeline_Test : IDisposable
 {
     private ShaderProgram shader;
     private int vao;
     private int vbo;
     private bool disposed;
 
-    private RenderingWindow _window;
+    private RenderWindow _window;
 
     public void Start()
     {
-        var options = new RenderingWindowOptions
+        var options = new RenderWindowOptions
         {
             Width = 800,
             Height = 600,
             Title = "Vecxy.Rendering",
         };
 
-        using var window = new RenderingWindow(options);
+        using var window = new RenderWindow(options);
 
         _window = window;
         window.Load += OnLoad;

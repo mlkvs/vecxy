@@ -1,4 +1,4 @@
-﻿using Vecxy.Rendering;
+﻿using Vecxy.Engine;
 
 namespace Vecxy.Sandbox;
 
@@ -6,8 +6,8 @@ internal static class Program
 {
     public static void Main(string[] args)
     {
-        var render = new RenderPipeline();
+        using var engine = new VecxyEngine();
         
-        render.Start();
+        engine.Run();
     }
 }
