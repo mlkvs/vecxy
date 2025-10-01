@@ -4,7 +4,12 @@ public class UIRenderPhase : IRenderPhase<IUIRenderContext>
 {
     public RenderPhase Type => RenderPhase.UI;
     public IUIRenderContext Context { get; }
-    
+
+    public void Initialize()
+    {
+        
+    }
+
     public void OnBegin()
     {
     }

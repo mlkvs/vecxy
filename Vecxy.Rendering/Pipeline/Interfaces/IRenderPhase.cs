@@ -3,6 +3,7 @@
 public interface IRenderPhase : IDisposable
 {
     public RenderPhase Type { get; }
+    public void Initialize();
     public void OnBegin();
     public void OnRender();
     public void OnEnd();

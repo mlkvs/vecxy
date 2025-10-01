@@ -7,7 +7,15 @@ public class RenderPipeline(IRenderWindow window) : IDisposable
     private List<IRenderable> _renderables = new();
     private List<IRenderPhase> _phases = new();
 
-    public virtual void Initialize() { }
+    public virtual void Initialize()
+    {
+        for (int index = 0, count = _phases.Count; index < count; index++)
+        {
+            var phase = _phases[index];
+
+            phase.Initialize();
+        }
+    }
     
     public void AddRenderable(IRenderable renderable)
     {

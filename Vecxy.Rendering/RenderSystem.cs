@@ -5,16 +5,17 @@ namespace Vecxy.Rendering;
 public class RenderSystem(IRenderWindow window) : IVecxySystem
 {
     private RenderPipeline _pipeline;
-    private readonly IRenderWindow _window = window;
+
+    private Camera _camera;
 
     public void OnLoad()
     {
-        
+        _camera = new Camera();
     }
 
     public void OnInitialize()
     {
-        _pipeline = new DefaultRenderPipeline(_window);
+        _pipeline = new DefaultRenderPipeline(window);
         
         _pipeline.Initialize();
     }

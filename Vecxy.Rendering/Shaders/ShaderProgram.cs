@@ -1,5 +1,7 @@
-﻿using OpenTK.Graphics.OpenGL;
+﻿using System.Reflection;
+using OpenTK.Graphics.OpenGL;
 using Vecxy.Diagnostics;
+using Vecxy.Reflection;
 
 namespace Vecxy.Rendering;
 
@@ -17,6 +19,16 @@ public class ShaderProgram(string vertexSource, string fragmentSource) : IDispos
     #endregion
 
     #region public api
+
+    public static ShaderProgram Create(string vertexSourcePath, string fragmentSourcePath)
+    {
+        var assembly = Assembly.GetExecutingAssembly();
+
+        var vertexSource = assembly.GetEmbeddedResource(vertexSourcePath)!.Text();
+        var fragmentSource = assembly.GetEmbeddedResource(fragmentSourcePath)!.Text();
+        
+        return new ShaderProgram(vertexSource, fragmentSource);
+    }
 
     public void Initialize()
     {

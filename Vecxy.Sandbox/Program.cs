@@ -6,7 +6,7 @@ internal static class Program
 {
     public static void Main(string[] args)
     {
-        using var engine = new VecxyEngine();
+        var engine = new VecxyEngine();
         
         engine.Run();
     }

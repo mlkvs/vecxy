@@ -42,19 +42,7 @@ public class RenderPipeline_Test : IDisposable
             
             Logger.Info("Initializing render pipeline...");
             
-            var assembly = Assembly.GetExecutingAssembly();
             
-            var vertexSource = assembly.GetEmbeddedResource("Shaders.base.vert")!.Text();
-            var fragmentSource = assembly.GetEmbeddedResource("Shaders.base.frag")!.Text();
-            
-            shader = new ShaderProgram(vertexSource, fragmentSource);
-            shader.Initialize();
-            shader.Compile();
-            shader.Link();
-            
-            CreateTriangle();
-            
-            GL.ClearColor(0.1f, 0.1f, 0.1f, 1.0f);
             
             CheckGLError("OnLoad complete");
             
@@ -67,40 +55,7 @@ public class RenderPipeline_Test : IDisposable
         }
     }
 
-    private void CreateTriangle()
-    {
-        Logger.Info("Creating triangle geometry...");
-        
-        float[] vertices = {
-            -0.5f, -0.5f, 0.0f, // Bottom-left
-            0.5f, -0.5f, 0.0f, // Bottom-right  
-            0.0f,  0.5f, 0.0f  // Top
-        };
-
-        // Генерируем VAO
-        vao = GL.GenVertexArray();
-        GL.BindVertexArray(vao);
-        Logger.Info($"Generated VAO: {vao}");
-
-        // Генерируем и настраиваем VBO
-        vbo = GL.GenBuffer();
-        GL.BindBuffer(BufferTarget.ArrayBuffer, vbo);
-        Logger.Info($"Generated VBO: {vbo}");
-
-        GL.BufferData(BufferTarget.ArrayBuffer, vertices.Length * sizeof(float), vertices, BufferUsageHint.StaticDraw);
-        CheckGLError("After buffer data");
-
-        // Настраиваем атрибуты вершин
-        GL.VertexAttribPointer(0, 3, VertexAttribPointerType.Float, false, 3 * sizeof(float), 0);
-        GL.EnableVertexAttribArray(0);
-        CheckGLError("After vertex attributes");
-
-        // Отвязываем
-        GL.BindBuffer(BufferTarget.ArrayBuffer, 0);
-        GL.BindVertexArray(0);
-        
-        Logger.Info("Triangle geometry created successfully");
-    }
+    
 
     private void OnRenderFrame(FrameEventArgs e)
     {
