@@ -4,7 +4,8 @@ namespace Vecxy.Rendering;
 
 public class RenderSystem(IRenderWindow window) : IVecxySystem
 {
-    private RenderPipeline _pipeline;
+    private RenderPipelineBase _pipelineBase;
+    private D2RenderContext _d2Context;
 
     private Camera _camera;
 
@@ -15,14 +16,16 @@ public class RenderSystem(IRenderWindow window) : IVecxySystem
 
     public void OnInitialize()
     {
-        _pipeline = new DefaultRenderPipeline(window);
+        _d2Context = new D2RenderContext(window);
         
-        _pipeline.Initialize();
+        _pipelineBase = new DefaultRenderPipelineBase(_d2Context);
+        
+        _pipelineBase.Initialize();
     }
 
     public void OnTick()
     {
-        _pipeline.Render();
+        _pipelineBase.Render();
     }
 
     public void OnUnload()
@@ -32,6 +35,6 @@ public class RenderSystem(IRenderWindow window) : IVecxySystem
 
     public void Dispose()
     {
-        _pipeline.Dispose();
+        _pipelineBase.Dispose();
     }
 }

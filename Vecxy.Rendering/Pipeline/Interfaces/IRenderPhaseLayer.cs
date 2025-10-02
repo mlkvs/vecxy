@@ -1,9 +1,8 @@
 ﻿namespace Vecxy.Rendering;
 
-public interface IRenderPhase : IDisposable
+public interface IRenderPhaseLayer : IDisposable
 {
-    public RENDER_PHASE_TYPE Type { get; }
-    
+    public RENDER_PHASE_LAYER_TYPE Type { get; }
     public void Initialize(IRenderContext ctx);
     public void OnBegin(IRenderContext ctx);
     public void OnRender(IRenderContext ctx);

@@ -1,6 +1,3 @@
 ﻿namespace Vecxy.Rendering;
 
-public class D2RenderContext : ID2RenderContext
-{
-    public Camera Camera { get; }
-}
+public class D2RenderContext(IRenderWindow window) : RenderContextBase(window);

@@ -2,5 +2,6 @@
 
 public interface IRenderContext
 {
-    Camera Camera { get; }
+    public void Clear();
+    public void SwapBuffers();
 }
