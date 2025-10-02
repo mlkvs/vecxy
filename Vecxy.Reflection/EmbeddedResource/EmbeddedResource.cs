@@ -117,4 +117,9 @@ public class EmbeddedResource
         
         return reader.ReadToEnd();
     }
+
+    public Stream Stream()
+    {
+        return Assembly.GetManifestResourceStream(ResourcePath)!;
+    }
 }

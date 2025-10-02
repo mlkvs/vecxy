@@ -4,7 +4,6 @@ namespace Vecxy.Rendering;
 
 public abstract class RenderPipelineBase(IRenderContext context) : IDisposable
 {
-    private List<IRenderable> _renderables = new();
     private List<IRenderPhase> _phases = new();
 
     public virtual void Initialize()
@@ -13,13 +12,18 @@ public abstract class RenderPipelineBase(IRenderContext context) : IDisposable
         {
             var phase = _phases[index];
 
-            phase.Initialize(context);
+            phase.Initialize();
         }
     }
     
-    public void AddRenderable(IRenderable renderable)
+    public void RegisterRenderable(IRenderable renderable)
     {
-        _renderables.Add(renderable);
+        for (int index = 0, count = _phases.Count; index < count; index++)
+        {
+            var phase = _phases[index];
+            
+            phase.RegisterRenderable(renderable);
+        }
     }
 
     public void Render()
@@ -40,17 +44,17 @@ public abstract class RenderPipelineBase(IRenderContext context) : IDisposable
 
     protected virtual void OnRenderFrameBegin(IRenderPhase phase)
     {
-        phase.OnBegin(context);
+        phase.OnBegin();
     }
     
     protected virtual void OnRenderFrame(IRenderPhase phase)
     {
-        phase.OnRender(context);
+        phase.OnRender();
     }
     
     protected virtual void OnRenderFrameEnd(IRenderPhase phase)
     {
-        phase.OnEnd(context);
+        phase.OnEnd();
     }
 
     protected void RegisterPhase(IRenderPhase phase)

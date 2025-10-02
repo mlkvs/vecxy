@@ -8,6 +8,7 @@
 
     <ItemGroup>
       <PackageReference Include="OpenTK" Version="4.9.4" />
+      <PackageReference Include="StbImageSharp" Version="2.30.15" />
     </ItemGroup>
 
     <ItemGroup>
@@ -22,6 +23,8 @@
       <EmbeddedResource Include="EmbeddedResources\Shaders\**\*.glsl" />
       <EmbeddedResource Include="EmbeddedResources\Shaders\**\*.frag" />
       <EmbeddedResource Include="EmbeddedResources\Shaders\**\*.vert" />
+        
+      <EmbeddedResource Include="EmbeddedResources\Sprites\**\*.jpg" />
     </ItemGroup>
 
 </Project>

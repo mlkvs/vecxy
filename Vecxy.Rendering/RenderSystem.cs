@@ -1,10 +1,11 @@
-﻿using Vecxy.Kernel;
+﻿using System.Numerics;
+using Vecxy.Kernel;
 
 namespace Vecxy.Rendering;
 
 public class RenderSystem(IRenderWindow window) : IVecxySystem
 {
-    private RenderPipelineBase _pipelineBase;
+    private RenderPipelineBase _pipeline;
     private D2RenderContext _d2Context;
 
     private Camera _camera;
@@ -18,14 +19,24 @@ public class RenderSystem(IRenderWindow window) : IVecxySystem
     {
         _d2Context = new D2RenderContext(window);
         
-        _pipelineBase = new DefaultRenderPipelineBase(_d2Context);
+        _pipeline = new DefaultRenderPipelineBase(_d2Context);
         
-        _pipelineBase.Initialize();
+        _pipeline.Initialize();
+        
+        var texture = new Texture("Sprites.test.jpg");
+        var sprite = new Sprite(texture)
+        {
+            Position = new Vector2(-0.5f, -0.5f),
+            Size = new Vector2(1f, 1f),
+            Color = new Vector4(1f, 1f, 1f, 1f)
+        };
+        
+        _pipeline.RegisterRenderable(sprite);
     }
 
     public void OnTick()
     {
-        _pipelineBase.Render();
+        _pipeline.Render();
     }
 
     public void OnUnload()
@@ -35,6 +46,6 @@ public class RenderSystem(IRenderWindow window) : IVecxySystem
 
     public void Dispose()
     {
-        _pipelineBase.Dispose();
+        _pipeline.Dispose();
     }
 }
