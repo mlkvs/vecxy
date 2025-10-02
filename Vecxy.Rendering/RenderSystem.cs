@@ -19,15 +19,15 @@ public class RenderSystem(IRenderWindow window) : IVecxySystem
     {
         _d2Context = new D2RenderContext(window);
         
-        _pipeline = new DefaultRenderPipelineBase(_d2Context);
+        _pipeline = new DefaultRenderPipeline(_d2Context);
         
         _pipeline.Initialize();
         
         var texture = new Texture("Sprites.test.jpg");
         var sprite = new Sprite(texture)
         {
-            Position = new Vector2(-0.5f, -0.5f),
-            Size = new Vector2(1f, 1f),
+            Position = new Vector2(100, 100), // позиция в пикселях
+            Size = new Vector2(200, 200),     // размер в пикселях
             Color = new Vector4(1f, 1f, 1f, 1f)
         };
         

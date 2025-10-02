@@ -13,9 +13,9 @@ public class D2RenderPhase(ID2RenderContext context) : RenderPhaseBase(context)
 
     public override void OnBegin()
     {
-        base.OnBegin();
-        
         context.BeginBatch();
+        
+        base.OnBegin();
     }
 
     public override void OnEnd()

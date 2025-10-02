@@ -19,6 +19,6 @@ public class Sprite : IRenderable
         if (context is not ID2RenderContext d2Context)
             throw new InvalidOperationException("Context must be ID2RenderContext");
 
-        d2Context.DrawSprite(Texture, Position, Size, Color);
+        d2Context.AddSpriteToBatch(this);
     }
 }

@@ -1,18 +1,18 @@
-﻿#version 100
+﻿#version 330
+precision mediump float;
 
-attribute vec2 a_Position;
-attribute vec2 a_TexCoord;
+in vec2 a_Position;
+in vec2 a_TexCoord;
 
 uniform vec2 u_Position;
 uniform vec2 u_Size;
+uniform mat4 u_Projection;
 
-varying vec2 v_TexCoord;
+out vec2 v_TexCoord;
 
 void main()
 {
-    vec2 pos = a_Position * u_Size + u_Position;
-    
-    gl_Position = vec4(pos, 0.0, 1.0);
-    
+    vec2 worldPos = a_Position * u_Size + u_Position;
+    gl_Position = u_Projection * vec4(worldPos, 0.0, 1.0);
     v_TexCoord = a_TexCoord;
 }

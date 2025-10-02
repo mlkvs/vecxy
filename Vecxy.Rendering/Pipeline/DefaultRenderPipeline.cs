@@ -1,6 +1,6 @@
 ﻿namespace Vecxy.Rendering;
 
-public class DefaultRenderPipelineBase(ID2RenderContext context) : RenderPipelineBase(context)
+public class DefaultRenderPipeline(ID2RenderContext context) : RenderPipelineBase(context)
 {
     public override void Initialize()
     {
