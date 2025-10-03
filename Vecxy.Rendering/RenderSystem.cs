@@ -19,6 +19,8 @@ public class RenderSystem(IRenderWindow window) : IVecxySystem
     {
         _d2Context = new D2RenderContext(window);
         
+        _d2Context.Initialize();
+        
         _pipeline = new DefaultRenderPipeline(_d2Context);
         
         _pipeline.Initialize();

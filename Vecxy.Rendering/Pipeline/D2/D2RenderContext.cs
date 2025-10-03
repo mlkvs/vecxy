@@ -5,7 +5,7 @@ using System.Numerics;
 
 namespace Vecxy.Rendering;
 
-public class D2RenderContext : RenderContextBase, ID2RenderContext
+public class D2RenderContext(IRenderWindow window) : RenderContextBase(window), ID2RenderContext
 {
     private ShaderProgram _currentShader;
     private int _vao;
@@ -17,14 +17,14 @@ public class D2RenderContext : RenderContextBase, ID2RenderContext
     private readonly int _maxSprites = 1000;
     private bool _isBatching = false;
 
-    private readonly int _windowWidth;
-    private readonly int _windowHeight;
+    private int _windowWidth;
+    private int _windowHeight;
 
     private const int VERTEX_SIZE = 4;
     private const int VERTICES_PER_SPRITE = 6;
     private const int FLOATS_PER_SPRITE = VERTICES_PER_SPRITE * VERTEX_SIZE;
 
-    public D2RenderContext(IRenderWindow window) : base(window)
+    public void Initialize()
     {
         _windowWidth = window.Width;
         _windowHeight = window.Height;
