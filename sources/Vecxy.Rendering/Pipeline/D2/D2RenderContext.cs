@@ -7,12 +7,12 @@ namespace Vecxy.Rendering;
 
 public class D2RenderContext(IRenderWindow window) : RenderContextBase(window), ID2RenderContext
 {
-    private ShaderProgram _currentShader;
+    private ShaderProgram? _currentShader;
     private int _vao;
     private int _vbo;
 
-    private readonly List<Sprite> _batchSprites = new();
-    private float[] _vertexBuffer;
+    private readonly List<Sprite> _batchSprites = [];
+    private float[]? _vertexBuffer;
     private int _vertexBufferIndex;
     private readonly int _maxSprites = 1000;
     private bool _isBatching = false;
@@ -26,8 +26,8 @@ public class D2RenderContext(IRenderWindow window) : RenderContextBase(window), 
 
     public void Initialize()
     {
-        _windowWidth = window.Width;
-        _windowHeight = window.Height;
+        _windowWidth = Window.Width;
+        _windowHeight = Window.Height;
 
         _vertexBuffer = new float[_maxSprites * FLOATS_PER_SPRITE];
         _vbo = GL.GenBuffer();
@@ -50,7 +50,7 @@ public class D2RenderContext(IRenderWindow window) : RenderContextBase(window), 
         GL.BindVertexArray(_vao);
 
         GL.BindBuffer(BufferTarget.ArrayBuffer, _vbo);
-        GL.BufferData(BufferTarget.ArrayBuffer, _vertexBuffer.Length * sizeof(float), IntPtr.Zero, BufferUsageHint.DynamicDraw);
+        GL.BufferData(BufferTarget.ArrayBuffer, _vertexBuffer!.Length * sizeof(float), IntPtr.Zero, BufferUsageHint.DynamicDraw);
 
         GL.EnableVertexAttribArray(0);
         GL.VertexAttribPointer(0, 2, VertexAttribPointerType.Float, false, VERTEX_SIZE * sizeof(float), 0);
@@ -75,11 +75,8 @@ public class D2RenderContext(IRenderWindow window) : RenderContextBase(window), 
     public void AddSpriteToBatch(Sprite sprite)
     {
         if (!_isBatching)
-            BeginBatch();
-
-        if (_batchSprites.Count >= _maxSprites)
         {
-            BeginBatch();
+            return;
         }
 
         _batchSprites.Add(sprite);
@@ -115,7 +112,10 @@ public class D2RenderContext(IRenderWindow window) : RenderContextBase(window), 
 
     public void Flush()
     {
-        if (_batchSprites.Count == 0) return;
+        if (_batchSprites.Count == 0)
+        {
+            return;
+        }
 
         _currentShader.Use();
 
@@ -124,7 +124,6 @@ public class D2RenderContext(IRenderWindow window) : RenderContextBase(window), 
 
         if (_batchSprites[0].Texture != null)
         {
-            GL.ActiveTexture(TextureUnit.Texture0);
             _batchSprites[0].Texture.Bind();
             _currentShader.SetUniform("u_Texture", 0);
         }
@@ -144,6 +143,7 @@ public class D2RenderContext(IRenderWindow window) : RenderContextBase(window), 
         _vertexBufferIndex = 0;
     }
 
+    // TODO: Разобраться как работает ортографическая проекция камеры
     private Matrix4x4 CreateOrtho(int width, int height)
     {
         float right = width * 0.5f;

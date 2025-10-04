@@ -104,7 +104,7 @@ public class ShaderProgram(string vertexSource, string fragmentSource) : IDispos
 
     #endregion
 
-    #region Uniforms
+    #region uniforms
 
     public void SetUniform(string name, int value)
     {
