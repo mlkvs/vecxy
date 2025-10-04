@@ -1,5 +1,4 @@
 ﻿using OpenTK.Graphics.OpenGL;
-using Vector2 = System.Numerics.Vector2;
 using Vector4 = System.Numerics.Vector4;
 using System.Numerics;
 
@@ -14,8 +13,8 @@ public class D2RenderContext(IRenderWindow window) : RenderContextBase(window), 
     private readonly List<Sprite> _batchSprites = [];
     private float[]? _vertexBuffer;
     private int _vertexBufferIndex;
-    private readonly int _maxSprites = 1000;
-    private bool _isBatching = false;
+    private const int MAX_SPRITES = 1000;
+    private bool _isBatching;
 
     private const int VERTEX_SIZE = 4;
     private const int VERTICES_PER_SPRITE = 6;
@@ -23,7 +22,7 @@ public class D2RenderContext(IRenderWindow window) : RenderContextBase(window), 
 
     public void Initialize()
     {
-        _vertexBuffer = new float[_maxSprites * FLOATS_PER_SPRITE];
+        _vertexBuffer = new float[MAX_SPRITES * FLOATS_PER_SPRITE];
         _vbo = GL.GenBuffer();
 
         InitializeQuad();
