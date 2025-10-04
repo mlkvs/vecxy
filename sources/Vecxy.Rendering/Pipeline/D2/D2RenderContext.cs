@@ -17,27 +17,20 @@ public class D2RenderContext(IRenderWindow window) : RenderContextBase(window), 
     private readonly int _maxSprites = 1000;
     private bool _isBatching = false;
 
-    private int _windowWidth;
-    private int _windowHeight;
-
     private const int VERTEX_SIZE = 4;
     private const int VERTICES_PER_SPRITE = 6;
     private const int FLOATS_PER_SPRITE = VERTICES_PER_SPRITE * VERTEX_SIZE;
 
     public void Initialize()
     {
-        _windowWidth = Window.Width;
-        _windowHeight = Window.Height;
-
         _vertexBuffer = new float[_maxSprites * FLOATS_PER_SPRITE];
         _vbo = GL.GenBuffer();
 
         InitializeQuad();
 
-        _currentShader = ShaderProgram.Create("Shaders.base.vert", "Shaders.base.frag");
-        _currentShader.Initialize();
-        _currentShader.Compile();
-        _currentShader.Link();
+        _currentShader = ShaderProgram
+            .Create("Shaders.base.vert", "Shaders.base.frag")
+            .Build();
 
         GL.Enable(EnableCap.Blend);
         GL.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha);
@@ -119,7 +112,7 @@ public class D2RenderContext(IRenderWindow window) : RenderContextBase(window), 
 
         _currentShader.Use();
 
-        _currentShader.SetUniform("u_Projection", CreateOrtho(_windowWidth, _windowHeight));
+        _currentShader.SetUniform("u_Projection", CreateOrtho(Window.Width, Window.Height));
         _currentShader.SetUniform("u_Color", new Vector4(1f, 1f, 1f, 1f));
 
         if (_batchSprites[0].Texture != null)

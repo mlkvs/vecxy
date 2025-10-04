@@ -1,13 +1,13 @@
-﻿using System;
-using System.Reflection;
+﻿using System.Reflection;
 using OpenTK.Graphics.OpenGL;
 using System.Numerics;
 using Vecxy.Diagnostics;
+using Vecxy.Kernel;
 using Vecxy.Reflection;
 
 namespace Vecxy.Rendering;
 
-public class ShaderProgram(string vertexSource, string fragmentSource) : IDisposable
+public class ShaderProgram(string vertexSource, string fragmentSource) : IDisposable, IBuildable<ShaderProgram>
 {
     #region fields
 
@@ -20,9 +20,22 @@ public class ShaderProgram(string vertexSource, string fragmentSource) : IDispos
 
     #endregion
 
+    #region IBuildable<ShaderProgram>
+
+    ShaderProgram IBuildable<ShaderProgram>.Build()
+    {
+        Initialize();
+        Compile();
+        Link();
+
+        return this;
+    }
+
+    #endregion
+
     #region public api
 
-    public static ShaderProgram Create(string vertexSourcePath, string fragmentSourcePath)
+    public static IBuildable<ShaderProgram> Create(string vertexSourcePath, string fragmentSourcePath)
     {
         var assembly = Assembly.GetExecutingAssembly();
 
@@ -85,25 +98,7 @@ public class ShaderProgram(string vertexSource, string fragmentSource) : IDispos
     {
         GL.UseProgram(Id);
     }
-
-    public void Dispose()
-    {
-        if (_isDisposed)
-        {
-            return;
-        }
-        
-        _vertexShader.Dispose();
-        _fragmentShader.Dispose();
-        
-        GL.DeleteProgram(Id);
-        
-        _isDisposed = true;
-        Logger.Info("Shader program disposed");
-    }
-
-    #endregion
-
+    
     #region uniforms
 
     public void SetUniform(string name, int value)
@@ -148,6 +143,24 @@ public class ShaderProgram(string vertexSource, string fragmentSource) : IDispos
             };
             GL.UniformMatrix4(location, 1, transpose, m);
         }
+    }
+
+    #endregion
+
+    public void Dispose()
+    {
+        if (_isDisposed)
+        {
+            return;
+        }
+        
+        _vertexShader.Dispose();
+        _fragmentShader.Dispose();
+        
+        GL.DeleteProgram(Id);
+        
+        _isDisposed = true;
+        Logger.Info("Shader program disposed");
     }
 
     #endregion
