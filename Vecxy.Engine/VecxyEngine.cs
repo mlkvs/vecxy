@@ -9,11 +9,12 @@ public class VecxyEngine : IDisposable
 
     public VecxyEngine()
     {
-        _window =  new RenderWindow(new RenderWindowOptions
+        _window = RenderWindow.Create(new RenderWindowOptions
         {
             Width = 800,
             Height = 600,
             Title = "Vecxy.Rendering",
+            IsDebug = true
         });
         
         _window.Load += OnLoad;
