@@ -25,7 +25,7 @@ public class Texture : IDisposable
 
         Width = image.Width;
         Height = image.Height;
-
+        
         Id = GL.GenTexture();
         Bind();
 

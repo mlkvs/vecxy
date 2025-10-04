@@ -111,7 +111,7 @@ public class EmbeddedResource
     
     public string Text()
     {
-        using var stream = Assembly.GetManifestResourceStream(ResourcePath)!;
+        using var stream = Stream();
         
         using var reader = new StreamReader(stream);
         
