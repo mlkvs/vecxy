@@ -1,2 +1,2 @@
-- [Days](./Notes.Days)
-- [Math](./Notes.Math)
+- [Days](./Notes.Days.md)
+- [Math](./Notes.Math.md)
