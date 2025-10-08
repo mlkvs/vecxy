@@ -13,6 +13,10 @@ public class VertexArrayObject
         GL.BindVertexArray(Id);
         
         GL.BindBuffer(BufferTarget.ArrayBuffer, Id);
-        
+    }
+
+    public void Bind()
+    {
+        GL.BindVertexArray(Id);
     }
 }

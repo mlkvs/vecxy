@@ -4,7 +4,7 @@ using System.Numerics;
 
 namespace Vecxy.Rendering;
 
-public class D2RenderContext(IRenderWindow window) : RenderContextBase(window), ID2RenderContext
+public class D2RenderContext : RenderContextBase, ID2RenderContext
 {
     private ShaderProgram? _currentShader;
     private int _vao;
@@ -13,14 +13,14 @@ public class D2RenderContext(IRenderWindow window) : RenderContextBase(window), 
     private readonly List<Sprite> _batchSprites = [];
     private float[]? _vertexBuffer;
     private int _vertexBufferIndex;
-    private const int MAX_SPRITES = 1000;
     private bool _isBatching;
 
+    private const int MAX_SPRITES = 1000;
     private const int VERTEX_SIZE = 4;
     private const int VERTICES_PER_SPRITE = 6;
     private const int FLOATS_PER_SPRITE = VERTICES_PER_SPRITE * VERTEX_SIZE;
 
-    public void Initialize()
+    public D2RenderContext(IRenderWindow window) : base(window)
     {
         _vertexBuffer = new float[MAX_SPRITES * FLOATS_PER_SPRITE];
         _vbo = GL.GenBuffer();
@@ -57,53 +57,19 @@ public class D2RenderContext(IRenderWindow window) : RenderContextBase(window), 
     public void BeginBatch()
     {
         if (_isBatching)
+        {
             return;
+        }
 
         _batchSprites.Clear();
         _vertexBufferIndex = 0;
         _isBatching = true;
     }
-
-    public void AddSpriteToBatch(Sprite sprite)
-    {
-        if (!_isBatching)
-        {
-            return;
-        }
-
-        _batchSprites.Add(sprite);
-
-        float x0 = sprite.Position.X;
-        float y0 = sprite.Position.Y;
-        float x1 = x0 + sprite.Size.X;
-        float y1 = y0 + sprite.Size.Y;
-
-        float u0 = 0f;
-        float v0 = 1f;
-        float u1 = 1f;
-        float v1 = 0f;
-
-        float[] quadVertices = {
-            x0, y0, u0, v0,
-            x1, y0, u1, v0,
-            x1, y1, u1, v1,
-
-            x0, y0, u0, v0,
-            x1, y1, u1, v1,
-            x0, y1, u0, v1
-        };
-
-        Array.Copy(quadVertices, 0, _vertexBuffer, _vertexBufferIndex, quadVertices.Length);
-        _vertexBufferIndex += quadVertices.Length;
-    }
-
+    
     public void EndBatch()
     {
         _isBatching = false;
-    }
 
-    public void Flush()
-    {
         if (_batchSprites.Count == 0)
         {
             return;
@@ -133,6 +99,39 @@ public class D2RenderContext(IRenderWindow window) : RenderContextBase(window), 
 
         _batchSprites.Clear();
         _vertexBufferIndex = 0;
+    }
+    
+    public void DrawSprite(Sprite sprite)
+    {
+        if (!_isBatching)
+        {
+            return;
+        }
+
+        _batchSprites.Add(sprite);
+
+        var x0 = sprite.Position.X;
+        var y0 = sprite.Position.Y;
+        var x1 = x0 + sprite.Size.X;
+        var y1 = y0 + sprite.Size.Y;
+
+        var u0 = 0f;
+        var v0 = 1f;
+        var u1 = 1f;
+        var v1 = 0f;
+
+        float[] quadVertices = {
+            x0, y0, u0, v0,
+            x1, y0, u1, v0,
+            x1, y1, u1, v1,
+
+            x0, y0, u0, v0,
+            x1, y1, u1, v1,
+            x0, y1, u0, v1
+        };
+
+        Array.Copy(quadVertices, 0, _vertexBuffer, _vertexBufferIndex, quadVertices.Length);
+        _vertexBufferIndex += quadVertices.Length;
     }
 
     // TODO: Разобраться как работает ортографическая проекция камеры

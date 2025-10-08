@@ -13,12 +13,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "vault/notes/Notes.md",
+                "file": "vault/notes/Notes.Rendering.OpenGL.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "Notes"
+              "title": "Notes.Rendering.OpenGL"
             }
           }
         ]
@@ -185,21 +185,22 @@
   },
   "active": "4da5ae2772f9a00d",
   "lastOpenFiles": [
-    "vault/notes/Notes.Days.md",
     "vault/notes/Notes.Math.md",
-    "README.md",
+    "vault/notes/Notes.Days.md",
+    "vault/notes/Notes.Rendering.OpenGL.md",
+    "sources/Vecxy.Rendering/EmbeddedResources/Shaders/test.frag~",
+    "sources/Vecxy.Rendering/EmbeddedResources/Shaders/test.vert~",
+    "sources/Vecxy.Rendering/Pipeline/D2/Sprite.cs~",
+    "sources/Vecxy.Rendering/GraphicsDevice.cs~",
+    "sources/Vecxy.Rendering/GraphicsDevice.cs",
+    "sources/Vecxy.Rendering/Pipeline/Test/TestRenderPhase.cs~",
     "vault/notes/Notes.md",
-    "vault/notes",
+    "sources/Vecxy.Rendering/RenderSystem.cs~",
+    "sources/Vecxy.Kernel/Interfaces/IVecxySystem.cs~",
+    "sources/Vecxy.Rendering/Pipeline/Base/RenderContextBase.cs~",
+    "sources/Vecxy.Rendering/Window/Interfaces/IRenderWindow.cs~",
+    "README.md",
     "vault/docs/Docs.Vecxy.Rendering.md",
-    "vault/math",
-    "sources/Vecxy.Rendering/Pipeline/D2/Primitives/D2QuadPrimitive.cs~",
-    "sources/Vecxy.Rendering/Pipeline/D2/Primitives/D2QuadPrimitive.cs",
-    "sources/Vecxy.Rendering/Pipeline/D2/Primitives",
-    "sources/Vecxy.Kernel/Interfaces/IBuildable.cs~",
-    "sources/Vecxy.Kernel/Interfaces/IBuildable.cs",
-    "vault/docs",
-    "sources/Vecxy.Rendering/Docs",
-    "vault",
     "Welcome.md"
   ]
 }

@@ -1,10 +1,11 @@
-﻿using Vecxy.Rendering;
+﻿using Vecxy.Kernel;
+using Vecxy.Rendering;
 
 namespace Vecxy.Engine;
 
 public class VecxyEngine : IDisposable
 {
-    private readonly RenderSystem _render;
+    private readonly IVecxySystem _render;
     private readonly RenderWindow _window;
 
     public VecxyEngine()
@@ -43,7 +44,9 @@ public class VecxyEngine : IDisposable
 
     private void OnFrame(OpenTK.Windowing.Common.FrameEventArgs e)
     {
-        _render.OnTick();
+        var deltaTime = (float)e.Time;
+        
+        _render.OnTick(deltaTime);
     }
 
     private void OnUnload()

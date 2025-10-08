@@ -1,4 +1,5 @@
-﻿using System.Runtime.InteropServices;
+﻿using System.Drawing;
+using System.Runtime.InteropServices;
 using OpenTK.Graphics.OpenGL;
 using OpenTK.Mathematics;
 using OpenTK.Windowing.Common;
@@ -35,6 +36,12 @@ public class RenderWindow : GameWindow, IRenderWindow
         {
             EnableDebugMode();
         }
+    }
+    
+    public void Clear()
+    {
+        GL.Clear(ClearBufferMask.ColorBufferBit);
+        GL.ClearColor(Color.DarkSlateGray);
     }
 
     protected override void OnFramebufferResize(FramebufferResizeEventArgs e)
