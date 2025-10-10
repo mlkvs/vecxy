@@ -5,16 +5,21 @@ namespace Vecxy.Rendering;
 
 // Docs: https://en.wikipedia.org/wiki/Wavefront_.obj_file
 
-public class Obj
+public class Obj(string source)
 {
-    public string Source { get; set; }
+    public string Source { get; set; } = source;
     public List<string> Comments { get; } = [];
     public List<ObjObject> Objects { get; } = [];
+
+    public string[] GetLines()
+    {
+        return Source.Split('\n');
+    }
 }
 
-public class ObjObject
+public class ObjObject(string name)
 {
-    public string Name { get; set; }
+    public string Name { get; set; } = name;
     public bool IsSmoothShading { get; set; }
     public List<Vertex> Vertices { get; } = [];
 }
@@ -67,7 +72,6 @@ public class ObjParser
         { "f", OBJ_TAG.FACE },
     };
 
-    private string _source;
     private string[] _lines;
     private int _position;
     private Obj _obj;
@@ -80,15 +84,11 @@ public class ObjParser
 
     public Obj Parse(string source)
     {
-        _source = source.Trim();
-        _lines = _source.Split("\n");
+        _obj = new Obj(source.Trim());
+        
+        _lines = _obj.GetLines();
         _position = 0;
-
-        _obj = new Obj
-        {
-            Source = source,
-        };
-
+        
         while (_position < _lines.Length)
         {
             var line = GetCurrentLine();
@@ -128,11 +128,8 @@ public class ObjParser
         {
             throw new KeyNotFoundException($"ParseObject. Not a valid obj tag: {line.Tag}");
         }
-
-        var objObject = new ObjObject
-        {
-            Name = line.ToText()
-        };
+        
+        var objObject = new ObjObject(line.ToText());
 
         Next();
 

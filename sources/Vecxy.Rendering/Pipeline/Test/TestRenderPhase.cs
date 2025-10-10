@@ -28,7 +28,7 @@ public class TestRenderPhase() : IRenderPhase
             .Build();
 
         var cubeSource = EmbeddedResource
-            .Get(Assembly.GetExecutingAssembly(), "Models.test.obj")!
+            .Get(Assembly.GetExecutingAssembly(), "Models.test_cube_default.obj")!
             .Text();
         
         var parser = new ObjParser();
