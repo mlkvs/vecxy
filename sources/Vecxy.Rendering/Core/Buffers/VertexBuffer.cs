@@ -2,11 +2,11 @@
 
 namespace Vecxy.Rendering;
 
-public class VertexBufferObject : IDisposable
+public class VertexBuffer : IDisposable
 {
     public int Id { get; private set; }
 
-    public VertexBufferObject()
+    public VertexBuffer()
     {
         Id = GL.GenBuffer();
     }

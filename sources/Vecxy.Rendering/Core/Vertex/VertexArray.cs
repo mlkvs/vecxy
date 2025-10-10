@@ -2,7 +2,7 @@
 
 namespace Vecxy.Rendering;
 
-public class VertexArrayObject
+public class VertexArray
 {
     public int Id { get; private set; }
 

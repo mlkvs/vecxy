@@ -1,11 +1,12 @@
-﻿using System.Numerics;
-using OpenTK.Graphics.OpenGL;
+﻿using OpenTK.Graphics.OpenGL;
 
 namespace Vecxy.Rendering;
 
-public class TestRenderPhase() : RenderPhaseBase(null)
+public class TestRenderPhase() : IRenderPhase
 {
-    public override RENDER_PHASE_TYPE Type => RENDER_PHASE_TYPE.NONE;
+    public RENDER_PHASE_TYPE Type => RENDER_PHASE_TYPE.NONE;
+    
+    private readonly List<IRenderable> _renderables = [];
 
     private ShaderProgram _shader;
     private int _vertexBufferObject;
@@ -15,7 +16,7 @@ public class TestRenderPhase() : RenderPhaseBase(null)
     private float[] _vertices;
     private uint[] _indices;
     
-    public override void OnInitialize()
+    public void OnInitialize()
     {
         GL.Enable(EnableCap.Blend);
         GL.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha);
@@ -83,11 +84,23 @@ public class TestRenderPhase() : RenderPhaseBase(null)
         GL.BufferData(BufferTarget.ElementArrayBuffer, _indices.Length * sizeof(uint), _indices, BufferUsageHint.StaticDraw);
     }
 
-    public override void OnRender()
+    public void OnRender()
     {
         _shader.Use();
         
         GL.BindVertexArray(_vertexArrayObject);
         GL.DrawElements(PrimitiveType.Triangles, _indices.Length, DrawElementsType.UnsignedInt, 0);
+    }
+
+    public void RegisterRenderable(IRenderable renderable)
+    {
+        
+    }
+
+    public void Dispose()
+    {
+        _renderables.Clear();
+        
+        GC.SuppressFinalize(this);
     }
 }

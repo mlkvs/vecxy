@@ -13,12 +13,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "vault/notes/Notes.Rendering.OpenGL.md",
+                "file": "vault/docs/Docs.Vecxy.Rendering.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "Notes.Rendering.OpenGL"
+              "title": "Docs.Vecxy.Rendering"
             }
           }
         ]
@@ -185,22 +185,23 @@
   },
   "active": "4da5ae2772f9a00d",
   "lastOpenFiles": [
-    "vault/notes/Notes.Math.md",
-    "vault/notes/Notes.Days.md",
-    "vault/notes/Notes.Rendering.OpenGL.md",
-    "sources/Vecxy.Rendering/EmbeddedResources/Shaders/test.frag~",
-    "sources/Vecxy.Rendering/EmbeddedResources/Shaders/test.vert~",
-    "sources/Vecxy.Rendering/Pipeline/D2/Sprite.cs~",
-    "sources/Vecxy.Rendering/GraphicsDevice.cs~",
-    "sources/Vecxy.Rendering/GraphicsDevice.cs",
-    "sources/Vecxy.Rendering/Pipeline/Test/TestRenderPhase.cs~",
-    "vault/notes/Notes.md",
-    "sources/Vecxy.Rendering/RenderSystem.cs~",
-    "sources/Vecxy.Kernel/Interfaces/IVecxySystem.cs~",
-    "sources/Vecxy.Rendering/Pipeline/Base/RenderContextBase.cs~",
-    "sources/Vecxy.Rendering/Window/Interfaces/IRenderWindow.cs~",
+    "sources/Vecxy.Rendering/Geometry/Parsers/ObjParser.cs~",
+    "sources/Vecxy.Rendering/Geometry/Parsers/ObjParser.cs",
+    "sources/Vecxy.Rendering/Geometry/Parsers",
+    "sources/Vecxy.Rendering/Pipeline/D3/D3RenderPhase.cs",
+    "sources/Vecxy.Rendering/Pipeline/D3/D3RenderContext.cs",
+    "sources/Vecxy.Rendering/Pipeline/D3/Model.cs",
+    "sources/Vecxy.Rendering/Geometry/Mesh.cs",
+    "sources/Vecxy.Rendering/Geometry/Primitives/Sphere.cs",
+    "sources/Vecxy.Rendering/Geometry/Primitives/Cube.cs",
+    "sources/Vecxy.Rendering/Geometry/Primitives/Quad.cs",
+    "sources/Vecxy.Rendering/Geometry/Primitives",
     "README.md",
     "vault/docs/Docs.Vecxy.Rendering.md",
+    "vault/notes/Notes.md",
+    "vault/notes/Notes.Days.md",
+    "vault/notes/Notes.Math.md",
+    "vault/notes/Notes.Rendering.OpenGL.md",
     "Welcome.md"
   ]
 }

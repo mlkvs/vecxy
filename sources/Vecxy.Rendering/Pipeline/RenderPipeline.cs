@@ -1,5 +1,33 @@
 ﻿namespace Vecxy.Rendering;
 
+public interface IRenderable
+{
+    public RENDER_PHASE_TYPE RenderPhase { get; }
+    public void OnRender(IRenderContext context);
+}
+
+public interface IRenderContext
+{
+    public IRenderWindow Window { get; }
+}
+
+public enum RENDER_PHASE_TYPE
+{
+    NONE = 0,
+    
+    D2 = 1,
+    UI = 2
+}
+
+public interface IRenderPhase : IDisposable
+{
+    public RENDER_PHASE_TYPE Type { get; }
+    
+    public void OnInitialize();
+    public void OnRender();
+    public void RegisterRenderable(IRenderable renderable);
+}
+
 public class RenderPipeline(IRenderWindow window) : IDisposable
 {
     private readonly Dictionary<RENDER_PHASE_TYPE, IRenderPhase> _phases = new();
@@ -41,5 +69,7 @@ public class RenderPipeline(IRenderWindow window) : IDisposable
         }
         
         _phases.Clear();
+        
+        GC.SuppressFinalize(this);
     }
 }

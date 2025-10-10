@@ -4,8 +4,18 @@ using System.Numerics;
 
 namespace Vecxy.Rendering;
 
-public class D2RenderContext : RenderContextBase, ID2RenderContext
+public interface ID2RenderContext : IRenderContext
 {
+    public void BeginBatch();
+    public void EndBatch();
+
+    public void DrawSprite(Sprite sprite);
+}
+
+public class D2RenderContext : ID2RenderContext
+{
+    public IRenderWindow Window { get; private set; }
+    
     private ShaderProgram? _currentShader;
     private int _vao;
     private int _vbo;
@@ -20,8 +30,10 @@ public class D2RenderContext : RenderContextBase, ID2RenderContext
     private const int VERTICES_PER_SPRITE = 6;
     private const int FLOATS_PER_SPRITE = VERTICES_PER_SPRITE * VERTEX_SIZE;
 
-    public D2RenderContext(IRenderWindow window) : base(window)
+    public D2RenderContext(IRenderWindow window)
     {
+        Window = window;
+        
         _vertexBuffer = new float[MAX_SPRITES * FLOATS_PER_SPRITE];
         _vbo = GL.GenBuffer();
 
