@@ -4,6 +4,12 @@ using System.Numerics;
 namespace Vecxy.Rendering;
 
 // Docs: https://en.wikipedia.org/wiki/Wavefront_.obj_file
+// https://www.youtube.com/watch?v=iClme2zsg3I
+// https://en.wikipedia.org/wiki/Non-uniform_rational_B-spline
+// https://en.wikipedia.org/wiki/Shading
+// https://docs.blender.org/manual/en/latest/files/import_export/obj.html#
+// https://gist.github.com/warmwaffles/961bed66d9c1d2ecf30c
+// 
 
 public class Obj(string source)
 {
