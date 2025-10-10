@@ -28,10 +28,11 @@ public class TestRenderPhase() : IRenderPhase
             .Build();
 
         var cubeSource = EmbeddedResource
-            .Get(Assembly.GetExecutingAssembly(), "Models.test_cube_default.obj")!
+            .Get(Assembly.GetExecutingAssembly(), "Models.test.obj")!
             .Text();
         
-        ObjParser.Parse(cubeSource);
+        var parser = new ObjParser();
+        var obj = parser.Parse(cubeSource);
         
         /*var vertices = new[]
         {

@@ -1,4 +1,5 @@
-﻿using System.Numerics;
+﻿using System.Globalization;
+using System.Numerics;
 
 namespace Vecxy.Rendering;
 
@@ -73,10 +74,14 @@ public class ObjParser
 
     private ObjLine? _currentLine;
 
+    private readonly List<Vector3> _v = [];
+    private readonly List<Vector3> _vn = [];
+    private readonly List<Vector2> _vt = [];
+
     public Obj Parse(string source)
     {
-        _source = source;
-        _lines = source.Split("\n");
+        _source = source.Trim();
+        _lines = _source.Split("\n");
         _position = 0;
 
         _obj = new Obj
@@ -104,8 +109,6 @@ public class ObjParser
                 {
                     var objObject = ParseObject();
                     _obj.Objects.Add(objObject);
-
-                    Next();
                     continue;
                 }
 
@@ -131,10 +134,6 @@ public class ObjParser
             Name = line.ToText()
         };
 
-        var v = new List<Vector3>();
-        var vn = new List<Vector3>();
-        var vt = new List<Vector2>();
-
         Next();
 
         do
@@ -145,13 +144,13 @@ public class ObjParser
             {
                 case OBJ_TAG.VERTEX:
                 {
-                    var x = float.Parse(line.Data[0]);
-                    var y = float.Parse(line.Data[1]);
-                    var z = float.Parse(line.Data[2]);
+                    var x = float.Parse(line.Data[0], CultureInfo.InvariantCulture);
+                    var y = float.Parse(line.Data[1], CultureInfo.InvariantCulture);
+                    var z = float.Parse(line.Data[2], CultureInfo.InvariantCulture);
 
                     var position = new Vector3(x, y, z);
 
-                    v.Add(position);
+                    _v.Add(position);
 
                     Next();
                     continue;
@@ -159,13 +158,13 @@ public class ObjParser
 
                 case OBJ_TAG.NORMAL:
                 {
-                    var x = float.Parse(line.Data[0]);
-                    var y = float.Parse(line.Data[1]);
-                    var z = float.Parse(line.Data[2]);
+                    var x = float.Parse(line.Data[0], CultureInfo.InvariantCulture);
+                    var y = float.Parse(line.Data[1], CultureInfo.InvariantCulture);
+                    var z = float.Parse(line.Data[2], CultureInfo.InvariantCulture);
 
                     var direction = new Vector3(x, y, z);
 
-                    vn.Add(direction);
+                    _vn.Add(direction);
 
                     Next();
                     continue;
@@ -173,12 +172,12 @@ public class ObjParser
 
                 case OBJ_TAG.UV:
                 {
-                    var x = float.Parse(line.Data[0]);
-                    var y = float.Parse(line.Data[1]);
+                    var x = float.Parse(line.Data[0], CultureInfo.InvariantCulture);
+                    var y = float.Parse(line.Data[1], CultureInfo.InvariantCulture);
 
                     var position = new Vector2(x, y);
 
-                    vt.Add(position);
+                    _vt.Add(position);
 
                     Next();
                     break;
@@ -207,37 +206,47 @@ public class ObjParser
                         throw new NotSupportedException("Faces are not supported more than 3 vertices.");
                     }
 
-                    
-                    // If an index is positive then it refers to the offset in that vertex list, starting at 1
-                    var vIndex = int.Parse(vertices[0]);
-
-                    if (vIndex < 0)
+                    foreach (var vertexRaw in vertices)
                     {
-                        throw new KeyNotFoundException($"ParseObject. Not a valid vertex index: {vIndex}");
+                        // v1/vt1/vn1
+                        var indexes = vertexRaw.Split("/");
+                        
+                        // If an index is positive then it refers to the offset in that vertex list, starting at 1
+                        var vIndex = int.Parse(indexes[0]);
+
+                        if (vIndex < 0)
+                        {
+                            throw new KeyNotFoundException($"ParseObject. Not a valid vertex index: {vIndex}");
+                        }
+
+                        vIndex -= 1;
+                    
+                        // A valid texture coordinate index starts from 1
+                        // and matches the corresponding element in the previously defined list of texture coordinates.
+                        var vtIndex = int.Parse(indexes[1]) - 1;
+                        
+                        // TODO: Optionally
+                        // A valid normal index starts from 1
+                        // and matches the corresponding element in the previously defined list of normals.
+                        var vnIndex = int.Parse(indexes[2]) - 1;
+
+                        var vertex = new Vertex
+                        {
+                            Position = _v[vIndex],
+                            Normal = _vn[vnIndex],
+                            UV = _vt[vtIndex]
+                        };
+                    
+                        objObject.Vertices.Add(vertex);
                     }
-
-                    vIndex -= 1;
                     
-                    // TODO: Optionally
-                    // A valid normal index starts from 1
-                    // and matches the corresponding element in the previously defined list of normals.
-                    var vnIndex = int.Parse(vertices[1]) - 1;
-                    
-                    // A valid texture coordinate index starts from 1
-                    // and matches the corresponding element in the previously defined list of texture coordinates.
-                    var vtIndex = int.Parse(vertices[2]) - 1;
-
-                    var vertex = new Vertex
-                    {
-                        Position = v[vIndex],
-                        Normal = vn[vnIndex],
-                        UV = vt[vtIndex]
-                    };
-                    
-                    objObject.Vertices.Add(vertex);
-
                     Next();
                     continue;
+                }
+
+                case OBJ_TAG.NAME:
+                {
+                    break;
                 }
 
                 default:
