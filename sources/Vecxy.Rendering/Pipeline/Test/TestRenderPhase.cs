@@ -1,4 +1,6 @@
-﻿using OpenTK.Graphics.OpenGL;
+﻿using System.Reflection;
+using OpenTK.Graphics.OpenGL;
+using Vecxy.Reflection;
 
 namespace Vecxy.Rendering;
 
@@ -24,6 +26,12 @@ public class TestRenderPhase() : IRenderPhase
         _shader = ShaderProgram
             .Create("Shaders.test.vert", "Shaders.test.frag")
             .Build();
+
+        var cubeSource = EmbeddedResource
+            .Get(Assembly.GetExecutingAssembly(), "Models.test_cube_default.obj")!
+            .Text();
+        
+        ObjParser.Parse(cubeSource);
         
         /*var vertices = new[]
         {

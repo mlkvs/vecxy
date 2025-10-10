@@ -25,6 +25,12 @@
       <EmbeddedResource Include="EmbeddedResources\Shaders\**\*.vert" />
         
       <EmbeddedResource Include="EmbeddedResources\Sprites\**\*.jpg" />
+        
+      <EmbeddedResource Include="EmbeddedResources\Models\**\*.obj" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <Folder Include="EmbeddedResources\Models\" />
     </ItemGroup>
 
 </Project>
