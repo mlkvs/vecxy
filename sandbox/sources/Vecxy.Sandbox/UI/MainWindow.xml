@@ -1,0 +1,9 @@
+﻿<Window class="root" title="Hello World" width="500px" height="500px">
+    <Node id="menu">
+        
+    </Node>
+    
+    <Node id="content">
+        <Text value="Hello World"/>
+    </Node>
+</Window>

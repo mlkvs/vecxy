@@ -1,0 +1,11 @@
+{
+    "info": {
+        "name": "my_game_test",
+        "description": "A test game project",
+        "author": "Melkov",
+        "version": {
+            "game": "0.0.1",
+            "engine": "a.001"
+        }
+    }
+}
