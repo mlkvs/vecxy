@@ -4,6 +4,7 @@ using Vecxy.Reflection;
 
 namespace Vecxy.Rendering;
 
+
 public class TestRenderPhase() : IRenderPhase
 {
     public RENDER_PHASE_TYPE Type => RENDER_PHASE_TYPE.NONE;
