@@ -1,24 +1,40 @@
 ﻿namespace Vecxy.Engine;
 
-public interface IProject
+public enum PROJECT_TYPE : byte
 {
-    public string Id { get; }
-    public string Name { get; }
-    public string Author { get; }
-    public string Description { get; }
-    public void SetName(string name);
+    GAME = 0,
+    
+    LIBRARY = 1,
+    
+    PACKAGE = 2
 }
 
-public class Project(string id) : IProject
+// project.vecxy
+public interface IProjectFile
 {
-    public string Id => Id;
-    public string Name { get; private set; }
-    public string Author { get; private set; }
-    public string Description { get; private set; }
-    
-    
+    public PROJECT_TYPE Type { get; }
+    public ProjectInfo Info { get; }
+}
+
+public struct ProjectVersion
+{
+    public string Game;
+    public string Engine;
+}
+
+public struct ProjectInfo
+{
+    public string Name;
+    public string Description;
+    public string Author;
+
+    public ProjectVersion Version;
+}
+
+public class Project
+{
     public void SetName(string name)
     {
-        Name = name;
+       
     }
 }

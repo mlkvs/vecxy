@@ -5,6 +5,8 @@ namespace Vecxy.Engine;
 
 public class VecxyEngine : IDisposable
 {
+    public string Version { get; } = "a.001";
+    
     private readonly IModule _render;
     private readonly RenderWindow _window;
 

@@ -11,9 +11,9 @@ public struct ProjectCreateParameters
 
 public class ProjectManager
 {
-    public IProject Create(ProjectCreateParameters parameters)
+    public Project Create(ProjectCreateParameters parameters)
     {
-        var project = new Project(parameters.Path);
+        var project = new Project();
 
         return project;
     }
