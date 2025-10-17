@@ -2,7 +2,7 @@
 
 namespace Vecxy.Rendering;
 
-public class RenderSystem(IRenderWindow window) : IVecxySystem
+public class RenderingModule(IRenderWindow window) : IModule
 {
     private RenderPipeline? _pipeline;
 

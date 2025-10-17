@@ -5,7 +5,7 @@ namespace Vecxy.Engine;
 
 public class VecxyEngine : IDisposable
 {
-    private readonly IVecxySystem _render;
+    private readonly IModule _render;
     private readonly RenderWindow _window;
 
     public VecxyEngine()
@@ -23,7 +23,7 @@ public class VecxyEngine : IDisposable
         _window.RenderFrame += OnFrame;
         _window.Unload += OnUnload;
         
-        _render = new RenderSystem(_window);
+        _render = new RenderingModule(_window);
     }
 
     public void Run()

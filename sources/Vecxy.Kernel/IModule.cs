@@ -1,6 +1,6 @@
 ﻿namespace Vecxy.Kernel;
 
-public interface IVecxySystem : IDisposable
+public interface IModule : IDisposable
 {
     public void OnLoad() { }
     public void OnInitialize() { }
