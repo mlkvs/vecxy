@@ -1,0 +1,8 @@
+# Builds
+[Bb]in/
+[Oo]bj/
+[Bb]uild/
+
+# Project
+
+.idea

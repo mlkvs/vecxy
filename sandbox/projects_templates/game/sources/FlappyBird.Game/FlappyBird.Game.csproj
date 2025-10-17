@@ -1,5 +1,4 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
-    <Import Project="..\Vecxy.props" />
     <ItemGroup>
       <ProjectReference Include="..\FlappyBird.Meta\FlappyBird.Meta.csproj" />
     </ItemGroup>

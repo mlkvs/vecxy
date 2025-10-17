@@ -1,0 +1,19 @@
+{
+  "type": "GAME",
+  
+  "info": {
+    "name": "FlappyBird",
+    "description": "Flappy Bird is casual game",
+    "author": "Melkov",
+    "version": {
+      "game": "0.0.1",
+      "engine": "a.001"
+    }
+  },
+  
+  "settings": {
+  },
+  
+  "packages": {
+  }
+}

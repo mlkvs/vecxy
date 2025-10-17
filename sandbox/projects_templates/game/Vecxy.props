@@ -1,19 +1,16 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project>
     <PropertyGroup>
         <TargetFramework>net8.0</TargetFramework>
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
-        <EnginePath>..\..\..\..\..\sources\Vecxy.Engine\bin\Debug\net8.0</EnginePath>
+
+        <EnginePath>$(VECXY_PATH)</EnginePath>
     </PropertyGroup>
 
     <ItemGroup>
         <Reference Include="Vecxy.Engine">
             <HintPath>$(EnginePath)\Vecxy.Engine.dll</HintPath>
-        </Reference>
-
-        <Reference Include="Vecxy.Math">
-            <HintPath>$(EnginePath)\Vecxy.Math.dll</HintPath>
         </Reference>
     </ItemGroup>
 </Project>
