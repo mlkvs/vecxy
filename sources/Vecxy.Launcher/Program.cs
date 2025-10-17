@@ -1,7 +1,10 @@
-﻿internal class Program
+﻿namespace Vecxy.Launcher;
+
+internal static class Program
 {
-    public static void Main(string[] args)
+    [STAThread]
+    public static void Main()
     {
-        Console.WriteLine("Hello, World!");
+        Application.Run(new MainForm());
     }
 }

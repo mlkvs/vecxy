@@ -4,7 +4,13 @@
         <OutputType>WinExe</OutputType>
         <TargetFramework>net8.0</TargetFramework>
         <ImplicitUsings>enable</ImplicitUsings>
+        <UseWindowsForms>true</UseWindowsForms>
         <Nullable>enable</Nullable>
+        <TargetPlatformIdentifier>Windows</TargetPlatformIdentifier>
     </PropertyGroup>
+
+    <ItemGroup>
+      <PackageReference Include="SunnyUI" Version="3.8.9" />
+    </ItemGroup>
 
 </Project>
