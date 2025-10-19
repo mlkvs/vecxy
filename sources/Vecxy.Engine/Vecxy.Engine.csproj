@@ -10,4 +10,16 @@
       <ProjectReference Include="..\Vecxy.Rendering\Vecxy.Rendering.csproj" />
     </ItemGroup>
 
+    <ItemGroup>
+      <Reference Include="Zenject">
+        <HintPath>..\..\..\..\Files\Zenject\Zenject.dll</HintPath>
+      </Reference>
+      <Reference Include="Zenject-Signals">
+        <HintPath>..\..\..\..\Files\Zenject\Zenject-Signals.dll</HintPath>
+      </Reference>
+      <Reference Include="Zenject-usage">
+        <HintPath>..\..\..\..\Files\Zenject\Zenject-usage.dll</HintPath>
+      </Reference>
+    </ItemGroup>
+
 </Project>

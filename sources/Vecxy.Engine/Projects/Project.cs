@@ -33,8 +33,5 @@ public struct ProjectInfo
 
 public class Project
 {
-    public void SetName(string name)
-    {
-       
-    }
+    public string EntryPointDLL { get; set; }
 }
