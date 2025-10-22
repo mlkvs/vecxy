@@ -1,9 +1,8 @@
-﻿namespace Vecxy.Editor;
+﻿using System.Runtime.Serialization;
 
-public class GameProject : Project
+namespace Vecxy.Editor;
+
+[DataContract]
+public class GameProject(string path, ProjectFile file) : Project(path, file)
 {
-    public string AssemblyPath { get; set; }
-    
-    public List<LibraryProject> Libraries { get; }
-    public List<PackageProject> Packages { get; }
 }

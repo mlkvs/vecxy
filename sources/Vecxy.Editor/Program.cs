@@ -1,5 +1,7 @@
-﻿using Newtonsoft.Json;
-using Vecxy.Engine;
+﻿using CommandLine;
+using Newtonsoft.Json;
+using SlnParser;
+using SlnParser.Contracts;
 
 namespace Vecxy.Editor;
 
@@ -7,29 +9,34 @@ internal static class Program
 {
     public static void Main(string[] args)
     {
-        Console.WriteLine("Hello, World!");
-    }
+        var result = Parser.Default.ParseArguments<EditorOptions>(args);
 
-    public static void OpenProject(string projectPath)
-    {
-        var files = Directory.GetFiles(projectPath, ".project");
-
-        if (files.Length == 0)
+        if (result.Tag == ParserResultType.NotParsed)
         {
-            throw new Exception("No project files found!");
+            foreach (var error in result.Errors)
+            {
+                Console.Error.WriteLine(error);
+            }
+
+            Console.ReadLine();
+            
+            return;
         }
 
-        var projectFile = files[0];
+        var options = result.Value;
 
+        try
+        {
+            var projectPath = options.Project.Trim();
+            
+            var editor = new Editor();
 
-        using var stream = new FileStream(projectFile, FileMode.Open);
-        using var reader = new StreamReader(stream);
-
-        var projectInfo = reader.ReadToEnd();
-        
-        reader.Close();
-        stream.Close();
-
-        var config = JsonConvert.DeserializeObject<ProjectConfig>(projectInfo);
+            editor.OpenProject(projectPath);
+        }
+        catch (Exception e)
+        {
+            Console.WriteLine(e);
+            throw;
+        }
     }
 }

@@ -1,36 +1,44 @@
-﻿namespace Vecxy.Editor;
+﻿using System.Runtime.Serialization;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Converters;
 
+namespace Vecxy.Editor;
+
+[JsonConverter(typeof(StringEnumConverter))]
 public enum PROJECT_TYPE : byte
 {
     GAME = 0,
-    
     LIBRARY = 1,
-    
     PACKAGE = 2
 }
 
+[DataContract]
 public struct ProjectVersion
 {
-    public string Game;
-    public string Engine;
+    [DataMember(Name = "game")] public string Game;
+    [DataMember(Name = "engine")] public string Engine;
 }
 
+[DataContract]
 public struct ProjectInfo
 {
-    public string Name;
-    public string Description;
-    public string Author;
+    [DataMember(Name = "name")] public string Name;
+    [DataMember(Name = "description")] public string Description;
+    [DataMember(Name = "author")] public string Author;
 
-    public ProjectVersion Version;
+    [DataMember(Name = "version")] public ProjectVersion Version;
 }
 
-public struct ProjectConfig
+[DataContract]
+public struct ProjectFile
 {
-    public PROJECT_TYPE Type { get; }
-    public ProjectInfo Info { get; }
+    [DataMember(Name = "type")] public PROJECT_TYPE Type { get; set; }
+    [DataMember(Name = "info")] public ProjectInfo Info { get; set; }
 }
 
-public class Project
+
+public class Project(string path, ProjectFile file)
 {
-    public ProjectConfig Config { get; }
+    public string Path => path;
+    public ProjectFile ProjectFile => file;
 }

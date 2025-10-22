@@ -6,7 +6,9 @@ namespace Vecxy.Engine;
 
 public interface IGame
 {
-    
+    public void InstallBindings(DiContainer container);
+    public void Initialize();
+    public void Update(float deltaTime);
 }
 
 public class Engine : IDisposable
@@ -16,6 +18,8 @@ public class Engine : IDisposable
     private readonly RenderWindow _window;
 
     private DiContainer _diContainer;
+
+    private IGame? _game;
 
     /*private void Test()
     {
@@ -43,7 +47,7 @@ public class Engine : IDisposable
         installer!.InstallBindings();
     }*/
 
-    public Engine()
+    public Engine(IGame game)
     {
         _diContainer = new DiContainer();
         _diContainer.Install<EngineInstaller>();
@@ -62,6 +66,13 @@ public class Engine : IDisposable
         _window.Unload += OnUnload;
         
         //_render = new RenderingModule(_window);
+
+        _diContainer
+            .CreateSubContainer()
+            .Bind<IGame>()
+            .FromInstance(game)
+            .AsSingle()
+            .NonLazy();
     }
 
     public void Run()
@@ -78,6 +89,8 @@ public class Engine : IDisposable
     private void OnUpdate(OpenTK.Windowing.Common.FrameEventArgs e)
     {
         var deltaTime = (float)e.Time;
+
+        _game?.Update(deltaTime);
     }
 
     private void OnFrame(OpenTK.Windowing.Common.FrameEventArgs e)
