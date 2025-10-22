@@ -1,6 +1,6 @@
 ﻿namespace Vecxy.Engine;
 
-public class PackageManager
+public class GameLoader
 {
     
 }

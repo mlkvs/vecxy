@@ -12,6 +12,7 @@ public class RenderingModule(IRenderWindow window) : IModule
         
         _pipeline.RegisterPhase(D2RenderPhase.Create(window));
         _pipeline.RegisterPhase(new TestRenderPhase());
+        
     }
 
     public void OnTick(float deltaTime)

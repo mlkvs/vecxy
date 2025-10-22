@@ -1,4 +1,4 @@
-﻿namespace Vecxy.Engine;
+﻿namespace Vecxy.Editor;
 
 public enum ASSET_TYPE : byte
 {

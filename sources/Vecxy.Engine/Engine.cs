@@ -1,25 +1,25 @@
 ﻿using System.Reflection;
-using Vecxy.Kernel;
 using Vecxy.Rendering;
 using Zenject;
 
 namespace Vecxy.Engine;
 
+public interface IGame
+{
+    
+}
+
 public class Engine : IDisposable
 {
     public string Version { get; } = "a.001";
     
-    //private readonly IModule _render;
     private readonly RenderWindow _window;
 
     private DiContainer _diContainer;
 
-    public Engine(Project project)
+    /*private void Test()
     {
-        _diContainer = new DiContainer();
-        _diContainer.Install<EngineInstaller>();
-
-        var projectAssembly = Assembly.LoadFrom(project.EntryPointDLL);
+        var projectAssembly = Assembly.LoadFrom(game.AssemblyPath);
 
         var projectInstallerType = projectAssembly
             .GetTypes()
@@ -41,7 +41,12 @@ public class Engine : IDisposable
         var installer = _diContainer.Instantiate(projectInstallerType) as ProjectInstaller;
         
         installer!.InstallBindings();
-        
+    }*/
+
+    public Engine()
+    {
+        _diContainer = new DiContainer();
+        _diContainer.Install<EngineInstaller>();
         
         _window = RenderWindow.Create(new RenderWindowOptions
         {

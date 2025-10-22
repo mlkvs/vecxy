@@ -1,4 +1,4 @@
-﻿namespace Vecxy.Engine;
+﻿namespace Vecxy.Editor;
 
 public enum PROJECT_TYPE : byte
 {
@@ -7,13 +7,6 @@ public enum PROJECT_TYPE : byte
     LIBRARY = 1,
     
     PACKAGE = 2
-}
-
-// project.vecxy
-public interface IProjectFile
-{
-    public PROJECT_TYPE Type { get; }
-    public ProjectInfo Info { get; }
 }
 
 public struct ProjectVersion
@@ -31,7 +24,13 @@ public struct ProjectInfo
     public ProjectVersion Version;
 }
 
+public struct ProjectConfig
+{
+    public PROJECT_TYPE Type { get; }
+    public ProjectInfo Info { get; }
+}
+
 public class Project
 {
-    public string EntryPointDLL { get; set; }
+    public ProjectConfig Config { get; }
 }
