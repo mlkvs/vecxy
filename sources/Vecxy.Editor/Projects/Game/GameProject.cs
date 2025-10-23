@@ -3,6 +3,15 @@
 namespace Vecxy.Editor;
 
 [DataContract]
-public class GameProject(string path, ProjectFile file) : Project(path, file)
+public class GameProject(string path, ProjectInfo info) : Project(path, info)
 {
+    public override void Open()
+    {
+        base.Open();
+    }
+
+    public override void Save()
+    {
+        base.Save();
+    }
 }

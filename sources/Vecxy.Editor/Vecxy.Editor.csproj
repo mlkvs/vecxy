@@ -9,6 +9,7 @@
 
     <ItemGroup>
       <ProjectReference Include="..\Vecxy.Engine\Vecxy.Engine.csproj" />
+      <ProjectReference Include="..\Vecxy.IO\Vecxy.IO.csproj" />
       <ProjectReference Include="..\Vecxy.Rendering\Vecxy.Rendering.csproj" />
     </ItemGroup>
 

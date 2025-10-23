@@ -1,7 +1,4 @@
 ﻿using CommandLine;
-using Newtonsoft.Json;
-using SlnParser;
-using SlnParser.Contracts;
 
 namespace Vecxy.Editor;
 

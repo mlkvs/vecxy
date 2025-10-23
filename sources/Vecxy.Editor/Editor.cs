@@ -1,6 +1,4 @@
-﻿using Newtonsoft.Json;
-
-namespace Vecxy.Editor;
+﻿namespace Vecxy.Editor;
 
 public class Editor()
 {
@@ -8,42 +6,20 @@ public class Editor()
     
     public void OpenProject(string projectPath)
     {
-        if (!Directory.Exists(projectPath))
-        {
-            throw new DirectoryNotFoundException(projectPath);
-        }
-        
-        var files = Directory.GetFiles(projectPath);
+        var projectInfo = Project.Define(projectPath);
 
-        if (files.Length == 0)
-        {
-            throw new Exception("No project files found!");
-        }
-
-        var projectFilePath = files.First(f => Path.GetExtension(f).EndsWith("project"));
-
-        using var stream = new FileStream(projectFilePath, FileMode.Open);
-        using var reader = new StreamReader(stream);
-
-        var projectInfo = reader.ReadToEnd();
-        
-        reader.Close();
-        stream.Close();
-
-        var projectFile = JsonConvert.DeserializeObject<ProjectFile>(projectInfo);
-
-        switch (projectFile.Type)
+        switch (projectInfo.Type)
         {
             case PROJECT_TYPE.GAME:
-                var game = new GameProject(projectPath, projectFile);
-                
-                _project = game;
+                _project = new GameProject(projectPath, projectInfo);
                 break;
             
             case PROJECT_TYPE.LIBRARY:
             case PROJECT_TYPE.PACKAGE:
             default:
-                throw new ArgumentOutOfRangeException();
+                throw new NotSupportedProjectTypeException(projectInfo.Type);
         }
+        
+        _project.Open();
     }
 }
