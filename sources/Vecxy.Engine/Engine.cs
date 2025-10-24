@@ -47,7 +47,7 @@ public class Engine : IDisposable
         installer!.InstallBindings();
     }*/
 
-    public Engine(IGame game)
+    public Engine()
     {
         _diContainer = new DiContainer();
         _diContainer.Install<EngineInstaller>();
@@ -66,22 +66,28 @@ public class Engine : IDisposable
         _window.Unload += OnUnload;
         
         //_render = new RenderingModule(_window);
+    }
 
-        _diContainer
-            .CreateSubContainer()
-            .Bind<IGame>()
+    public void Run(IGame game)
+    {
+        _game = game;
+            
+        var gameContainer = _diContainer
+            .CreateSubContainer();
+        
+        gameContainer.Bind<IGame>()
             .FromInstance(game)
             .AsSingle()
             .NonLazy();
-    }
-
-    public void Run()
-    {
+        
+        game.InstallBindings(gameContainer);
+        
         _window.Run();
     }
 
     private void OnLoad()
     {
+        _game?.Initialize();
         //_render.OnLoad();
         //_render.OnInitialize();
     }
