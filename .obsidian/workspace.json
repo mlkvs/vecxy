@@ -13,12 +13,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "vault/ecs/Untitled.md",
+                "file": "vault/notes/Stream2.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "Untitled"
+              "title": "Stream2"
             }
           }
         ]
@@ -185,6 +185,10 @@
   },
   "active": "4da5ae2772f9a00d",
   "lastOpenFiles": [
+    "vault/gdd/index.md",
+    "vault/notes/Stream2.md",
+    "vault/gdd",
+    "vault/ecs/Untitled.md",
     "sources/Vecxy.Engine/Engine.cs~",
     "sources/Vecxy.Executable/bin/Debug/net8.0/Vecxy.Rendering.pdb",
     "sources/Vecxy.Executable/bin/Debug/net8.0/OpenTK.Windowing.GraphicsLibraryFramework.dll",
@@ -194,10 +198,7 @@
     "sources/Vecxy.Engine/bin/Debug/net8.0/Vecxy.Reflection.dll",
     "sources/Vecxy.Engine/bin/Debug/net8.0/Vecxy.Kernel.dll",
     "sources/Vecxy.Engine/bin/Debug/net8.0/Vecxy.Diagnostics.pdb",
-    "sources/Vecxy.Engine/bin/Debug/net8.0/Vecxy.Diagnostics.dll",
-    "sources/Vecxy.Executable/bin/Debug/net8.0/OpenTK.Mathematics.dll",
     "vault/docs/Docs.Vecxy.Rendering.md",
-    "vault/ecs/Untitled.md",
     "README.md",
     "vault/notes/Notes.md",
     "vault/notes/Notes.Days.md",

@@ -54,6 +54,11 @@ public class GameDLL : DLL
     }
 }
 
+public class GameProjectSettings 
+{
+    
+}
+
 [DataContract]
 public class GameProject(string path, ProjectInfo info) : Project(path, info)
 {
@@ -89,11 +94,17 @@ public class GameProject(string path, ProjectInfo info) : Project(path, info)
         };
     }
 
-    public IGame CreateGame()
+    public IGameHost CreateGame()
     {
         _dllEntry.Load();
         
-        return _dllEntry.CreateGame();
+        var game = _dllEntry.CreateGame();
+
+
+        return new GameHost(game, new GameSettings
+        {
+            Verison = Version.Game
+        });
     }
 
     public override void Save()

@@ -4,11 +4,33 @@ using Zenject;
 
 namespace Vecxy.Engine;
 
+public interface IGameSettings
+{
+    public string Verison { get; set; }
+}
+
+public class GameSettings : IGameSettings
+{
+    public string Verison { get; set; }
+}
+
 public interface IGame
 {
     public void InstallBindings(DiContainer container);
     public void Initialize();
     public void Update(float deltaTime);
+}
+
+public interface IGameHost
+{
+    public IGame Game { get; }
+    public IGameSettings Settings { get; }
+}
+
+public class GameHost(IGame game, IGameSettings settings) : IGameHost
+{
+    public IGame Game => game;
+    public IGameSettings Settings => settings;
 }
 
 public class Engine : IDisposable
@@ -19,8 +41,10 @@ public class Engine : IDisposable
 
     private DiContainer _diContainer;
 
-    private IGame? _game;
+    private IGameHost? _gameHost;
 
+    [Inject] private readonly ISceneManager _sceneManager;
+    
     /*private void Test()
     {
         var projectAssembly = Assembly.LoadFrom(game.AssemblyPath);
@@ -51,6 +75,7 @@ public class Engine : IDisposable
     {
         _diContainer = new DiContainer();
         _diContainer.Install<EngineInstaller>();
+        _diContainer.Inject(this);
         
         _window = RenderWindow.Create(new RenderWindowOptions
         {
@@ -68,26 +93,32 @@ public class Engine : IDisposable
         //_render = new RenderingModule(_window);
     }
 
-    public void Run(IGame game)
+    public void Run(IGameHost gameHost)
     {
-        _game = game;
+        _gameHost = gameHost;
             
         var gameContainer = _diContainer
             .CreateSubContainer();
         
+        gameContainer.Inject(_gameHost.Game);
+        
         gameContainer.Bind<IGame>()
-            .FromInstance(game)
+            .FromInstance(_gameHost.Game)
             .AsSingle()
             .NonLazy();
         
-        game.InstallBindings(gameContainer);
+        var settings = gameContainer.Resolve<IGameSettings>();
+
+        settings.Verison = gameHost.Settings.Verison;
+        
+        _gameHost.Game.InstallBindings(gameContainer);
         
         _window.Run();
     }
 
     private void OnLoad()
     {
-        _game?.Initialize();
+        _gameHost?.Game.Initialize();
         //_render.OnLoad();
         //_render.OnInitialize();
     }
@@ -96,7 +127,9 @@ public class Engine : IDisposable
     {
         var deltaTime = (float)e.Time;
 
-        _game?.Update(deltaTime);
+        _sceneManager.Update(deltaTime);
+        
+        _gameHost?.Game.Update(deltaTime);
     }
 
     private void OnFrame(OpenTK.Windowing.Common.FrameEventArgs e)

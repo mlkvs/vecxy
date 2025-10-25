@@ -11,5 +11,7 @@ internal class EngineInstaller : Installer
             .To<SceneManager>()
             .AsSingle()
             .NonLazy();
+
+        GameInstaller.Install(Container);
     }
 }

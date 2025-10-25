@@ -1,9 +1,19 @@
-﻿namespace Vecxy.Editor;
+﻿using Zenject;
 
-public class Editor()
+namespace Vecxy.Editor;
+
+public class Editor
 {
     private Engine.Engine? _engine;
     private Project? _project;
+
+    private DiContainer _diContainer;
+
+    public Editor()
+    {
+        _diContainer = new DiContainer();
+        EditorInstaller.Install(_diContainer);
+    }
     
     public void Run()
     {

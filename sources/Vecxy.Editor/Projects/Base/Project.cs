@@ -12,7 +12,7 @@ public enum PROJECT_TYPE : byte
     LIBRARY = 1,
     PACKAGE = 2
 }
-    
+
 [DataContract]
 public struct ProjectInfo
 {
