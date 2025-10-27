@@ -13,28 +13,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "vault/notes/Stream2.md",
+                "file": "vault/Note.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "Stream2"
-            }
-          }
-        ]
-      },
-      {
-        "id": "9928f696fcd6285f",
-        "type": "tabs",
-        "children": [
-          {
-            "id": "a7d50d3ecd66c894",
-            "type": "leaf",
-            "state": {
-              "type": "graph",
-              "state": {},
-              "icon": "lucide-git-fork",
-              "title": "Graph view"
+              "title": "Note"
             }
           }
         ]
@@ -94,7 +78,8 @@
       }
     ],
     "direction": "horizontal",
-    "width": 300
+    "width": 300,
+    "collapsed": true
   },
   "right": {
     "id": "e0369ef64f485576",
@@ -185,25 +170,27 @@
   },
   "active": "4da5ae2772f9a00d",
   "lastOpenFiles": [
-    "vault/gdd/index.md",
+    "sources/Vecxy.Editor/Editor.cs~",
+    "sources/Vecxy.IO/DirectoryUtils.cs~",
+    "sources/Vecxy.IO/DirectoryUtils.cs",
+    "sources/Vecxy.Editor/Program.cs~",
+    "sources/Vecxy.Editor/EditorOptions.cs~",
+    "sources/Vecxy.Editor/bin/Debug/net8.0/Microsoft.Build.Locator.dll",
+    "sources/Vecxy.Projects/obj/9fd7162c-79c6-489b-97b0-47e087bb02c8.tmp",
+    "sources/Vecxy.Projects/ProjectPropertiesReader.cs~",
+    "sources/Vecxy.Projects/Vecxy.Projects.csproj~",
+    "sources/Vecxy.Projects/obj/6d62fc90-6207-4f9b-853f-c5d0879bef48.tmp",
+    "sources/Vecxy.Projects/obj/0424128c-e337-456e-b689-ecccc195695b.tmp",
     "vault/notes/Stream2.md",
-    "vault/gdd",
-    "vault/ecs/Untitled.md",
-    "sources/Vecxy.Engine/Engine.cs~",
-    "sources/Vecxy.Executable/bin/Debug/net8.0/Vecxy.Rendering.pdb",
-    "sources/Vecxy.Executable/bin/Debug/net8.0/OpenTK.Windowing.GraphicsLibraryFramework.dll",
-    "sources/Vecxy.Executable/bin/Debug/net8.0/OpenTK.Windowing.Common.dll",
-    "sources/Vecxy.Executable/bin/Debug/net8.0/OpenTK.Windowing.Desktop.dll",
-    "sources/Vecxy.Executable/bin/Debug/net8.0/Zenject-usage.dll",
-    "sources/Vecxy.Engine/bin/Debug/net8.0/Vecxy.Reflection.dll",
-    "sources/Vecxy.Engine/bin/Debug/net8.0/Vecxy.Kernel.dll",
-    "sources/Vecxy.Engine/bin/Debug/net8.0/Vecxy.Diagnostics.pdb",
-    "vault/docs/Docs.Vecxy.Rendering.md",
-    "README.md",
-    "vault/notes/Notes.md",
+    "vault/Note.md",
+    "vault/notes/Notes.Rendering.OpenGL.md",
     "vault/notes/Notes.Days.md",
     "vault/notes/Notes.Math.md",
-    "vault/notes/Notes.Rendering.OpenGL.md",
+    "vault/notes/Notes.md",
+    "vault/gdd/index.md",
+    "vault/ecs/Untitled.md",
+    "vault/docs/Docs.Vecxy.Rendering.md",
+    "README.md",
     "Welcome.md"
   ]
 }

@@ -1,14 +1,18 @@
-﻿using Zenject;
+﻿using Vecxy.IO;
+using Vecxy.Projects;
+using Zenject;
 
 namespace Vecxy.Editor;
 
 public class Editor
 {
+    public string Version { get; } = "a.001";
+    
     private Engine.Engine? _engine;
     private Project? _project;
 
     private DiContainer _diContainer;
-
+    
     public Editor()
     {
         _diContainer = new DiContainer();
@@ -33,6 +37,13 @@ public class Editor
             
         _engine.Run(game);
     }
+
+    public void OpenProject(Project project)
+    {
+        _project = project;
+        
+        _project.Open();
+    }
     
     public void OpenProject(string projectPath)
     {
@@ -51,5 +62,50 @@ public class Editor
         }
         
         _project.Open();
+    }
+
+    public Project GenerateProject(string name, string path, PROJECT_TYPE type)
+    {
+        var info = new ProjectInfo
+        {
+            Type = type,
+            Author = "No Name",
+            Description = "No Description",
+            Name = name
+        };
+
+        var version = new ProjectVersion
+        {
+            Editor = Version,
+            Game = "0.0.1",
+            Engine = "a.001"
+        };
+        
+        Project project;
+        
+        var projectDir = DirectoryUtils.GetOrCreateDirectory(path);
+
+        CreateVecxyDir();
+        
+        switch (type)
+        {
+            case PROJECT_TYPE.GAME:
+                project = new GameProject(path, info);
+                break;
+            
+            case PROJECT_TYPE.LIBRARY:
+            case PROJECT_TYPE.PACKAGE:
+            default:
+                throw new ArgumentOutOfRangeException(nameof(type), type, null);
+        }
+
+        return project;
+        
+        void CreateVecxyDir()
+        {
+            var vecxyPath = Path.Combine(projectDir.FullName, ".vecxy");
+            
+            var vecxyDir = DirectoryUtils.GetOrCreateDirectory(vecxyPath);
+        }
     }
 }

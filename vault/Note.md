@@ -1,0 +1,1 @@
+	MSBuildProjectDirectory - путь относительно .csproj

@@ -2,10 +2,9 @@
 using System.Runtime.Serialization;
 using SlnParser;
 using SlnParser.Contracts;
-using Vecxy.Diagnostics;
 using Vecxy.Engine;
 
-namespace Vecxy.Editor;
+namespace Vecxy.Projects;
 
 public class DLL
 {
@@ -54,10 +53,7 @@ public class GameDLL : DLL
     }
 }
 
-public class GameProjectSettings 
-{
-    
-}
+
 
 [DataContract]
 public class GameProject(string path, ProjectInfo info) : Project(path, info)
@@ -84,13 +80,11 @@ public class GameProject(string path, ProjectInfo info) : Project(path, info)
 
     public void Build()
     {
-        var project = (SolutionProject)_csProjectEntry;
-        
         var dllName = $"{_csProjectEntry.Name}.dll";
 
         _dllEntry = new GameDLL
         {
-            Path = System.IO.Path.Combine(project.File.Directory!.FullName, "bin", dllName)
+            Path = System.IO.Path.Combine(_solution.File!.Directory!.FullName, "temp", "bin", dllName)
         };
     }
 
@@ -105,6 +99,11 @@ public class GameProject(string path, ProjectInfo info) : Project(path, info)
         {
             Verison = Version.Game
         });
+    }
+
+    public static void Generate()
+    {
+        
     }
 
     public override void Save()

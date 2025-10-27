@@ -1,0 +1,21 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net8.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Microsoft.Build.Locator" Version="1.10.2" />
+        <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
+        <PackageReference Include="SlnParser" Version="4.0.0" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\Vecxy.Diagnostics\Vecxy.Diagnostics.csproj" />
+        <ProjectReference Include="..\Vecxy.Engine\Vecxy.Engine.csproj" />
+        <ProjectReference Include="..\Vecxy.IO\Vecxy.IO.csproj" />
+    </ItemGroup>
+
+</Project>

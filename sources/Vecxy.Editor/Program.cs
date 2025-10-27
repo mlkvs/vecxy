@@ -6,8 +6,6 @@ internal static class Program
 {
     public static void Main(string[] args)
     {
-        Console.ReadLine();
-        
         var result = Parser.Default.ParseArguments<EditorOptions>(args);
 
         if (result.Tag == ParserResultType.NotParsed)
@@ -21,14 +19,23 @@ internal static class Program
             
             return;
         }
-
+        
         var options = result.Value;
-
+        
         try
         {
+            var editor = new Editor();
+            
             var projectPath = options.Project.Trim();
             
-            var editor = new Editor();
+            if (options.IsGenerate)
+            {
+                var type = options.Type;
+                
+                var project = editor.GenerateProject(projectPath, type);
+                
+                return;
+            }
 
             editor.OpenProject(projectPath);
             

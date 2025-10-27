@@ -3,7 +3,7 @@ using Newtonsoft.Json;
 using Newtonsoft.Json.Converters;
 using Vecxy.IO;
 
-namespace Vecxy.Editor;
+namespace Vecxy.Projects;
 
 [JsonConverter(typeof(StringEnumConverter))]
 public enum PROJECT_TYPE : byte
