@@ -6,8 +6,9 @@
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
     </PropertyGroup>
-
+    
     <ItemGroup>
+      <ProjectReference Include="..\Vecxy.CLI\Vecxy.CLI.csproj" />
       <ProjectReference Include="..\Vecxy.Engine\Vecxy.Engine.csproj" />
       <ProjectReference Include="..\Vecxy.IO\Vecxy.IO.csproj" />
       <ProjectReference Include="..\Vecxy.Projects\Vecxy.Projects.csproj" />
@@ -15,20 +16,19 @@
     </ItemGroup>
 
     <ItemGroup>
-      <PackageReference Include="CommandLineParser" Version="2.9.1" />
       <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
-      <PackageReference Include="SlnParser" Version="4.0.0" />
+      <PackageReference Include="System.CommandLine" Version="2.0.0-rc.2.25502.107" />
     </ItemGroup>
 
     <ItemGroup>
         <Reference Include="Zenject">
-            <HintPath>..\..\..\..\Files\Zenject\Zenject.dll</HintPath>
+            <HintPath>..\..\vendors\extenject\Zenject.dll</HintPath>
         </Reference>
         <Reference Include="Zenject-Signals">
-            <HintPath>..\..\..\..\Files\Zenject\Zenject-Signals.dll</HintPath>
+            <HintPath>..\..\vendors\extenject\Zenject-Signals.dll</HintPath>
         </Reference>
         <Reference Include="Zenject-usage">
-            <HintPath>..\..\..\..\Files\Zenject\Zenject-usage.dll</HintPath>
+            <HintPath>..\..\vendors\extenject\Zenject-usage.dll</HintPath>
         </Reference>
     </ItemGroup>
 

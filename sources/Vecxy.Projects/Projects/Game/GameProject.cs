@@ -1,8 +1,8 @@
 ﻿using System.Reflection;
 using System.Runtime.Serialization;
-using SlnParser;
-using SlnParser.Contracts;
+
 using Vecxy.Engine;
+using Vecxy.SlnKit;
 
 namespace Vecxy.Projects;
 
@@ -58,8 +58,8 @@ public class GameDLL : DLL
 [DataContract]
 public class GameProject(string path, ProjectInfo info) : Project(path, info)
 {
-    private ISolution _solution;
-    private IProject _csProjectEntry;
+    private Solution _solution;
+    private SolutionProject _csProjectEntry;
 
     private GameDLL _dllEntry;
     
@@ -71,9 +71,15 @@ public class GameProject(string path, ProjectInfo info) : Project(path, info)
         var solutionPath = System.IO.Path.Combine(path, $"{info.Name}.sln");
         
         var parser = new SolutionParser();
-        _solution = parser.Parse(solutionPath);
 
-        var csProject = _solution.AllProjects.FirstOrDefault(p => p.Name.Equals($"{info.Name}.Game"));
+        if (parser.TryParse(solutionPath, out var solution) == false)
+        {
+            throw new Exception("Solution file not found");
+        };
+
+        _solution = solution!;
+
+        var csProject = _solution.Projects.FirstOrDefault(p => p.Name.Equals($"{info.Name}.Game"));
 
         _csProjectEntry = csProject ?? throw new Exception("Game project not found");
     }
@@ -84,7 +90,7 @@ public class GameProject(string path, ProjectInfo info) : Project(path, info)
 
         _dllEntry = new GameDLL
         {
-            Path = System.IO.Path.Combine(_solution.File!.Directory!.FullName, "temp", "bin", dllName)
+            Path = System.IO.Path.Combine(_solution.PathAbsolute, "temp", "bin", dllName)
         };
     }
 

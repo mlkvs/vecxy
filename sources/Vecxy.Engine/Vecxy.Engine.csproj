@@ -11,15 +11,15 @@
     </ItemGroup>
 
     <ItemGroup>
-      <Reference Include="Zenject">
-        <HintPath>..\..\..\..\Files\Zenject\Zenject.dll</HintPath>
-      </Reference>
-      <Reference Include="Zenject-Signals">
-        <HintPath>..\..\..\..\Files\Zenject\Zenject-Signals.dll</HintPath>
-      </Reference>
-      <Reference Include="Zenject-usage">
-        <HintPath>..\..\..\..\Files\Zenject\Zenject-usage.dll</HintPath>
-      </Reference>
+        <Reference Include="Zenject">
+            <HintPath>..\..\vendors\extenject\Zenject.dll</HintPath>
+        </Reference>
+        <Reference Include="Zenject-Signals">
+            <HintPath>..\..\vendors\extenject\Zenject-Signals.dll</HintPath>
+        </Reference>
+        <Reference Include="Zenject-usage">
+            <HintPath>..\..\vendors\extenject\Zenject-usage.dll</HintPath>
+        </Reference>
     </ItemGroup>
 
 </Project>
