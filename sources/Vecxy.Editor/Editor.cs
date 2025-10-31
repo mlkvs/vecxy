@@ -1,4 +1,5 @@
-﻿using Vecxy.IO;
+﻿using Newtonsoft.Json;
+using Vecxy.IO;
 using Vecxy.Projects;
 using Zenject;
 
@@ -69,7 +70,7 @@ public class Editor
         var info = new ProjectInfo
         {
             Type = type,
-            Author = "No Name",
+            Author = "No Author",
             Description = "No Description",
             Name = name
         };
@@ -82,6 +83,11 @@ public class Editor
         };
         
         Project project;
+
+        if (Directory.Exists(path))
+        {
+            throw new Exception("Project folder already exists!");
+        }
         
         var projectDir = DirectoryUtils.GetOrCreateDirectory(path);
 
@@ -106,6 +112,13 @@ public class Editor
             var vecxyPath = Path.Combine(projectDir.FullName, ".vecxy");
             
             var vecxyDir = DirectoryUtils.GetOrCreateDirectory(vecxyPath);
+            
+            var projectFilePath = Path.Combine(vecxyPath, "project.json");
+
+            //TODO: Create serializer wrapper
+            var projectJson = JsonConvert.SerializeObject(info, Formatting.Indented);
+            
+            File.WriteAllText(projectFilePath, projectJson);
         }
     }
 }

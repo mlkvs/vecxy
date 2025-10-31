@@ -1,6 +1,4 @@
-﻿using Vecxy.CLI;
-using Vecxy.Diagnostics;
-using Vecxy.Projects;
+﻿using Vecxy.Projects;
 
 namespace Vecxy.Editor;
 
@@ -10,35 +8,14 @@ internal static class Program
     
     public static void Main(string[] args)
     {
-        var cli = new CLIProgram
-        {
-            Commands =
-            {
-                new HelpCLICommand(),
-                new ProjectCLICommand(OnGenerateProject, OnOpenProject)
-            }
-        };
-
-        var result = cli.Parse(args);
-
-        if (result.Status == CLI.CLIProgram.Result.STATUS.NOT_PARSED)
-        {
-            foreach (var exception in result.Exceptions)
-            {
-                Logger.Error(exception);
-            }
-
-            Console.ReadLine();
-            
-            return;
-        }
-        
         _editor = new Editor();
-        
-        cli.Execute();
+
+        var projectPath = @"C:\Users\melkov\Desktop\Test";
+
+        GenerateProject("Test", projectPath, PROJECT_TYPE.GAME);
     }
 
-    private static void OnOpenProject(string path)
+    private static void OpenProject(string path)
     {
         if (_editor == null)
         {
@@ -50,7 +27,7 @@ internal static class Program
         _editor.Run();
     }
     
-    private static void OnGenerateProject(string name, string path, PROJECT_TYPE type)
+    private static void GenerateProject(string name, string path, PROJECT_TYPE type)
     {
         if (_editor == null)
         {
