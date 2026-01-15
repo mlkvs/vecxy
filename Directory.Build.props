@@ -1,0 +1,15 @@
+﻿<Project>
+    <PropertyGroup>
+        <TargetFramework>net8.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        
+        <BaseOutputPath>$(MSBuildThisFileDirectory)Build\</BaseOutputPath>
+        <OutputPath>$(BaseOutputPath)$(Configuration)\</OutputPath>
+
+        <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+        <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
+
+        <GenerateDependencyFile>true</GenerateDependencyFile>
+    </PropertyGroup>
+</Project>

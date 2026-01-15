@@ -6,10 +6,9 @@
         <PackageId>Vecxy.Template.Game</PackageId>
         <Title>Vecxy Game Template</Title>
         <Authors>Melkov</Authors>
+        
         <Description>Template for creating Vecxy Game projects.</Description>
         <PackageTags>dotnet-new;templates;vecxy;game</PackageTags>
-
-        <TargetFramework>net8.0</TargetFramework>
 
         <PackageOutputPath>.././Packages</PackageOutputPath>
         

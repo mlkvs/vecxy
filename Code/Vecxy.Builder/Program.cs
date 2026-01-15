@@ -100,8 +100,6 @@ public static class Program
         }
 
         Console.WriteLine("\n--- Build process finished ---");
-        Console.WriteLine("Нажмите любую клавишу для выхода...");
-        Console.ReadKey();
     }
 
     /// <summary>
