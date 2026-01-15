@@ -17,8 +17,6 @@
         <TempBinDebugDir>$([System.IO.Path]::Combine($(TempDebugDir), `Bin`))</TempBinDebugDir>
         <TempObjDebugDir>$([System.IO.Path]::Combine($(TempDebugDir), `Obj`))</TempObjDebugDir>
         
-       
-
-        <EnginePath>$(VECXY_PATH)</EnginePath>
+        <EnginePath>$(VECXY_ENGINE_PATH)</EnginePath>
     </PropertyGroup>
 </Project>

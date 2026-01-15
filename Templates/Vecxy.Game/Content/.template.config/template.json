@@ -1,7 +1,10 @@
 {
   "$schema": "http://json.schemastore.org/template",
   "author": "Melkov",
-  "classifications": [ "Vecxy", "Game" ],
+  "classifications": [
+    "Vecxy",
+    "Game"
+  ],
   "name": "Vecxy Game Project",
   "identity": "Vecxy.Game.Template",
   "shortName": "vecxygame",
@@ -9,6 +12,47 @@
     "language": "C#",
     "type": "project"
   },
-  "sourceName": "VECXY_GAME",
-  "preferNameDirectory": true
+  "sourceName": "VECXY_GAME_NAME",
+  "preferNameDirectory": true,
+  "symbols": {
+    "ProjectType": {
+      "type": "parameter",
+      "description": "Type for project",
+      "datatype": "choice",
+      "choices": [
+        {
+          "choice": "GAME",
+          "description": "Game type"
+        },
+        {
+          "choice": "PACKAGE",
+          "description": "Package type"
+        }
+      ],
+      "replaces": "VECXY_GAME_TYPE",
+      "defaultValue": "GAME",
+      "isRequired": true
+    },
+    "ProjectAuthor": {
+      "type": "parameter",
+      "description": "Author for project",
+      "datatype": "text",
+      "replaces": "VECXY_AUTHOR",
+      "defaultValue": "NO_AUTHOR"
+    },
+    "ProjectDescription": {
+      "type": "parameter",
+      "description": "Description for project",
+      "datatype": "text",
+      "replaces": "VECXY_DESCRIPTION",
+      "defaultValue": "NO_DESCRIPTION"
+    },
+    "ProjectVersion": {
+      "type": "parameter",
+      "description": "Version for project",
+      "datatype": "text",
+      "replaces": "VECXY_VERSION",
+      "defaultValue": "0.0.1"
+    }
+  }
 }

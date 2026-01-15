@@ -1,7 +1,7 @@
-{
-  "type": "GAME",
-  "name": "VECXY_GAME",
-  "description": "The game 'VECXY_GAME' developed on the Vecxy Engine",
-  "author": "Melkov",
-  "version": "0.0.1"
+ {
+  "type": "VECXY_GAME_TYPE",
+  "name": "VECXY_GAME_NAME",
+  "description": "VECXY_DESCRIPTION",
+  "author": "VECXY_AUTHOR",
+  "version": "VECXY_VERSION"
 }

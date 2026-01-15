@@ -1,6 +1,6 @@
 ﻿using Vecxy.Engine;
 
-namespace VECXY_GAME.Game;
+namespace VECXY_GAME_NAME.Game;
 
 public class Game : Application
 {
