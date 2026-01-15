@@ -1,0 +1,14 @@
+{
+  "$schema": "http://json.schemastore.org/template",
+  "author": "Melkov",
+  "classifications": [ "Vecxy", "Game" ],
+  "name": "Vecxy Game Project",
+  "identity": "Vecxy.Game.Template",
+  "shortName": "vecxygame",
+  "tags": {
+    "language": "C#",
+    "type": "project"
+  },
+  "sourceName": "VECXY_GAME",
+  "preferNameDirectory": true
+}

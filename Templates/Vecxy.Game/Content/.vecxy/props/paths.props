@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project>
+    <PropertyGroup>
+        <RootDir>$([System.IO.Path]::GetDirectoryName($(MSBuildThisFileDirectory)))</RootDir>
+        
+        <SolutionFile Condition="'$(SolutionFile)' == ''">$([MSBuild]::GetPathOfFileAbove('*.sln', '$(RootDir)'))</SolutionFile>
+        <SolutionDir Condition="'$(SolutionDir)' == ''">$([System.IO.Path]::GetDirectoryName('$(SolutionFile)'))</SolutionDir>
+        <SolutionName Condition="'$(SolutionName)' == ''">$([System.IO.Path]::GetFileNameWithoutExtension('$(SolutionFile)'))</SolutionName>
+
+        <TempDir>$([System.IO.Path]::Combine($(SolutionDir), `Temp`))</TempDir>
+        
+        <TempReleaseDir>$([System.IO.Path]::Combine($(TempDir), `Release`))</TempReleaseDir>
+        <TempBinReleaseDir>$([System.IO.Path]::Combine($(TempReleaseDir), `Bin`))</TempBinReleaseDir>
+        <TempObjReleaseDir>$([System.IO.Path]::Combine($(TempReleaseDir), `Obj`))</TempObjReleaseDir>
+
+        <TempDebugDir>$([System.IO.Path]::Combine($(TempDir), `Debug`))</TempDebugDir>
+        <TempBinDebugDir>$([System.IO.Path]::Combine($(TempDebugDir), `Bin`))</TempBinDebugDir>
+        <TempObjDebugDir>$([System.IO.Path]::Combine($(TempDebugDir), `Obj`))</TempObjDebugDir>
+        
+       
+
+        <EnginePath>$(VECXY_PATH)</EnginePath>
+    </PropertyGroup>
+</Project>

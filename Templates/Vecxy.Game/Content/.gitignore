@@ -1,0 +1,18 @@
+# Project
+Build/
+Temp/
+
+# Package Files
+*.exe
+*.bank
+*.pack
+
+# Archives
+*.zip
+*.rar
+*.tar
+
+# IDE
+.idea
+.vs
+.vscode

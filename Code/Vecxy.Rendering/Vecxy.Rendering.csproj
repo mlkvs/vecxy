@@ -1,0 +1,34 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net8.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+    </PropertyGroup>
+
+    <ItemGroup>
+      <PackageReference Include="OpenTK" Version="4.9.4" />
+      <PackageReference Include="StbImageSharp" Version="2.30.15" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <ProjectReference Include="..\Vecxy.Diagnostics\Vecxy.Diagnostics.csproj" />
+      <ProjectReference Include="..\Vecxy.Kernel\Vecxy.Kernel.csproj" />
+      <ProjectReference Include="..\Vecxy.Reflection\Vecxy.Reflection.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <EmbeddedResource Include="EmbeddedResources\Shaders\**\*.glsl" />
+      <EmbeddedResource Include="EmbeddedResources\Shaders\**\*.frag" />
+      <EmbeddedResource Include="EmbeddedResources\Shaders\**\*.vert" />
+        
+      <EmbeddedResource Include="EmbeddedResources\Sprites\**\*.jpg" />
+        
+      <EmbeddedResource Include="EmbeddedResources\Models\**\*.obj" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <Folder Include="EmbeddedResources\Models\" />
+    </ItemGroup>
+
+</Project>

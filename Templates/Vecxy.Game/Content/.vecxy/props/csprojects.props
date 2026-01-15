@@ -1,0 +1,42 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project>
+    <Import Project="./vecxy.props"/>
+    <Import Project="./paths.props"/>
+    
+    <PropertyGroup Label="MSBUILD_CFG_SHARED">
+        <TargetFramework>net8.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+
+        <OutputType>Library</OutputType>
+        
+        <MSBuildProjectExtensionsPath>$(BaseIntermediateOutputPath)</MSBuildProjectExtensionsPath>
+        <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+        <GenerateTargetFrameworkAttribute>false</GenerateTargetFrameworkAttribute>
+    </PropertyGroup>
+    
+    <PropertyGroup Condition=" '$(Configuration)' == 'Debug' " Label="MSBUILD_CFG_DEBUG">
+        <OutDir>$(TempBinDebugDir)</OutDir>
+
+        <IntermediateOutputPath>$(TempObjDebugDir)</IntermediateOutputPath>
+        <BaseIntermediateOutputPath>$(TempObjDebugDir)</BaseIntermediateOutputPath>
+        <PackageOutputPath>$(TempObjDebugDir)</PackageOutputPath>
+        
+        <DefineConstants>DEBUG</DefineConstants>
+        
+        <DebugType>portable</DebugType>
+        <DebugSymbols>true</DebugSymbols>
+        <Optimize>false</Optimize>
+    </PropertyGroup>
+
+    <PropertyGroup Condition=" '$(Configuration)' == 'Release' " Label="MSBUILD_CFG_RELEASE">
+        <OutDir>$(TempBinReleaseDir)</OutDir>
+
+        <IntermediateOutputPath>$(TempObjReleaseDir)</IntermediateOutputPath>
+        <BaseIntermediateOutputPath>$(TempObjReleaseDir)</BaseIntermediateOutputPath>
+        <PackageOutputPath>$(TempObjReleaseDir)</PackageOutputPath>
+        
+        <DebugSymbols>false</DebugSymbols>
+        <Optimize>true</Optimize>
+    </PropertyGroup>
+</Project>

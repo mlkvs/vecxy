@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project>
+    <ItemGroup>
+        <Reference Include="Vecxy.Engine">
+            <HintPath>$(EnginePath)\Vecxy.Engine.dll</HintPath>
+        </Reference>
+
+        <Reference Include="Vecxy.Diagnostics">
+            <HintPath>$(EnginePath)\Vecxy.Diagnostics.dll</HintPath>
+        </Reference>
+    </ItemGroup>
+</Project>

@@ -1,0 +1,14 @@
+Формат который мне больше всего понравился для контроля зависимостей в проектах.
+
+"dependencies": {
+    "local-package-name": "./vendors/local-package",
+    "flappy-bird-game": {
+      "git": "https://github.com/mlkvs/vecxy.game.flappy-bird.git",
+      "tag": "v0.0.1",
+      "path": "./some/folder/path"
+    },
+    "another-repo": {
+      "git": "https://github.com/another/repo.git",
+      "branch": "main"
+    }
+}

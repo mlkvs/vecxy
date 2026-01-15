@@ -1,0 +1,30 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net8.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+    </PropertyGroup>
+
+    <ItemGroup>
+      <ProjectReference Include="..\Vecxy.IO\Vecxy.IO.csproj" />
+      <ProjectReference Include="..\Vecxy.Rendering\Vecxy.Rendering.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <Reference Include="Zenject">
+            <HintPath>..\..\vendors\extenject\Zenject.dll</HintPath>
+        </Reference>
+        <Reference Include="Zenject-Signals">
+            <HintPath>..\..\vendors\extenject\Zenject-Signals.dll</HintPath>
+        </Reference>
+        <Reference Include="Zenject-usage">
+            <HintPath>..\..\vendors\extenject\Zenject-usage.dll</HintPath>
+        </Reference>
+    </ItemGroup>
+
+    <ItemGroup>
+      <PackageReference Include="Newtonsoft.Json" Version="13.0.5-beta1" />
+    </ItemGroup>
+
+</Project>

@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <PackageType>Template</PackageType>
+        <PackageVersion>0.0.1</PackageVersion>
+        <PackageId>Vecxy.Template.Game</PackageId>
+        <Title>Vecxy Game Template</Title>
+        <Authors>Melkov</Authors>
+        <Description>Template for creating Vecxy Game projects.</Description>
+        <PackageTags>dotnet-new;templates;vecxy;game</PackageTags>
+
+        <TargetFramework>net8.0</TargetFramework>
+
+        <PackageOutputPath>../../Packages</PackageOutputPath>
+        
+        <IncludeContentInPack>true</IncludeContentInPack>
+        <IncludeBuildOutput>false</IncludeBuildOutput>
+        <ContentTargetFolders>Content</ContentTargetFolders>
+        
+        <NoWarn>$(NoWarn);NU5128</NoWarn>
+        <NoDefaultExcludes>true</NoDefaultExcludes>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <Content Include="Content\**\*" Exclude="Content\**\bin\**;Content\**\obj\**" />
+        <Compile Remove="**\*" />
+    </ItemGroup>
+
+</Project>
