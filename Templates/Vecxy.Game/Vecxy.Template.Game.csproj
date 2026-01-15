@@ -11,7 +11,7 @@
 
         <TargetFramework>net8.0</TargetFramework>
 
-        <PackageOutputPath>../../Packages</PackageOutputPath>
+        <PackageOutputPath>.././Packages</PackageOutputPath>
         
         <IncludeContentInPack>true</IncludeContentInPack>
         <IncludeBuildOutput>false</IncludeBuildOutput>
