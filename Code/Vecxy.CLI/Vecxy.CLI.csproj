@@ -2,4 +2,7 @@
     <PropertyGroup>
         <OutputType>Exe</OutputType>
     </PropertyGroup>
+    <ItemGroup>
+      <ProjectReference Include="..\Vecxy.Builder\Vecxy.Builder.csproj" />
+    </ItemGroup>
 </Project>
