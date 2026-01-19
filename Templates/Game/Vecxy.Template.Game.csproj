@@ -6,16 +6,16 @@
         <PackageId>Vecxy.Template.Game</PackageId>
         <Title>Vecxy Game Template</Title>
         <Authors>Melkov</Authors>
-        
+
         <Description>Template for creating Vecxy Game projects.</Description>
         <PackageTags>dotnet-new;templates;vecxy;game</PackageTags>
 
-        <PackageOutputPath>.././Packages</PackageOutputPath>
-        
+        <PackageOutputPath>../.././Packages</PackageOutputPath>
+
         <IncludeContentInPack>true</IncludeContentInPack>
         <IncludeBuildOutput>false</IncludeBuildOutput>
         <ContentTargetFolders>Content</ContentTargetFolders>
-        
+
         <NoWarn>$(NoWarn);NU5128</NoWarn>
         <NoDefaultExcludes>true</NoDefaultExcludes>
     </PropertyGroup>
