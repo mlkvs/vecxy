@@ -2,7 +2,30 @@
     <PropertyGroup>
         <OutputType>Exe</OutputType>
     </PropertyGroup>
+    
     <ItemGroup>
       <ProjectReference Include="..\Vecxy.Builder\Vecxy.Builder.csproj" />
     </ItemGroup>
+
+    <Target Name="CreateShim" AfterTargets="Build">
+        <PropertyGroup>
+            <ShimName>vecxy</ShimName>
+            <BashContent>#!/usr/bin/env bash 
+PARENT_PATH=%24(cd "%24(dirname "%240")"; pwd -P)
+"%24PARENT_PATH/$(AssemblyName).exe" "%24@"</BashContent>
+
+            <BatchContent>@echo off
+"%~dp0$(AssemblyName).exe" %*</BatchContent>
+        </PropertyGroup>
+        
+        <WriteLinesToFile
+                File="$(TargetDir)$(ShimName).bat"
+                Lines="$(BatchContent)"
+                Overwrite="true" />
+        
+        <WriteLinesToFile
+                File="$(TargetDir)$(ShimName)"
+                Lines="$(BashContent)"
+                Overwrite="true" />
+    </Target>
 </Project>

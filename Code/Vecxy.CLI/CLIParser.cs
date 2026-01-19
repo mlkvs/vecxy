@@ -126,7 +126,7 @@ public static class CLIParser
                 var targetType = Nullable.GetUnderlyingType(memberType) ?? memberType;
 
                 var convertedValue = targetType.IsEnum ? 
-                    Enum.Parse(targetType, value, true) : 
+                    Enum.Parse(targetType, value!, true) : 
                     Convert.ChangeType(value, targetType);
                 
                 switch (member)
