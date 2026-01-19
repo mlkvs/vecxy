@@ -1,0 +1,19 @@
+<Solution>
+  <Folder Name="/Editor/">
+    <Project Path="Code/Vecxy.Editor/Vecxy.Editor.csproj" />
+  </Folder>
+  <Folder Name="/Engine/">
+    <Project Path="Code/Vecxy.Diagnostics/Vecxy.Diagnostics.csproj" />
+    <Project Path="Code/Vecxy.Engine/Vecxy.Engine.csproj" />
+    <Project Path="Code/Vecxy.Executable/Vecxy.Executable.csproj" />
+    <Project Path="Code/Vecxy.IO/Vecxy.IO.csproj" />
+    <Project Path="Code/Vecxy.Kernel/Vecxy.Kernel.csproj" />
+    <Project Path="Code/Vecxy.Reflection/Vecxy.Reflection.csproj" />
+    <Project Path="Code/Vecxy.Rendering/Vecxy.Rendering.csproj" />
+  </Folder>
+  <Folder Name="/Tools/">
+    <Project Path="Code/Vecxy.Builder/Vecxy.Builder.csproj" />
+    <Project Path="Code/Vecxy.CLI/Vecxy.CLI.csproj" />
+    <Project Path="Code/Vecxy.SlnKit/Vecxy.SlnKit.csproj" />
+  </Folder>
+</Solution>
