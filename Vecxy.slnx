@@ -2,6 +2,7 @@
   <Configurations>
     <Platform Name="Any CPU" />
     <Platform Name="x64" />
+    <Platform Name="x86" />
   </Configurations>
   <Folder Name="/Editor/">
     <Project Path="Code/Vecxy.Editor/Vecxy.Editor.csproj">
@@ -13,9 +14,6 @@
       <Platform Solution="*|x64" Project="x64" />
     </Project>
     <Project Path="Code/Vecxy.Engine/Vecxy.Engine.csproj">
-      <Platform Solution="*|x64" Project="x64" />
-    </Project>
-    <Project Path="Code/Vecxy.Executable/Vecxy.Executable.csproj">
       <Platform Solution="*|x64" Project="x64" />
     </Project>
     <Project Path="Code/Vecxy.IO/Vecxy.IO.csproj">
@@ -31,6 +29,16 @@
       <Platform Solution="*|x64" Project="x64" />
     </Project>
   </Folder>
+  <Folder Name="/Native/">
+    <Project Path="Code/Vecxy.Native/Vecxy.Native.Windows/Vecxy.Native.Windows.vcxproj" Id="08c0319b-aaea-449a-aa85-0351825ce699">
+      <Platform Solution="Release|Any CPU" Project="Win32" />
+    </Project>
+  </Folder>
+  <Folder Name="/Runtime/">
+    <Project Path="Code/Vecxy.Executable/Vecxy.Executable.csproj">
+      <Platform Solution="*|x64" Project="x64" />
+    </Project>
+  </Folder>
   <Folder Name="/Tools/">
     <Project Path="Code/Vecxy.Builder/Vecxy.Builder.csproj">
       <Platform Solution="*|x64" Project="x64" />
@@ -38,11 +46,5 @@
     <Project Path="Code/Vecxy.CLI/Vecxy.CLI.csproj">
       <Platform Solution="*|x64" Project="x64" />
     </Project>
-    <Project Path="Code/Vecxy.SlnKit/Vecxy.SlnKit.csproj">
-      <Platform Solution="*|x64" Project="x64" />
-    </Project>
   </Folder>
-  <Project Path="Code/Vecxy.Native/Vecxy.Native.Windows/Vecxy.Native.Windows.vcxproj" Id="08c0319b-aaea-449a-aa85-0351825ce699">
-    <Platform Solution="Release|Any CPU" Project="Win32" />
-  </Project>
 </Solution>

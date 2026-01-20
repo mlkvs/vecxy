@@ -2,7 +2,7 @@
 
 namespace Vecxy.Editor;
 
-public class Editor : Application
+public class Editor : ApplicationLayer
 {
     public override void OnInitialize()
     {

@@ -66,7 +66,7 @@ internal class Program
                 continue;
             }
 
-            if (type.BaseType == typeof(Application))
+            if (type.BaseType == typeof(ApplicationLayer))
             {
                 appType = type;
                 break;
@@ -75,10 +75,10 @@ internal class Program
 
         if (appType == null)
         {
-            throw new Exception($"In build {Path.GetFileName(gameDllPath)} not found class, with implementation Application!");
+            throw new Exception($"In build {Path.GetFileName(gameDllPath)} not found class, with implementation ApplicationLayer!");
         }
 
-        var application = (Application)Activator.CreateInstance(appType)!;
+        var application = (ApplicationLayer)Activator.CreateInstance(appType)!;
 
         var engine = new Engine(application);
 

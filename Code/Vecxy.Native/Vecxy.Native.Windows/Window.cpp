@@ -1,4 +1,5 @@
 #include "Window.h"
+#include <stdexcept>
 
 Window::Window(const wchar_t* CLASS_NAME)
 {
@@ -9,6 +10,28 @@ Window::Window(const wchar_t* CLASS_NAME)
 	ws.lpszClassName = CLASS_NAME;
 
 	RegisterClass(&ws);
+
+	_hwnd = CreateWindowEx
+	(
+		0,
+		CLASS_NAME,
+		L"Vecxy Native Window",
+		WS_OVERLAPPEDWINDOW,
+		CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT,
+		nullptr,
+		nullptr,
+		_instance,
+		nullptr
+	);
+
+	if (_hwnd == nullptr)
+	{
+		throw std::runtime_error("Failed to create window.");
+	}
+}
+
+Window::~Window()
+{
 }
 
 HWND Window::GetHandle() const

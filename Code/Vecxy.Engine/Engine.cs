@@ -7,11 +7,11 @@ public class Engine : IDisposable
     public const string VERSION = "0.0.1";
 
     private readonly RenderWindow _window;
-    private readonly Application _application;
+    private readonly ApplicationLayer _applicationLayer;
 
-    public Engine(Application application)
+    public Engine(ApplicationLayer applicationLayer)
     {
-        _application = application;
+        _applicationLayer = applicationLayer;
 
         _window = RenderWindow.Create(new RenderWindowOptions
         {
@@ -34,14 +34,14 @@ public class Engine : IDisposable
 
     private void OnLoad()
     {
-        _application.OnInitialize();
+        _applicationLayer.OnInitialize();
     }
 
     private void OnUpdate(OpenTK.Windowing.Common.FrameEventArgs e)
     {
         var deltaTime = (float)e.Time;
 
-        _application.OnTick();
+        _applicationLayer.OnTick();
     }
 
     private void OnFrame(OpenTK.Windowing.Common.FrameEventArgs e)

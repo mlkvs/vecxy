@@ -39,7 +39,7 @@ EXPORT void OpenNativeWindow(const wchar_t* id, const wchar_t* title) {
 
     HWND hwnd = CreateWindowExW(
         0, CLASS_NAME, title,
-        WS_OVERLAPPEDWINDOW | WS_VISIBLE,
+        (WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU  | WS_VISIBLE),
         CW_USEDEFAULT, CW_USEDEFAULT, 1280, 720,
         NULL, NULL, g_hInst, NULL
     );

@@ -11,7 +11,7 @@ public struct AppInfo
     [DataMember(Name = "author")] public string Author;
 }
 
-public abstract class Application()
+public abstract class ApplicationLayer()
 {
     public abstract void OnInitialize();
     public abstract void OnTick();
