@@ -3,12 +3,59 @@
   "WorkspaceRootPath": "D:\\Projects\\vecxy\\vecxy\\",
   "Documents": [
     {
-      "AbsoluteMoniker": "D:0:0:{08C0319B-AAEA-449A-AA85-0351825CE699}|Code\\Vecxy.Native\\Vecxy.Native.Windows\\Vecxy.Native.Windows.vcxproj|D:\\Projects\\vecxy\\vecxy\\Code\\Vecxy.Native\\Vecxy.Native.Windows\\NativeWindow.cpp||{D0E1A5C6-B359-4E41-9B60-3365922C2A22}",
-      "RelativeMoniker": "D:0:0:{08C0319B-AAEA-449A-AA85-0351825CE699}|Code\\Vecxy.Native\\Vecxy.Native.Windows\\Vecxy.Native.Windows.vcxproj|solutionrelative:Code\\Vecxy.Native\\Vecxy.Native.Windows\\NativeWindow.cpp||{D0E1A5C6-B359-4E41-9B60-3365922C2A22}"
+      "AbsoluteMoniker": "D:0:0:{08C0319B-AAEA-449A-AA85-0351825CE699}|Code\\Vecxy.Native\\Vecxy.Native.Windows\\Vecxy.Native.Windows.vcxproj|D:\\Projects\\vecxy\\vecxy\\Code\\Vecxy.Native\\Vecxy.Native.Windows\\WindowExports.cpp||{D0E1A5C6-B359-4E41-9B60-3365922C2A22}",
+      "RelativeMoniker": "D:0:0:{08C0319B-AAEA-449A-AA85-0351825CE699}|Code\\Vecxy.Native\\Vecxy.Native.Windows\\Vecxy.Native.Windows.vcxproj|solutionrelative:Code\\Vecxy.Native\\Vecxy.Native.Windows\\WindowExports.cpp||{D0E1A5C6-B359-4E41-9B60-3365922C2A22}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{08C0319B-AAEA-449A-AA85-0351825CE699}|Code\\Vecxy.Native\\Vecxy.Native.Windows\\Vecxy.Native.Windows.vcxproj|D:\\Projects\\vecxy\\vecxy\\Code\\Vecxy.Native\\Vecxy.Native.Windows\\Library.h||{D0E1A5C6-B359-4E41-9B60-3365922C2A22}",
+      "RelativeMoniker": "D:0:0:{08C0319B-AAEA-449A-AA85-0351825CE699}|Code\\Vecxy.Native\\Vecxy.Native.Windows\\Vecxy.Native.Windows.vcxproj|solutionrelative:Code\\Vecxy.Native\\Vecxy.Native.Windows\\Library.h||{D0E1A5C6-B359-4E41-9B60-3365922C2A22}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{08C0319B-AAEA-449A-AA85-0351825CE699}|Code\\Vecxy.Native\\Vecxy.Native.Windows\\Vecxy.Native.Windows.vcxproj|D:\\Projects\\vecxy\\vecxy\\Code\\Vecxy.Native\\Vecxy.Native.Windows\\Window.cpp||{D0E1A5C6-B359-4E41-9B60-3365922C2A22}",
+      "RelativeMoniker": "D:0:0:{08C0319B-AAEA-449A-AA85-0351825CE699}|Code\\Vecxy.Native\\Vecxy.Native.Windows\\Vecxy.Native.Windows.vcxproj|solutionrelative:Code\\Vecxy.Native\\Vecxy.Native.Windows\\Window.cpp||{D0E1A5C6-B359-4E41-9B60-3365922C2A22}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{08C0319B-AAEA-449A-AA85-0351825CE699}|Code\\Vecxy.Native\\Vecxy.Native.Windows\\Vecxy.Native.Windows.vcxproj|D:\\Projects\\vecxy\\vecxy\\Code\\Vecxy.Native\\Vecxy.Native.Windows\\Window.h||{D0E1A5C6-B359-4E41-9B60-3365922C2A22}",
+      "RelativeMoniker": "D:0:0:{08C0319B-AAEA-449A-AA85-0351825CE699}|Code\\Vecxy.Native\\Vecxy.Native.Windows\\Vecxy.Native.Windows.vcxproj|solutionrelative:Code\\Vecxy.Native\\Vecxy.Native.Windows\\Window.h||{D0E1A5C6-B359-4E41-9B60-3365922C2A22}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{08C0319B-AAEA-449A-AA85-0351825CE699}|Code\\Vecxy.Native\\Vecxy.Native.Windows\\Vecxy.Native.Windows.vcxproj|D:\\Projects\\vecxy\\vecxy\\Code\\Vecxy.Native\\Vecxy.Native.Windows\\NativeWindow_AI.cpp||{D0E1A5C6-B359-4E41-9B60-3365922C2A22}",
+      "RelativeMoniker": "D:0:0:{08C0319B-AAEA-449A-AA85-0351825CE699}|Code\\Vecxy.Native\\Vecxy.Native.Windows\\Vecxy.Native.Windows.vcxproj|solutionrelative:Code\\Vecxy.Native\\Vecxy.Native.Windows\\NativeWindow_AI.cpp||{D0E1A5C6-B359-4E41-9B60-3365922C2A22}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{CD29BE55-FD9F-CFEA-7F48-9370B05BD98D}|Code\\Vecxy.CLI\\Vecxy.CLI.csproj|d:\\projects\\vecxy\\vecxy\\code\\vecxy.cli\\commands\\buildcommand.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{CD29BE55-FD9F-CFEA-7F48-9370B05BD98D}|Code\\Vecxy.CLI\\Vecxy.CLI.csproj|solutionrelative:code\\vecxy.cli\\commands\\buildcommand.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     },
     {
       "AbsoluteMoniker": "D:0:0:{CD29BE55-FD9F-CFEA-7F48-9370B05BD98D}|Code\\Vecxy.CLI\\Vecxy.CLI.csproj|d:\\projects\\vecxy\\vecxy\\code\\vecxy.cli\\cliparser.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
       "RelativeMoniker": "D:0:0:{CD29BE55-FD9F-CFEA-7F48-9370B05BD98D}|Code\\Vecxy.CLI\\Vecxy.CLI.csproj|solutionrelative:code\\vecxy.cli\\cliparser.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{CD29BE55-FD9F-CFEA-7F48-9370B05BD98D}|Code\\Vecxy.CLI\\Vecxy.CLI.csproj|d:\\projects\\vecxy\\vecxy\\code\\vecxy.cli\\test\\testdemo.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{CD29BE55-FD9F-CFEA-7F48-9370B05BD98D}|Code\\Vecxy.CLI\\Vecxy.CLI.csproj|solutionrelative:code\\vecxy.cli\\test\\testdemo.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{08C0319B-AAEA-449A-AA85-0351825CE699}|Code\\Vecxy.Native\\Vecxy.Native.Windows\\Vecxy.Native.Windows.vcxproj|C:\\PROGRAM FILES (X86)\\WINDOWS KITS\\10\\INCLUDE\\10.0.26100.0\\UM\\WINDOWS.H||{D0E1A5C6-B359-4E41-9B60-3365922C2A22}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{CD29BE55-FD9F-CFEA-7F48-9370B05BD98D}|Code\\Vecxy.CLI\\Vecxy.CLI.csproj|d:\\projects\\vecxy\\vecxy\\code\\vecxy.cli\\vecxy.cli.csproj.dotsettings||{FA3CD31E-987B-443A-9B81-186104E8DAC1}",
+      "RelativeMoniker": "D:0:0:{CD29BE55-FD9F-CFEA-7F48-9370B05BD98D}|Code\\Vecxy.CLI\\Vecxy.CLI.csproj|solutionrelative:code\\vecxy.cli\\vecxy.cli.csproj.dotsettings||{FA3CD31E-987B-443A-9B81-186104E8DAC1}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{0CC9C98F-19B5-C7EF-29E3-6530036B9F33}|Code\\Vecxy.Engine\\Vecxy.Engine.csproj|d:\\projects\\vecxy\\vecxy\\code\\vecxy.engine\\project.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{0CC9C98F-19B5-C7EF-29E3-6530036B9F33}|Code\\Vecxy.Engine\\Vecxy.Engine.csproj|solutionrelative:code\\vecxy.engine\\project.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{0CC9C98F-19B5-C7EF-29E3-6530036B9F33}|Code\\Vecxy.Engine\\Vecxy.Engine.csproj|d:\\projects\\vecxy\\vecxy\\code\\vecxy.engine\\application.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{0CC9C98F-19B5-C7EF-29E3-6530036B9F33}|Code\\Vecxy.Engine\\Vecxy.Engine.csproj|solutionrelative:code\\vecxy.engine\\application.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{0CC9C98F-19B5-C7EF-29E3-6530036B9F33}|Code\\Vecxy.Engine\\Vecxy.Engine.csproj|d:\\projects\\vecxy\\vecxy\\code\\vecxy.engine\\engine.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{0CC9C98F-19B5-C7EF-29E3-6530036B9F33}|Code\\Vecxy.Engine\\Vecxy.Engine.csproj|solutionrelative:code\\vecxy.engine\\engine.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{0CC9C98F-19B5-C7EF-29E3-6530036B9F33}|Code\\Vecxy.Engine\\Vecxy.Engine.csproj|d:\\projects\\vecxy\\vecxy\\code\\vecxy.engine\\exceptions.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{0CC9C98F-19B5-C7EF-29E3-6530036B9F33}|Code\\Vecxy.Engine\\Vecxy.Engine.csproj|solutionrelative:code\\vecxy.engine\\exceptions.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     },
     {
       "AbsoluteMoniker": "D:0:0:{CD29BE55-FD9F-CFEA-7F48-9370B05BD98D}|Code\\Vecxy.CLI\\Vecxy.CLI.csproj|d:\\projects\\vecxy\\vecxy\\code\\vecxy.cli\\vecxy.cli.csproj||{FA3CD31E-987B-443A-9B81-186104E8DAC1}|",
@@ -27,25 +74,114 @@
             {
               "$type": "Document",
               "DocumentIndex": 0,
-              "Title": "NativeWindow.cpp",
-              "DocumentMoniker": "D:\\Projects\\vecxy\\vecxy\\Code\\Vecxy.Native\\Vecxy.Native.Windows\\NativeWindow.cpp",
-              "RelativeDocumentMoniker": "Code\\Vecxy.Native\\Vecxy.Native.Windows\\NativeWindow.cpp",
-              "ToolTip": "D:\\Projects\\vecxy\\vecxy\\Code\\Vecxy.Native\\Vecxy.Native.Windows\\NativeWindow.cpp",
-              "RelativeToolTip": "Code\\Vecxy.Native\\Vecxy.Native.Windows\\NativeWindow.cpp",
-              "ViewState": "AgIAABUAAAAAAAAAAAAAADEAAAAcAAAAAAAAAA==",
+              "Title": "WindowExports.cpp",
+              "DocumentMoniker": "D:\\Projects\\vecxy\\vecxy\\Code\\Vecxy.Native\\Vecxy.Native.Windows\\WindowExports.cpp",
+              "RelativeDocumentMoniker": "Code\\Vecxy.Native\\Vecxy.Native.Windows\\WindowExports.cpp",
+              "ToolTip": "D:\\Projects\\vecxy\\vecxy\\Code\\Vecxy.Native\\Vecxy.Native.Windows\\WindowExports.cpp",
+              "RelativeToolTip": "Code\\Vecxy.Native\\Vecxy.Native.Windows\\WindowExports.cpp",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAsAAAANAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000677|",
+              "WhenOpened": "2026-01-20T20:46:25.757Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 1,
+              "Title": "Library.h",
+              "DocumentMoniker": "D:\\Projects\\vecxy\\vecxy\\Code\\Vecxy.Native\\Vecxy.Native.Windows\\Library.h",
+              "RelativeDocumentMoniker": "Code\\Vecxy.Native\\Vecxy.Native.Windows\\Library.h",
+              "ToolTip": "D:\\Projects\\vecxy\\vecxy\\Code\\Vecxy.Native\\Vecxy.Native.Windows\\Library.h",
+              "RelativeToolTip": "Code\\Vecxy.Native\\Vecxy.Native.Windows\\Library.h",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAUAAAANAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000680|",
+              "WhenOpened": "2026-01-20T20:34:44.498Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 3,
+              "Title": "Window.h",
+              "DocumentMoniker": "D:\\Projects\\vecxy\\vecxy\\Code\\Vecxy.Native\\Vecxy.Native.Windows\\Window.h",
+              "RelativeDocumentMoniker": "Code\\Vecxy.Native\\Vecxy.Native.Windows\\Window.h",
+              "ToolTip": "D:\\Projects\\vecxy\\vecxy\\Code\\Vecxy.Native\\Vecxy.Native.Windows\\Window.h",
+              "RelativeToolTip": "Code\\Vecxy.Native\\Vecxy.Native.Windows\\Window.h",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAgAAAALAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000680|",
+              "WhenOpened": "2026-01-20T20:24:25.831Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 5,
+              "Title": "BuildCommand.cs",
+              "DocumentMoniker": "D:\\Projects\\vecxy\\vecxy\\Code\\Vecxy.CLI\\Commands\\BuildCommand.cs",
+              "RelativeDocumentMoniker": "Code\\Vecxy.CLI\\Commands\\BuildCommand.cs",
+              "ToolTip": "D:\\Projects\\vecxy\\vecxy\\Code\\Vecxy.CLI\\Commands\\BuildCommand.cs",
+              "RelativeToolTip": "Code\\Vecxy.CLI\\Commands\\BuildCommand.cs",
+              "ViewState": "AgIAAAcAAAAAAAAAAAAnwBcAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-01-20T20:15:52.51Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 7,
+              "Title": "TestDemo.cs",
+              "DocumentMoniker": "D:\\Projects\\vecxy\\vecxy\\Code\\Vecxy.CLI\\Test\\TestDemo.cs",
+              "RelativeDocumentMoniker": "Code\\Vecxy.CLI\\Test\\TestDemo.cs",
+              "ToolTip": "D:\\Projects\\vecxy\\vecxy\\Code\\Vecxy.CLI\\Test\\TestDemo.cs",
+              "RelativeToolTip": "Code\\Vecxy.CLI\\Test\\TestDemo.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAgAAAABAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-01-20T19:47:07.3Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 12,
+              "Title": "Engine.cs",
+              "DocumentMoniker": "D:\\Projects\\vecxy\\vecxy\\Code\\Vecxy.Engine\\Engine.cs",
+              "RelativeDocumentMoniker": "Code\\Vecxy.Engine\\Engine.cs",
+              "ToolTip": "D:\\Projects\\vecxy\\vecxy\\Code\\Vecxy.Engine\\Engine.cs",
+              "RelativeToolTip": "Code\\Vecxy.Engine\\Engine.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-01-20T19:40:27.176Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 11,
+              "Title": "Application.cs",
+              "DocumentMoniker": "D:\\Projects\\vecxy\\vecxy\\Code\\Vecxy.Engine\\Application.cs",
+              "RelativeDocumentMoniker": "Code\\Vecxy.Engine\\Application.cs",
+              "ToolTip": "D:\\Projects\\vecxy\\vecxy\\Code\\Vecxy.Engine\\Application.cs",
+              "RelativeToolTip": "Code\\Vecxy.Engine\\Application.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAcAAAAuAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-01-20T19:40:22.521Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 4,
+              "Title": "NativeWindow_AI.cpp",
+              "DocumentMoniker": "D:\\Projects\\vecxy\\vecxy\\Code\\Vecxy.Native\\Vecxy.Native.Windows\\NativeWindow_AI.cpp",
+              "RelativeDocumentMoniker": "Code\\Vecxy.Native\\Vecxy.Native.Windows\\NativeWindow_AI.cpp",
+              "ToolTip": "D:\\Projects\\vecxy\\vecxy\\Code\\Vecxy.Native\\Vecxy.Native.Windows\\NativeWindow_AI.cpp",
+              "RelativeToolTip": "Code\\Vecxy.Native\\Vecxy.Native.Windows\\NativeWindow_AI.cpp",
+              "ViewState": "AgIAABIAAAAAAAAAAAAAABYAAAAaAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000677|",
               "WhenOpened": "2026-01-20T19:35:43.673Z",
               "EditorCaption": ""
             },
             {
               "$type": "Document",
-              "DocumentIndex": 1,
+              "DocumentIndex": 6,
               "Title": "CLIParser.cs",
               "DocumentMoniker": "D:\\Projects\\vecxy\\vecxy\\Code\\Vecxy.CLI\\CLIParser.cs",
               "RelativeDocumentMoniker": "Code\\Vecxy.CLI\\CLIParser.cs",
               "ToolTip": "D:\\Projects\\vecxy\\vecxy\\Code\\Vecxy.CLI\\CLIParser.cs",
               "RelativeToolTip": "Code\\Vecxy.CLI\\CLIParser.cs",
-              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAgAAAAAAAAAAAAAAA==",
+              "ViewState": "AgIAAAcAAAAAAAAAAAAkwBIAAAAWAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
               "WhenOpened": "2026-01-20T19:34:13.938Z",
               "EditorCaption": ""
@@ -53,15 +189,73 @@
             {
               "$type": "Document",
               "DocumentIndex": 2,
-              "Title": "Vecxy.CLI",
+              "Title": "Window.cpp",
+              "DocumentMoniker": "D:\\Projects\\vecxy\\vecxy\\Code\\Vecxy.Native\\Vecxy.Native.Windows\\Window.cpp",
+              "RelativeDocumentMoniker": "Code\\Vecxy.Native\\Vecxy.Native.Windows\\Window.cpp",
+              "ToolTip": "D:\\Projects\\vecxy\\vecxy\\Code\\Vecxy.Native\\Vecxy.Native.Windows\\Window.cpp",
+              "RelativeToolTip": "Code\\Vecxy.Native\\Vecxy.Native.Windows\\Window.cpp",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAQAAAATAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000677|",
+              "WhenOpened": "2026-01-20T19:55:55.136Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 13,
+              "Title": "Exceptions.cs",
+              "DocumentMoniker": "D:\\Projects\\vecxy\\vecxy\\Code\\Vecxy.Engine\\Exceptions.cs",
+              "RelativeDocumentMoniker": "Code\\Vecxy.Engine\\Exceptions.cs",
+              "ToolTip": "D:\\Projects\\vecxy\\vecxy\\Code\\Vecxy.Engine\\Exceptions.cs",
+              "RelativeToolTip": "Code\\Vecxy.Engine\\Exceptions.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAIAAAARAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-01-20T19:40:30.963Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 10,
+              "Title": "Project.cs",
+              "DocumentMoniker": "D:\\Projects\\vecxy\\vecxy\\Code\\Vecxy.Engine\\Project.cs",
+              "RelativeDocumentMoniker": "Code\\Vecxy.Engine\\Project.cs",
+              "ToolTip": "D:\\Projects\\vecxy\\vecxy\\Code\\Vecxy.Engine\\Project.cs",
+              "RelativeToolTip": "Code\\Vecxy.Engine\\Project.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAUAAAATAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-01-20T19:45:36.343Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 9,
+              "Title": "Vecxy.CLI.csproj.DotSettings",
+              "DocumentMoniker": "D:\\Projects\\vecxy\\vecxy\\Code\\Vecxy.CLI\\Vecxy.CLI.csproj.DotSettings",
+              "RelativeDocumentMoniker": "Code\\Vecxy.CLI\\Vecxy.CLI.csproj.DotSettings",
+              "ToolTip": "D:\\Projects\\vecxy\\vecxy\\Code\\Vecxy.CLI\\Vecxy.CLI.csproj.DotSettings",
+              "RelativeToolTip": "Code\\Vecxy.CLI\\Vecxy.CLI.csproj.DotSettings",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001001|",
+              "WhenOpened": "2026-01-20T19:47:59.531Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 8,
+              "Title": "Windows.h",
+              "DocumentMoniker": "C:\\Program Files (x86)\\Windows Kits\\10\\Include\\10.0.26100.0\\um\\Windows.h",
+              "ToolTip": "C:\\Program Files (x86)\\Windows Kits\\10\\Include\\10.0.26100.0\\um\\Windows.h",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000680|",
+              "WhenOpened": "2026-01-20T20:02:41.805Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 14,
+              "Title": "Vecxy.CLI.csproj",
               "DocumentMoniker": "D:\\Projects\\vecxy\\vecxy\\Code\\Vecxy.CLI\\Vecxy.CLI.csproj",
               "RelativeDocumentMoniker": "Code\\Vecxy.CLI\\Vecxy.CLI.csproj",
               "ToolTip": "D:\\Projects\\vecxy\\vecxy\\Code\\Vecxy.CLI\\Vecxy.CLI.csproj",
               "RelativeToolTip": "Code\\Vecxy.CLI\\Vecxy.CLI.csproj",
-              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAoAAAAXAAAAAAAAAA==",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAsAAAAXAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000758|",
-              "WhenOpened": "2026-01-20T19:34:08.182Z",
-              "EditorCaption": ""
+              "WhenOpened": "2026-01-20T19:34:08.182Z"
             }
           ]
         }

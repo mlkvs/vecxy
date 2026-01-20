@@ -19,7 +19,13 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="NativeWindow.cpp" />
+    <ClCompile Include="NativeWindow_AI.cpp" />
+    <ClCompile Include="Window.cpp" />
+    <ClCompile Include="WindowExports.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="Library.h" />
+    <ClInclude Include="Window.h" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>15.0</VCProjectVersion>
