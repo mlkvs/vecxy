@@ -91,10 +91,10 @@ public class ObjParser
     public Obj Parse(string source)
     {
         _obj = new Obj(source.Trim());
-        
+
         _lines = _obj.GetLines();
         _position = 0;
-        
+
         while (_position < _lines.Length)
         {
             var line = GetCurrentLine();
@@ -102,21 +102,21 @@ public class ObjParser
             switch (line.Tag)
             {
                 case OBJ_TAG.COMMENT:
-                {
-                    var comment = line.ToText();
+                    {
+                        var comment = line.ToText();
 
-                    _obj.Comments.Add(comment);
+                        _obj.Comments.Add(comment);
 
-                    Next();
-                    continue;
-                }
+                        Next();
+                        continue;
+                    }
 
                 case OBJ_TAG.NAME:
-                {
-                    var objObject = ParseObject();
-                    _obj.Objects.Add(objObject);
-                    continue;
-                }
+                    {
+                        var objObject = ParseObject();
+                        _obj.Objects.Add(objObject);
+                        continue;
+                    }
 
                 default:
                     throw new KeyNotFoundException($"Parse. Not a valid obj tag: {line.Tag}");
@@ -134,7 +134,7 @@ public class ObjParser
         {
             throw new KeyNotFoundException($"ParseObject. Not a valid obj tag: {line.Tag}");
         }
-        
+
         var objObject = new ObjObject(line.ToText());
 
         Next();
@@ -146,120 +146,120 @@ public class ObjParser
             switch (line.Tag)
             {
                 case OBJ_TAG.VERTEX:
-                {
-                    var x = float.Parse(line.Data[0], CultureInfo.InvariantCulture);
-                    var y = float.Parse(line.Data[1], CultureInfo.InvariantCulture);
-                    var z = float.Parse(line.Data[2], CultureInfo.InvariantCulture);
+                    {
+                        var x = float.Parse(line.Data[0], CultureInfo.InvariantCulture);
+                        var y = float.Parse(line.Data[1], CultureInfo.InvariantCulture);
+                        var z = float.Parse(line.Data[2], CultureInfo.InvariantCulture);
 
-                    var position = new Vector3(x, y, z);
+                        var position = new Vector3(x, y, z);
 
-                    _v.Add(position);
+                        _v.Add(position);
 
-                    Next();
-                    continue;
-                }
+                        Next();
+                        continue;
+                    }
 
                 case OBJ_TAG.NORMAL:
-                {
-                    var x = float.Parse(line.Data[0], CultureInfo.InvariantCulture);
-                    var y = float.Parse(line.Data[1], CultureInfo.InvariantCulture);
-                    var z = float.Parse(line.Data[2], CultureInfo.InvariantCulture);
+                    {
+                        var x = float.Parse(line.Data[0], CultureInfo.InvariantCulture);
+                        var y = float.Parse(line.Data[1], CultureInfo.InvariantCulture);
+                        var z = float.Parse(line.Data[2], CultureInfo.InvariantCulture);
 
-                    var direction = new Vector3(x, y, z);
+                        var direction = new Vector3(x, y, z);
 
-                    _vn.Add(direction);
+                        _vn.Add(direction);
 
-                    Next();
-                    continue;
-                }
+                        Next();
+                        continue;
+                    }
 
                 case OBJ_TAG.UV:
-                {
-                    var x = float.Parse(line.Data[0], CultureInfo.InvariantCulture);
-                    var y = float.Parse(line.Data[1], CultureInfo.InvariantCulture);
+                    {
+                        var x = float.Parse(line.Data[0], CultureInfo.InvariantCulture);
+                        var y = float.Parse(line.Data[1], CultureInfo.InvariantCulture);
 
-                    var position = new Vector2(x, y);
+                        var position = new Vector2(x, y);
 
-                    _vt.Add(position);
+                        _vt.Add(position);
 
-                    Next();
-                    break;
-                }
+                        Next();
+                        break;
+                    }
 
                 case OBJ_TAG.SMOOTH_SHADING:
-                {
-                    objObject.IsSmoothShading = line.ToBool();
+                    {
+                        objObject.IsSmoothShading = line.ToBool();
 
-                    Next();
-                    continue;
-                }
+                        Next();
+                        continue;
+                    }
 
                 case OBJ_TAG.FACE:
-                {
-                    // Supported: 'Vertex normal indices' (f v1/vt1/vn1 v2/vt2/vn2 v3/vt3/vn3 ...)
-                    // TODO: Vertex texture coordinate indices (f v1/vt1 v2/vt2 v3/vt3 ...)
-                    // TODO: Vertex normal indices without texture coordinate indices (f v1//vn1 v2//vn2 v3//vn3 ...)
-                    var vertices = line.Data;
-
-                    if (vertices.Count > 3)
                     {
-                        // TODO: Create 'Triangulator'
-                        // https://en.m.wikipedia.org/wiki/Triangle_mesh
-                        // https://github.com/wo80/Triangle.NET/wiki/Mesh
-                        throw new NotSupportedException("Faces are not supported more than 3 vertices.");
-                    }
+                        // Supported: 'Vertex normal indices' (f v1/vt1/vn1 v2/vt2/vn2 v3/vt3/vn3 ...)
+                        // TODO: Vertex texture coordinate indices (f v1/vt1 v2/vt2 v3/vt3 ...)
+                        // TODO: Vertex normal indices without texture coordinate indices (f v1//vn1 v2//vn2 v3//vn3 ...)
+                        var vertices = line.Data;
 
-                    foreach (var vertexRaw in vertices)
-                    {
-                        // v1/vt1/vn1
-                        var indexes = vertexRaw.Split("/");
-                        
-                        // If an index is positive then it refers to the offset in that vertex list, starting at 1
-                        var vIndex = int.Parse(indexes[0]);
-
-                        if (vIndex < 0)
+                        if (vertices.Count > 3)
                         {
-                            throw new KeyNotFoundException($"ParseObject. Not a valid vertex index: {vIndex}");
+                            // TODO: Create 'Triangulator'
+                            // https://en.m.wikipedia.org/wiki/Triangle_mesh
+                            // https://github.com/wo80/Triangle.NET/wiki/Mesh
+                            throw new NotSupportedException("Faces are not supported more than 3 vertices.");
                         }
 
-                        vIndex -= 1;
-                    
-                        // A valid texture coordinate index starts from 1
-                        // and matches the corresponding element in the previously defined list of texture coordinates.
-                        var vtIndex = int.Parse(indexes[1]) - 1;
-                        
-                        // TODO: Optionally
-                        // A valid normal index starts from 1
-                        // and matches the corresponding element in the previously defined list of normals.
-                        var vnIndex = int.Parse(indexes[2]) - 1;
-
-                        var vertex = new Vertex
+                        foreach (var vertexRaw in vertices)
                         {
-                            Position = _v[vIndex],
-                            Normal = _vn[vnIndex],
-                            UV = _vt[vtIndex]
-                        };
-                    
-                        objObject.Vertices.Add(vertex);
+                            // v1/vt1/vn1
+                            var indexes = vertexRaw.Split("/");
+
+                            // If an index is positive then it refers to the offset in that vertex list, starting at 1
+                            var vIndex = int.Parse(indexes[0]);
+
+                            if (vIndex < 0)
+                            {
+                                throw new KeyNotFoundException($"ParseObject. Not a valid vertex index: {vIndex}");
+                            }
+
+                            vIndex -= 1;
+
+                            // A valid texture coordinate index starts from 1
+                            // and matches the corresponding element in the previously defined list of texture coordinates.
+                            var vtIndex = int.Parse(indexes[1]) - 1;
+
+                            // TODO: Optionally
+                            // A valid normal index starts from 1
+                            // and matches the corresponding element in the previously defined list of normals.
+                            var vnIndex = int.Parse(indexes[2]) - 1;
+
+                            var vertex = new Vertex
+                            {
+                                Position = _v[vIndex],
+                                Normal = _vn[vnIndex],
+                                UV = _vt[vtIndex]
+                            };
+
+                            objObject.Vertices.Add(vertex);
+                        }
+
+                        Next();
+                        continue;
                     }
-                    
-                    Next();
-                    continue;
-                }
 
                 case OBJ_TAG.NAME:
-                {
-                    break;
-                }
+                    {
+                        break;
+                    }
 
                 default:
                     throw new KeyNotFoundException($"Parse. Not a valid obj tag: {line.Tag}");
             }
         } while (_position < _lines.Length && line.Tag != OBJ_TAG.NAME);
-        
+
         return objObject;
     }
-    
+
     private ObjLine GetCurrentLine()
     {
         if (_currentLine.HasValue)

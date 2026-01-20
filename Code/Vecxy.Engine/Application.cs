@@ -1,9 +1,9 @@
 ﻿using System.Runtime.Serialization;
 
-namespace Vecxy.Engine;     
+namespace Vecxy.Engine;
 
 [DataContract]
-public struct AppInfo  
+public struct AppInfo
 {
     [DataMember(Name = "version")] public string Version;
     [DataMember(Name = "name")] public string Name;

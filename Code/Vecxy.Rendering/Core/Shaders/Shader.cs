@@ -56,7 +56,7 @@ public class Shader(string source, ShaderType type) : IDisposable
         {
             return;
         }
-        
+
         GL.DetachShader(ProgramId, Id);
     }
 

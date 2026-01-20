@@ -14,7 +14,7 @@ public class VertexBuffer : IDisposable
     public void SetData(float[] data)
     {
         GL.BindBuffer(BufferTarget.ArrayBuffer, Id);
-        
+
         GL.BufferData(BufferTarget.ArrayBuffer, data.Length * sizeof(float), data, BufferUsageHint.StaticDraw);
     }
 

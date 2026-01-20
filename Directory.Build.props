@@ -1,5 +1,8 @@
 ﻿<Project>
     <PropertyGroup>
+        <Configurations>Debug;Release</Configurations>
+        <Platforms>AnyCPU;x64</Platforms>
+        
         <TargetFramework>net10.0</TargetFramework>
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
@@ -9,6 +12,7 @@
 
         <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
         <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
+        <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
 
         <GenerateDependencyFile>true</GenerateDependencyFile>
     </PropertyGroup>

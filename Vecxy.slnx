@@ -1,19 +1,48 @@
 <Solution>
+  <Configurations>
+    <Platform Name="Any CPU" />
+    <Platform Name="x64" />
+  </Configurations>
   <Folder Name="/Editor/">
-    <Project Path="Code/Vecxy.Editor/Vecxy.Editor.csproj" />
+    <Project Path="Code/Vecxy.Editor/Vecxy.Editor.csproj">
+      <Platform Solution="*|x64" Project="x64" />
+    </Project>
   </Folder>
   <Folder Name="/Engine/">
-    <Project Path="Code/Vecxy.Diagnostics/Vecxy.Diagnostics.csproj" />
-    <Project Path="Code/Vecxy.Engine/Vecxy.Engine.csproj" />
-    <Project Path="Code/Vecxy.Executable/Vecxy.Executable.csproj" />
-    <Project Path="Code/Vecxy.IO/Vecxy.IO.csproj" />
-    <Project Path="Code/Vecxy.Kernel/Vecxy.Kernel.csproj" />
-    <Project Path="Code/Vecxy.Reflection/Vecxy.Reflection.csproj" />
-    <Project Path="Code/Vecxy.Rendering/Vecxy.Rendering.csproj" />
+    <Project Path="Code/Vecxy.Diagnostics/Vecxy.Diagnostics.csproj">
+      <Platform Solution="*|x64" Project="x64" />
+    </Project>
+    <Project Path="Code/Vecxy.Engine/Vecxy.Engine.csproj">
+      <Platform Solution="*|x64" Project="x64" />
+    </Project>
+    <Project Path="Code/Vecxy.Executable/Vecxy.Executable.csproj">
+      <Platform Solution="*|x64" Project="x64" />
+    </Project>
+    <Project Path="Code/Vecxy.IO/Vecxy.IO.csproj">
+      <Platform Solution="*|x64" Project="x64" />
+    </Project>
+    <Project Path="Code/Vecxy.Kernel/Vecxy.Kernel.csproj">
+      <Platform Solution="*|x64" Project="x64" />
+    </Project>
+    <Project Path="Code/Vecxy.Reflection/Vecxy.Reflection.csproj">
+      <Platform Solution="*|x64" Project="x64" />
+    </Project>
+    <Project Path="Code/Vecxy.Rendering/Vecxy.Rendering.csproj">
+      <Platform Solution="*|x64" Project="x64" />
+    </Project>
   </Folder>
   <Folder Name="/Tools/">
-    <Project Path="Code/Vecxy.Builder/Vecxy.Builder.csproj" />
-    <Project Path="Code/Vecxy.CLI/Vecxy.CLI.csproj" />
-    <Project Path="Code/Vecxy.SlnKit/Vecxy.SlnKit.csproj" />
+    <Project Path="Code/Vecxy.Builder/Vecxy.Builder.csproj">
+      <Platform Solution="*|x64" Project="x64" />
+    </Project>
+    <Project Path="Code/Vecxy.CLI/Vecxy.CLI.csproj">
+      <Platform Solution="*|x64" Project="x64" />
+    </Project>
+    <Project Path="Code/Vecxy.SlnKit/Vecxy.SlnKit.csproj">
+      <Platform Solution="*|x64" Project="x64" />
+    </Project>
   </Folder>
+  <Project Path="Code/Vecxy.Native/Vecxy.Native.Windows/Vecxy.Native.Windows.vcxproj" Id="08c0319b-aaea-449a-aa85-0351825ce699">
+    <Platform Solution="Release|Any CPU" Project="Win32" />
+  </Project>
 </Solution>

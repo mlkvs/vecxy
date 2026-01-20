@@ -15,7 +15,7 @@ public class EmbeddedResource
         ResourceName = resourceName;
         ResourcePath = Path(assembly, resourceName);
     }
-    
+
     private EmbeddedResource(Assembly assembly, string resourceName, string resourcePath)
     {
         Assembly = assembly;
@@ -45,9 +45,9 @@ public class EmbeddedResource
     public static string Path(Assembly? assembly, string resourceName)
     {
         ArgumentNullException.ThrowIfNull(assembly);
-        
+
         var resources = assembly.GetManifestResourceNames();
-        
+
         for (int index = 0, count = resources.Length; index < count; index++)
         {
             var resource = resources[index];
@@ -57,7 +57,7 @@ public class EmbeddedResource
                 return resource;
             }
         }
-        
+
         throw new FileNotFoundException();
     }
 
@@ -66,7 +66,7 @@ public class EmbeddedResource
         ArgumentNullException.ThrowIfNull(assembly);
 
         var resources = assembly.GetManifestResourceNames();
-        
+
         var results = new EmbeddedResource[resources.Length];
 
         for (int index = 0, count = resources.Length; index < count; index++)
@@ -77,9 +77,9 @@ public class EmbeddedResource
 
             var name = pathSplit[^2];
             var extension = pathSplit[^1];
-            
+
             var resourceName = string.Join(".", name, extension);
-            
+
             results[index] = new EmbeddedResource(assembly, resourceName, resourcePath);
         }
 
@@ -94,7 +94,7 @@ public class EmbeddedResource
         {
             return null;
         }
-        
+
         var resource = new EmbeddedResource(assembly, resourceName);
 
         return resource;
@@ -105,16 +105,16 @@ public class EmbeddedResource
         ArgumentNullException.ThrowIfNull(assembly);
 
         resource = Get(assembly, resourceName);
-        
+
         return resource != null;
     }
-    
+
     public string Text()
     {
         using var stream = Stream();
-        
+
         using var reader = new StreamReader(stream);
-        
+
         return reader.ReadToEnd();
     }
 

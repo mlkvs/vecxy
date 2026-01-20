@@ -9,9 +9,9 @@ public class VertexArray
     public void Initialize()
     {
         Id = GL.GenVertexArray();
-        
+
         GL.BindVertexArray(Id);
-        
+
         GL.BindBuffer(BufferTarget.ArrayBuffer, Id);
     }
 

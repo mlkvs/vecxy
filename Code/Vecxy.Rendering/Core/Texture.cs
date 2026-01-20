@@ -1,6 +1,6 @@
-﻿using System.Reflection;
-using OpenTK.Graphics.OpenGL;
+﻿using OpenTK.Graphics.OpenGL;
 using StbImageSharp;
+using System.Reflection;
 using Vecxy.Reflection;
 
 namespace Vecxy.Rendering;
@@ -16,16 +16,16 @@ public class Texture : IDisposable
     public Texture(string filePath)
     {
         var assembly = Assembly.GetExecutingAssembly();
-        
+
         using var stream = assembly
             .GetEmbeddedResource(filePath)!
             .Stream();
-        
+
         var image = ImageResult.FromStream(stream, ColorComponents.RedGreenBlueAlpha);
 
         Width = image.Width;
         Height = image.Height;
-        
+
         Id = GL.GenTexture();
         Bind();
 

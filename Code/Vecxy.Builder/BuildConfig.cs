@@ -11,7 +11,7 @@ public enum BUILD_MODE : byte
 [DataContract]
 public class BuildConfig
 {
-    [DataMember] public required string ProjectDir { get; set; }
-    [DataMember] public required string OutputDir { get; set; }
-    [DataMember] public required BUILD_MODE Mode { get; set; }
+    [DataMember] public string ProjectDir { get; set; }
+    [DataMember] public string OutputDir { get; set; }
+    [DataMember] public BUILD_MODE Mode { get; set; }
 }

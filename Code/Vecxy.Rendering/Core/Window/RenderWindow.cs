@@ -1,9 +1,9 @@
-﻿using System.Drawing;
-using System.Runtime.InteropServices;
-using OpenTK.Graphics.OpenGL;
+﻿using OpenTK.Graphics.OpenGL;
 using OpenTK.Mathematics;
 using OpenTK.Windowing.Common;
 using OpenTK.Windowing.Desktop;
+using System.Drawing;
+using System.Runtime.InteropServices;
 
 namespace Vecxy.Rendering;
 
@@ -46,7 +46,7 @@ public class RenderWindow : GameWindow, IRenderWindow
             EnableDebugMode();
         }
     }
-    
+
     public void Clear()
     {
         GL.Clear(ClearBufferMask.ColorBufferBit);

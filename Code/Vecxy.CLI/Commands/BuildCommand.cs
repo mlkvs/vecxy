@@ -14,7 +14,7 @@ public struct BuildParameters
 {
     [CLIParameter(Name = "project", Alias = 'p')]
     public string ProjectDir { get; set; }
-    
+
     [CLIParameter(Name = "output", Alias = 'o')]
     public string OutputDir { get; set; }
 
@@ -25,7 +25,7 @@ public struct BuildParameters
 public class BuildCommand : CLICommandBase<BuildParameters>
 {
     public override string Name => "build";
-    
+
     public override void Execute(BuildParameters parameters)
     {
         var config = new BuildConfig
@@ -34,7 +34,7 @@ public class BuildCommand : CLICommandBase<BuildParameters>
             OutputDir = parameters.OutputDir,
             Mode = parameters.Env
         };
-        
+
         //BuildPipeline.Build(config);
     }
 }

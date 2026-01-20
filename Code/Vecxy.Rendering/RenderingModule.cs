@@ -9,10 +9,10 @@ public class RenderingModule(IRenderWindow window) : IModule
     public void OnInitialize()
     {
         _pipeline = new RenderPipeline(window);
-        
+
         _pipeline.RegisterPhase(D2RenderPhase.Create(window));
         _pipeline.RegisterPhase(new TestRenderPhase());
-        
+
     }
 
     public void OnTick(float deltaTime)
@@ -23,7 +23,7 @@ public class RenderingModule(IRenderWindow window) : IModule
     public void Dispose()
     {
         _pipeline?.Dispose();
-        
+
         GC.SuppressFinalize(this);
     }
 }

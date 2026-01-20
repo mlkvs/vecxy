@@ -1,6 +1,6 @@
 ﻿using OpenTK.Graphics.OpenGL;
-using Vector4 = System.Numerics.Vector4;
 using System.Numerics;
+using Vector4 = System.Numerics.Vector4;
 
 namespace Vecxy.Rendering;
 
@@ -15,7 +15,7 @@ public interface ID2RenderContext : IRenderContext
 public class D2RenderContext : ID2RenderContext
 {
     public IRenderWindow Window { get; private set; }
-    
+
     private ShaderProgram? _currentShader;
     private int _vao;
     private int _vbo;
@@ -33,7 +33,7 @@ public class D2RenderContext : ID2RenderContext
     public D2RenderContext(IRenderWindow window)
     {
         Window = window;
-        
+
         _vertexBuffer = new float[MAX_SPRITES * FLOATS_PER_SPRITE];
         _vbo = GL.GenBuffer();
 
@@ -77,7 +77,7 @@ public class D2RenderContext : ID2RenderContext
         _vertexBufferIndex = 0;
         _isBatching = true;
     }
-    
+
     public void EndBatch()
     {
         _isBatching = false;
@@ -100,7 +100,7 @@ public class D2RenderContext : ID2RenderContext
 
         GL.BindVertexArray(_vao);
         GL.BindBuffer(BufferTarget.ArrayBuffer, _vbo);
-        
+
         GL.BufferSubData(BufferTarget.ArrayBuffer, IntPtr.Zero, _vertexBufferIndex * sizeof(float), _vertexBuffer);
 
         int vertexCount = _batchSprites.Count * VERTICES_PER_SPRITE;
@@ -112,7 +112,7 @@ public class D2RenderContext : ID2RenderContext
         _batchSprites.Clear();
         _vertexBufferIndex = 0;
     }
-    
+
     public void DrawSprite(Sprite sprite)
     {
         if (!_isBatching)

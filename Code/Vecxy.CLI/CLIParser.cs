@@ -67,7 +67,7 @@ public static class CLIParser
         {
             throw new NotFoundCommand(commandName);
         }
-
+        
         var type = command.GetType();
 
         var baseType = type;
@@ -105,7 +105,7 @@ public static class CLIParser
                 {
                     throw new NotDefaultValueByParameter(command.Name, attribute.Name);
                 }
-                
+
                 value = attribute.Default.ToString();
             }
 
@@ -122,26 +122,26 @@ public static class CLIParser
                 {
                     continue;
                 }
-                
+
                 var targetType = Nullable.GetUnderlyingType(memberType) ?? memberType;
 
-                var convertedValue = targetType.IsEnum ? 
-                    Enum.Parse(targetType, value!, true) : 
+                var convertedValue = targetType.IsEnum ?
+                    Enum.Parse(targetType, value!, true) :
                     Convert.ChangeType(value, targetType);
-                
+
                 switch (member)
                 {
                     case FieldInfo field:
-                    {
-                        field.SetValue(parameterInstance, convertedValue);
-                        break;
-                    }
+                        {
+                            field.SetValue(parameterInstance, convertedValue);
+                            break;
+                        }
 
                     case PropertyInfo property:
-                    {
-                        property.SetValue(parameterInstance, convertedValue);
-                        break;
-                    }
+                        {
+                            property.SetValue(parameterInstance, convertedValue);
+                            break;
+                        }
                 }
             }
             catch (Exception ex)

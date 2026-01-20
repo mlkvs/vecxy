@@ -5,10 +5,10 @@ namespace Vecxy.Rendering;
 public class GraphicsDevice
 {
     private int _maxVertexAttribs = -1;
-    
+
     public GraphicsDevice()
     {
-        
+
     }
 
     private int GetMaxVertexAttribs()
@@ -20,6 +20,6 @@ public class GraphicsDevice
 
         return _maxVertexAttribs;
     }
-    
-    
+
+
 }

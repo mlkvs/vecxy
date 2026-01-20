@@ -9,7 +9,7 @@ public class Sprite(Texture texture) : IRenderable
     public Vector2 Size { get; set; } = Vector2.One;
     public Vector4 Color { get; set; } = Vector4.One; // RGBA
     public Texture Texture { get; set; } = texture;
-    
+
     public void OnRender(IRenderContext context)
     {
         if (context is not ID2RenderContext d2Context)

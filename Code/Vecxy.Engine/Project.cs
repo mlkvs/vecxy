@@ -1,6 +1,6 @@
-﻿using System.Runtime.Serialization;
-using Newtonsoft.Json;
+﻿using Newtonsoft.Json;
 using Newtonsoft.Json.Converters;
+using System.Runtime.Serialization;
 using Vecxy.IO;
 
 namespace Vecxy.Engine;
@@ -21,7 +21,7 @@ public struct ProjectInfo
     [DataMember(Name = "description")] public string Description;
     [DataMember(Name = "author")] public string Author;
 }
-    
+
 [DataContract]
 public struct ProjectVersion
 {
@@ -36,7 +36,7 @@ public class Project
     public string BuildDir => GetReserverPath(Path, RESERVED_PATH.BUILD_DIRECTORY);
     public string AssetsDir => GetReserverPath(Path, RESERVED_PATH.ASSETS_DIRECTORY);
     public string TempDir => GetReserverPath(Path, RESERVED_PATH.TEMP_DIRECTORY);
-    
+
     public readonly string Path;
     public readonly ProjectInfo Info;
     public readonly ProjectVersion Version;
@@ -44,9 +44,9 @@ public class Project
     public Project(string path)
     {
         Path = path;
-        
-        var projectFile =  GetReserverPath(path, RESERVED_PATH.PROJECT_JSON);;
-        var versionPath =  GetReserverPath(path, RESERVED_PATH.VERSION_JSON);;
+
+        var projectFile = GetReserverPath(path, RESERVED_PATH.PROJECT_JSON); ;
+        var versionPath = GetReserverPath(path, RESERVED_PATH.VERSION_JSON); ;
 
         if (!File.Exists(projectFile))
         {
@@ -60,10 +60,10 @@ public class Project
         
         var versionJson = FileReader.ReadToEnd(versionPath);
         Version = JsonConvert.DeserializeObject<ProjectVersion>(versionJson);*/
-        
+
         var projectJson = FileReader.ReadToEnd(projectFile);
         Info = JsonConvert.DeserializeObject<ProjectInfo>(projectJson);
-        
+
     }
 
     private Project(string path, ProjectInfo info, ProjectVersion version)
@@ -72,7 +72,7 @@ public class Project
         Info = info;
         Version = version;
     }
-    
+
     public static Project Create(ProjectInfo info, string projectAbsolutePath, PROJECT_TYPE type, ProjectVersion? version = null)
     {
         version ??= new ProjectVersion
@@ -80,24 +80,24 @@ public class Project
             Game = "0.0.1",
             Engine = Engine.VERSION
         };
-        
+
         Project project;
 
         if (Directory.Exists(projectAbsolutePath))
         {
             throw new Exception("Project folder already exists!");
         }
-        
+
         DirectoryUtils.GetOrCreateDirectory(projectAbsolutePath);
 
         CreateVecxyDir();
-        
+
         switch (type)
         {
             case PROJECT_TYPE.GAME:
                 project = new Project(projectAbsolutePath, info, version.Value);
                 break;
-            
+
             case PROJECT_TYPE.LIBRARY:
             case PROJECT_TYPE.PACKAGE:
             default:
@@ -105,24 +105,24 @@ public class Project
         }
 
         return project;
-        
+
         void CreateVecxyDir()
         {
             // .vecxy
             var vecxyPath = GetReserverPath(projectAbsolutePath, RESERVED_PATH.VECXY_DIRECTORY);
-            
+
             DirectoryUtils.GetOrCreateDirectory(vecxyPath);
-            
+
             // project.json
             var projectFilePath = GetReserverPath(projectAbsolutePath, RESERVED_PATH.PROJECT_JSON);
             var projectJson = JsonConvert.SerializeObject(info, Formatting.Indented);
-            
+
             File.WriteAllText(projectFilePath, projectJson);
-            
+
             // version.json
             var versionFilePath = GetReserverPath(projectAbsolutePath, RESERVED_PATH.VERSION_JSON);
             var versionJson = JsonConvert.SerializeObject(version.Value, Formatting.Indented);
-            
+
             File.WriteAllText(versionFilePath, versionJson);
         }
     }
@@ -139,18 +139,18 @@ public class Project
             RESERVED_PATH.ASSETS_DIRECTORY => System.IO.Path.Combine(rootPath, "Assets"),
             RESERVED_PATH.BUILD_DIRECTORY => System.IO.Path.Combine(rootPath, "Build"),
             RESERVED_PATH.TEMP_DIRECTORY => System.IO.Path.Combine(rootPath, "Temp"),
-            
+
             // Configs
             RESERVED_PATH.PROJECT_JSON => System.IO.Path.Combine(vecxy, "project.json"),
             RESERVED_PATH.VERSION_JSON => System.IO.Path.Combine(vecxy, "version.json"),
-            
+
             // Settings
             RESERVED_PATH.GAME_SETTINGS_JSON => System.IO.Path.Combine(GetReserverPath(rootPath, RESERVED_PATH.SETTINGS_DIRECTORY), "engine.json"),
 
             _ => throw new ArgumentOutOfRangeException(nameof(type), type, null)
         };
     }
-    
+
     private enum RESERVED_PATH : byte
     {
         VECXY_DIRECTORY,
@@ -158,10 +158,10 @@ public class Project
         ASSETS_DIRECTORY,
         BUILD_DIRECTORY,
         TEMP_DIRECTORY,
-        
+
         PROJECT_JSON,
         VERSION_JSON,
-        
+
         GAME_SETTINGS_JSON,
     }
 }

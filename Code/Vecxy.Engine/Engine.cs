@@ -5,14 +5,14 @@ namespace Vecxy.Engine;
 public class Engine : IDisposable
 {
     public const string VERSION = "0.0.1";
-    
+
     private readonly RenderWindow _window;
     private readonly Application _application;
 
     public Engine(Application application)
     {
         _application = application;
-        
+
         _window = RenderWindow.Create(new RenderWindowOptions
         {
             Width = 800,
@@ -20,7 +20,7 @@ public class Engine : IDisposable
             Title = "Vecxy.Rendering",
             IsDebug = true
         });
-        
+
         _window.Load += OnLoad;
         _window.UpdateFrame += OnUpdate;
         _window.RenderFrame += OnFrame;
@@ -40,7 +40,7 @@ public class Engine : IDisposable
     private void OnUpdate(OpenTK.Windowing.Common.FrameEventArgs e)
     {
         var deltaTime = (float)e.Time;
-        
+
         _application.OnTick();
     }
 

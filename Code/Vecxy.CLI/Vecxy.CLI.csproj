@@ -1,6 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
     <PropertyGroup>
         <OutputType>Exe</OutputType>
+        <LangVersion>preview</LangVersion>
     </PropertyGroup>
     
     <ItemGroup>
@@ -18,14 +19,8 @@ PARENT_PATH=%24(cd "%24(dirname "%240")"; pwd -P)
 "%~dp0$(AssemblyName).exe" %*</BatchContent>
         </PropertyGroup>
         
-        <WriteLinesToFile
-                File="$(TargetDir)$(ShimName).bat"
-                Lines="$(BatchContent)"
-                Overwrite="true" />
+        <WriteLinesToFile File="$(TargetDir)$(ShimName).bat" Lines="$(BatchContent)" Overwrite="true" />
         
-        <WriteLinesToFile
-                File="$(TargetDir)$(ShimName)"
-                Lines="$(BashContent)"
-                Overwrite="true" />
+        <WriteLinesToFile File="$(TargetDir)$(ShimName)" Lines="$(BashContent)" Overwrite="true" />
     </Target>
 </Project>
