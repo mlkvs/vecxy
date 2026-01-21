@@ -30,8 +30,11 @@
     </Project>
   </Folder>
   <Folder Name="/Native/">
-    <Project Path="Code/Vecxy.Native/Vecxy.Native.Windows/Vecxy.Native.Windows.vcxproj" Id="08c0319b-aaea-449a-aa85-0351825ce699">
+    <Project Path="Code/Vecxy.Native.Windows/Vecxy.Native.Windows.vcxproj" Id="08c0319b-aaea-449a-aa85-0351825ce699">
       <Platform Solution="Release|Any CPU" Project="Win32" />
+    </Project>
+    <Project Path="Code/Vecxy.Native/Vecxy.Native.csproj" Id="45649d98-f563-4c4b-9da8-33627aa2c510">
+      <Platform Solution="*|x64" Project="x64" />
     </Project>
   </Folder>
   <Folder Name="/Runtime/">

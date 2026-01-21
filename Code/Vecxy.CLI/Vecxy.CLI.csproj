@@ -6,6 +6,7 @@
     
     <ItemGroup>
       <ProjectReference Include="..\Vecxy.Builder\Vecxy.Builder.csproj" />
+      <ProjectReference Include="..\Vecxy.Native\Vecxy.Native.csproj" />
     </ItemGroup>
 
     <Target Name="CreateShim" AfterTargets="Build">

@@ -1,18 +1,7 @@
-﻿using System.Runtime.InteropServices;
+﻿using Vecxy.Native;
 
 namespace Vecxy.CLI;
 
-public unsafe partial class NativeWindows
-{
-    [LibraryImport("Vecxy.Native.Windows.dll", EntryPoint = "OpenNativeWindow", StringMarshalling = StringMarshalling.Utf16)]
-    private static partial void OpenNativeWindow(string id, string title);
-
-
-    public static void OpenWindow(string id, string title)
-    {
-        OpenNativeWindow(id, title);
-    }
-}
 
 public static class Program
 {
@@ -24,7 +13,10 @@ public static class Program
         {
             try
             {
-                NativeWindows.OpenWindow("test", "1111");
+                var window = new Window(new WindowSettings
+                {
+                    Title = "Demo"
+                });
             }
             catch (DllNotFoundException)
             {

@@ -5,7 +5,7 @@
 class Window
 {
 public:
-	Window(const wchar_t* CLASS_NAME);
+	Window(const wchar_t* CLASS_NAME, const wchar_t* TITLE);
 	~Window();
 
 	HWND GetHandle() const;
@@ -15,4 +15,6 @@ public:
 private:
 	HINSTANCE _instance = nullptr;
 	HWND _hwnd;
+
+	static void OnSize(HWND hwnd, UINT flag, int width, int height);
 };
