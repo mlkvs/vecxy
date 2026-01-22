@@ -1,4 +1,5 @@
-﻿using Vecxy.Native;
+﻿using Vecxy.Diagnostics;
+using Vecxy.Native;
 
 namespace Vecxy.CLI;
 
@@ -9,23 +10,20 @@ public static class Program
     {
         Console.WriteLine("Запуск окна из DLL...");
 
-        var windowThread = new Thread(() =>
+        var window = new Window(new WindowConfig
         {
-            try
-            {
-                var window = new Window(new WindowSettings
-                {
-                    Title = "Demo"
-                });
-            }
-            catch (DllNotFoundException)
-            {
-                Console.WriteLine("Ошибка: Не удалось найти NativeWindow.dll!");
-            }
+            Title = "Demo",
+            Width = 800,
+            Height = 600
         });
 
-        windowThread.SetApartmentState(ApartmentState.STA);
-        windowThread.Start();
+        var i = 0;
+
+        while (window.ProcessEvents())
+        {
+            i++;
+            Logger.Info(i.ToString());
+        }
 
         Console.WriteLine("asdasd");
     }

@@ -1,11 +1,11 @@
 #include "Library.h"
 #include "Window.h"
 
-EXPORT void* Window_Create(const wchar_t* CLASS_NAME, const wchar_t* TITLE)
+EXPORT void* Window_Create(const wchar_t* className, const wchar_t* title, const int width, const int height)
 {
 	try
 	{
-		const auto window = new Window(CLASS_NAME, TITLE);
+		const auto window = new Window(className, title, width, height);
 
 		const auto ptr = static_cast<void*>(window);
 
@@ -17,14 +17,26 @@ EXPORT void* Window_Create(const wchar_t* CLASS_NAME, const wchar_t* TITLE)
 	}
 }
 
-EXPORT void Window_Destroy(void* handle)
+EXPORT void Window_Destroy(void* ptr)
 {
-	if (!handle)
+	if (!ptr)
 	{
 		return;
 	}
 
-	const auto ptr = static_cast<Window*>(handle);
+	const auto pWnd = static_cast<Window*>(ptr);
 
-	delete ptr;
+	delete pWnd;
+}
+
+EXPORT bool Window_ProcessEvents(void* ptr)
+{
+	if(ptr == nullptr)
+	{
+		return false;
+	}
+
+	const auto pWnd = static_cast<Window*>(ptr);
+
+	return pWnd->ProcessEvents();
 }

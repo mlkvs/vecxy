@@ -19,7 +19,7 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="NativeWindow_AI.cpp" />
+    <ClCompile Include="Library.cpp" />
     <ClCompile Include="Window.cpp" />
     <ClCompile Include="WindowExports.cpp" />
   </ItemGroup>
