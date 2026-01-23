@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using Vecxy.Engine;
+using Vecxy.IO;
 
 namespace Vecxy.Builder;
 
@@ -86,7 +87,7 @@ public static class BuildPipeline
                 {
                     Console.WriteLine("--- External MSBuild process completed successfully. ---");
 
-                    CopyBuildResults(Path.Combine(project.TempDir, "Debug", "Bin"), project.BuildDir);
+                    DirectoryUtils.CopyDirectory(Path.Combine(project.TempDir, "Debug", "Bin"), project.BuildDir);
                 }
                 else
                 {
@@ -100,39 +101,5 @@ public static class BuildPipeline
         }
 
         Console.WriteLine("\n--- Build process finished ---");
-    }
-
-
-    /// <summary>
-    /// Копирует все файлы из исходной директории в целевую.
-    /// </summary>
-    private static void CopyBuildResults(string sourcePath, string destinationPath)
-    {
-        Console.WriteLine($"\nCopying build results from '{sourcePath}' to '{destinationPath}'...");
-
-        if (!Directory.Exists(sourcePath))
-        {
-            Console.Error.WriteLine($"Source directory '{sourcePath}' does not exist for copying.");
-            return;
-        }
-
-        Directory.CreateDirectory(destinationPath); // Убедимся, что целевая папка существует
-
-        // Копируем все файлы (dll, exe, pdb, xml и т.п.) из временной директории
-        foreach (var file in Directory.GetFiles(sourcePath, "*.*", SearchOption.TopDirectoryOnly))
-        {
-            string destFileName = Path.Combine(destinationPath, Path.GetFileName(file));
-
-            try
-            {
-                File.Copy(file, destFileName, true); // true для перезаписи существующих файлов
-                Console.WriteLine($"  Copied: {Path.GetFileName(file)}");
-            }
-            catch (Exception ex)
-            {
-                Console.Error.WriteLine($"  Failed to copy '{Path.GetFileName(file)}': {ex.Message}");
-            }
-        }
-        Console.WriteLine("Build results copy complete.");
     }
 }

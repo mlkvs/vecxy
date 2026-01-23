@@ -23,10 +23,10 @@ public abstract class CLICommandBase<TParameters> : ICLICommand
     public abstract void Execute(TParameters parameters);
 }
 
-public class NotFoundArguments() : Exception("Not found program arguments");
-public class NotFoundCommand(string cmd) : Exception($"Nor found command for name {cmd}");
-public class NotDeriveBaseCommand(string cmd, Type type) : Exception($"Command: {cmd}, {type} does not derive from CLICommandBase<TParameters>");
-public class NotDefaultValueByParameter(string cmd, string parameter) : Exception($"Command: {cmd}, missing default value for parameter: {parameter}");
+public class NotFoundArgumentsException() : Exception("Not found program arguments");
+public class NotFoundCommandException(string cmd) : Exception($"Nor found command for name {cmd}");
+public class NotDeriveBaseCommandException(string cmd, Type type) : Exception($"Command: {cmd}, {type} does not derive from CLICommandBase<TParameters>");
+public class NotDefaultValueByParameterException(string cmd, string parameter) : Exception($"Command: {cmd}, missing default value for parameter: {parameter}");
 
 public static class CLIParser
 {
@@ -34,7 +34,7 @@ public static class CLIParser
     {
         if (args.Length == 0)
         {
-            throw new NotFoundArguments();
+            throw new NotFoundArgumentsException();
         }
 
         var argsMap = new Dictionary<string, string>();
@@ -65,7 +65,7 @@ public static class CLIParser
 
         if (command == null)
         {
-            throw new NotFoundCommand(commandName);
+            throw new NotFoundCommandException(commandName);
         }
         
         var type = command.GetType();
@@ -79,7 +79,7 @@ public static class CLIParser
 
         if (baseType == null)
         {
-            throw new NotDeriveBaseCommand(command.Name, type);
+            throw new NotDeriveBaseCommandException(command.Name, type);
         }
 
         var parameterElementType = baseType.GetGenericArguments().First();
@@ -103,7 +103,7 @@ public static class CLIParser
             {
                 if (attribute.Default == null)
                 {
-                    throw new NotDefaultValueByParameter(command.Name, attribute.Name);
+                    throw new NotDefaultValueByParameterException(command.Name, attribute.Name);
                 }
 
                 value = attribute.Default.ToString();

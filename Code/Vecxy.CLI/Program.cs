@@ -1,4 +1,5 @@
-﻿using Vecxy.Diagnostics;
+﻿using Vecxy.CLI.Commands;
+using Vecxy.Diagnostics;
 using Vecxy.Native;
 
 namespace Vecxy.CLI;
@@ -8,7 +9,13 @@ public static class Program
 {
     public static void Main(string[] args)
     {
-        Console.WriteLine("Запуск окна из DLL...");
+        CLIParser.Parse(args, [
+            new BuildCommand(),
+            new NewCommand(),
+            new LinkCommand(),
+        ]);
+
+        /*Console.WriteLine("Запуск окна из DLL...");
 
         var window = new Window(new WindowConfig
         {
@@ -25,6 +32,6 @@ public static class Program
             Logger.Info(i.ToString());
         }
 
-        Console.WriteLine("asdasd");
+        Console.WriteLine("asdasd");*/
     }
 }

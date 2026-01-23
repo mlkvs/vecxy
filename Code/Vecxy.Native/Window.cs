@@ -10,7 +10,7 @@ namespace Vecxy.Native
         public int Height;
     }
 
-    public class NotCreatedWindow() : Exception("Could not created native window.");
+    public class NotCreatedWindowException() : Exception("Could not created native window.");
 
     public unsafe partial class Window : IDisposable
     {
@@ -35,7 +35,7 @@ namespace Vecxy.Native
 
             if (_ptr == null)
             {
-                throw new NotCreatedWindow();
+                throw new NotCreatedWindowException();
             }
 
         }
