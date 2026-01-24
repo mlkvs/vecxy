@@ -17,9 +17,21 @@ EXPORT void* Window_Create(const wchar_t* className, const wchar_t* title, const
 	}
 }
 
+EXPORT void Window_Initialize(void* ptr)
+{
+	if(ptr == nullptr)
+	{
+		return;
+	}
+
+	const auto pWnd = static_cast<Window*>(ptr);
+
+	pWnd->Initialize();
+}
+
 EXPORT void Window_Destroy(void* ptr)
 {
-	if (!ptr)
+	if (ptr == nullptr)
 	{
 		return;
 	}
@@ -39,4 +51,30 @@ EXPORT bool Window_ProcessEvents(void* ptr)
 	const auto pWnd = static_cast<Window*>(ptr);
 
 	return pWnd->ProcessEvents();
+}
+
+EXPORT void Window_SwapBuffers(void* ptr)
+{
+	if(ptr == nullptr)
+	{
+		return;
+	}
+
+	const auto pWnd = static_cast<Window*>(ptr);
+
+	pWnd->SwapBuffers();
+}
+
+EXPORT void* Window_GetGLProcAddress(void* ptr, const char* procName)
+{
+	if(ptr == nullptr)
+	{
+		return nullptr;
+	}
+
+	const auto pWnd = static_cast<Window*>(ptr);
+
+	const auto procPtr = pWnd->GetProcAddress(procName);
+
+	return procPtr;
 }

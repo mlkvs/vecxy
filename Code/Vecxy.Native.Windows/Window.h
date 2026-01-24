@@ -1,5 +1,4 @@
 #pragma once
-
 #include <windows.h>
 #include <string>
 
@@ -9,8 +8,12 @@ public:
 	Window(const wchar_t* className, const wchar_t* title, int width, int height);
 	~Window();
 
+	void Initialize();
 	HWND GetHandle() const;
 	bool ProcessEvents();
+	void SwapBuffers();
+	void CreateOpenGLContext();
+	void* GetProcAddress(const char* procName);
 
 	static LRESULT OnStaticWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp);
 	LRESULT CALLBACK OnWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp);
@@ -18,6 +21,9 @@ public:
 private:
 	const std::wstring _className;
 	HWND _hwnd;
+	HDC _hdc = nullptr;
+	HGLRC _hglrc = nullptr;
+
 
 	static void OnSize(HWND hwnd, UINT flag, int width, int height);
 };
