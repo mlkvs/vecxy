@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "Vecxy.Sandbox": {
+      "commandName": "Project",
+      "nativeDebugging": true
+    }
+  }
+}

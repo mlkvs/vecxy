@@ -2,9 +2,15 @@
 
 namespace VECXY_GAME_NAME.Game;
 
-public class Game : ApplicationLayer
+public class Game : AppLayer
 {
-    public Game() { }
-    public override void OnInitialize() { }
-    public override void OnTick() { }
+    public override void OnInitialize()
+    {
+
+    }
+
+    public override void OnTick(float dt)
+    {
+
+    }
 }

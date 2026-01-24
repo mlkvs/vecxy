@@ -27,6 +27,8 @@ namespace Vecxy.Native
         private void* _ptr;
         private bool _isDisposed;
 
+        public bool IsRunning { get; private set; }
+
         public Window(WindowConfig config)
         {
             var className = $"CLASS_{Guid.NewGuid():N}";
@@ -38,6 +40,7 @@ namespace Vecxy.Native
                 throw new NotCreatedWindowException();
             }
 
+            IsRunning = true;
         }
 
         ~Window()
@@ -45,14 +48,15 @@ namespace Vecxy.Native
             Dispose();
         }
 
-        public bool ProcessEvents()
+        public void ProcessEvents()
         {
             if (_ptr == null)
             {
-                return false;
+                IsRunning = false;
+                return;
             }
 
-            return Window_ProcessEvents(_ptr);
+            IsRunning = Window_ProcessEvents(_ptr);
         }
 
         public void Dispose()
@@ -66,6 +70,8 @@ namespace Vecxy.Native
             {
                 return;
             }
+
+            IsRunning = false;
 
             Window_Destroy(_ptr);
 

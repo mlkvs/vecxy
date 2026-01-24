@@ -37,6 +37,11 @@
       <Platform Solution="*|x64" Project="x64" />
     </Project>
   </Folder>
+  <Folder Name="/Sandbox/">
+    <Project Path="Code/Vecxy.Sandbox/Vecxy.Sandbox.csproj" Id="619e47fe-523e-411a-a296-1d941bf21c3c">
+      <Platform Solution="*|x64" Project="x64" />
+    </Project>
+  </Folder>
   <Folder Name="/Tools/">
     <Project Path="Code/Vecxy.Builder/Vecxy.Builder.csproj">
       <Platform Solution="*|x64" Project="x64" />
