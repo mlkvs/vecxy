@@ -4,11 +4,6 @@
     <Platform Name="x64" />
     <Platform Name="x86" />
   </Configurations>
-  <Folder Name="/Editor/">
-    <Project Path="Code/Vecxy.Editor/Vecxy.Editor.csproj">
-      <Platform Solution="*|x64" Project="x64" />
-    </Project>
-  </Folder>
   <Folder Name="/Engine/">
     <Project Path="Code/Vecxy.Diagnostics/Vecxy.Diagnostics.csproj">
       <Platform Solution="*|x64" Project="x64" />

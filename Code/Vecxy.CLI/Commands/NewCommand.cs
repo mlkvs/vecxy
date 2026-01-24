@@ -1,5 +1,4 @@
 ﻿using System.Diagnostics;
-using Vecxy.Builder;
 using Vecxy.Diagnostics;
 using Vecxy.Engine;
 using Vecxy.IO;

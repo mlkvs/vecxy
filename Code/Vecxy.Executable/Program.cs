@@ -82,6 +82,6 @@ internal class Program
 
         var engine = new Engine(application);
 
-        engine.Run();
+        //engine.Run();
     }
 }

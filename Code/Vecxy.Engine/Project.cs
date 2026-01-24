@@ -16,19 +16,12 @@ public enum PROJECT_TYPE : byte
 [DataContract]
 public struct ProjectInfo
 {
-    [DataMember(Name = "type")] public PROJECT_TYPE Type;
-    [DataMember(Name = "name")] public string Name;
-    [DataMember(Name = "description")] public string Description;
-    [DataMember(Name = "author")] public string Author;
+    [DataMember(Name = "Type")] public PROJECT_TYPE Type;
+    [DataMember(Name = "Name")] public string Name;
+    [DataMember(Name = "Description")] public string Description;
+    [DataMember(Name = "Author")] public string Author;
+    [DataMember(Name = "Version")] public string Version;
 }
-
-[DataContract]
-public struct ProjectVersion
-{
-    [DataMember(Name = "game")] public string Game;
-    [DataMember(Name = "engine")] public string Engine;
-}
-
 
 [DataContract]
 public class Project
@@ -39,7 +32,6 @@ public class Project
 
     public readonly string Path;
     public readonly ProjectInfo Info;
-    public readonly ProjectVersion Version;
 
     public Project(string path)
     {
@@ -66,21 +58,14 @@ public class Project
 
     }
 
-    private Project(string path, ProjectInfo info, ProjectVersion version)
+    private Project(string path, ProjectInfo info)
     {
         Path = path;
         Info = info;
-        Version = version;
     }
 
-    public static Project Create(ProjectInfo info, string projectAbsolutePath, PROJECT_TYPE type, ProjectVersion? version = null)
+    public static Project Create(ProjectInfo info, string projectAbsolutePath, PROJECT_TYPE type)
     {
-        version ??= new ProjectVersion
-        {
-            Game = "0.0.1",
-            Engine = Engine.VERSION
-        };
-
         Project project;
 
         if (Directory.Exists(projectAbsolutePath))
@@ -95,7 +80,7 @@ public class Project
         switch (type)
         {
             case PROJECT_TYPE.GAME:
-                project = new Project(projectAbsolutePath, info, version.Value);
+                project = new Project(projectAbsolutePath, info);
                 break;
 
             case PROJECT_TYPE.LIBRARY:
@@ -118,12 +103,6 @@ public class Project
             var projectJson = JsonConvert.SerializeObject(info, Formatting.Indented);
 
             File.WriteAllText(projectFilePath, projectJson);
-
-            // version.json
-            var versionFilePath = GetReserverPath(projectAbsolutePath, RESERVED_PATH.VERSION_JSON);
-            var versionJson = JsonConvert.SerializeObject(version.Value, Formatting.Indented);
-
-            File.WriteAllText(versionFilePath, versionJson);
         }
     }
 
@@ -142,7 +121,6 @@ public class Project
 
             // Configs
             RESERVED_PATH.PROJECT_JSON => System.IO.Path.Combine(vecxy, "project.json"),
-            RESERVED_PATH.VERSION_JSON => System.IO.Path.Combine(vecxy, "version.json"),
 
             // Settings
             RESERVED_PATH.GAME_SETTINGS_JSON => System.IO.Path.Combine(GetReserverPath(rootPath, RESERVED_PATH.SETTINGS_DIRECTORY), "engine.json"),

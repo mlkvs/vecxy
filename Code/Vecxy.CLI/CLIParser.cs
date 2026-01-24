@@ -6,9 +6,9 @@ namespace Vecxy.CLI;
 [AttributeUsage(AttributeTargets.Field | AttributeTargets.Property)]
 public class CLIParameterAttribute : Attribute
 {
-    public string Name { get; set; }
-    public char Alias { get; set; }
-    public object Default { get; set; }
+    public required string Name { get; set; }
+    public required char Alias { get; set; }
+    public object Default { get; set; } = null!;
 }
 
 public interface ICLICommand
@@ -30,7 +30,7 @@ public class NotDefaultValueByParameterException(string cmd, string parameter) :
 
 public static class CLIParser
 {
-    public static void Parse(string[] args, ICLICommand[] commands)
+    public static void Execute(string[] args, ICLICommand[] commands)
     {
         if (args.Length == 0)
         {

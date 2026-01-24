@@ -1,7 +1,7 @@
  {
-  "type": "VECXY_GAME_TYPE",
-  "name": "VECXY_GAME_NAME",
-  "description": "VECXY_DESCRIPTION",
-  "author": "VECXY_AUTHOR",
-  "version": "VECXY_VERSION"
+  "Type": "VECXY_GAME_TYPE",
+  "Name": "VECXY_GAME_NAME",
+  "Description": "VECXY_DESCRIPTION",
+  "Author": "VECXY_AUTHOR",
+  "Version": "VECXY_VERSION"
 }

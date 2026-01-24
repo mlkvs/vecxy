@@ -2,7 +2,7 @@
 
 namespace VECXY_GAME_NAME.Game;
 
-public class Game : Application
+public class Game : ApplicationLayer
 {
     public Game() { }
     public override void OnInitialize() { }

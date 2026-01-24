@@ -9,6 +9,17 @@
       <ProjectReference Include="..\Vecxy.Native\Vecxy.Native.csproj" />
     </ItemGroup>
 
+	<ItemGroup>
+		<None Include="..\..\Templates\**">
+			<Link>Templates\%(RecursiveDir)%(FileName)%(Extension)</Link>
+			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+		</None>
+	</ItemGroup>
+
+	<Target Name="CleanTemplates" AfterTargets="Clean">
+		<RemoveDir Directories="$(TargetDir)Templates" />
+	</Target>
+
     <Target Name="CreateShim" AfterTargets="Build">
         <PropertyGroup>
             <ShimName>vecxy</ShimName>
