@@ -1,11 +1,13 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
     <ItemGroup>
+      <PackageReference Include="Silk.NET.OpenGL" Version="2.23.0" />
       <PackageReference Include="StbImageSharp" Version="2.30.15" />
     </ItemGroup>
 
     <ItemGroup>
       <ProjectReference Include="..\Vecxy.Diagnostics\Vecxy.Diagnostics.csproj" />
       <ProjectReference Include="..\Vecxy.Kernel\Vecxy.Kernel.csproj" />
+      <ProjectReference Include="..\Vecxy.Native\Vecxy.Native.csproj" />
       <ProjectReference Include="..\Vecxy.Reflection\Vecxy.Reflection.csproj" />
     </ItemGroup>
 		

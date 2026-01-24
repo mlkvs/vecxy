@@ -1,11 +1,14 @@
 ﻿using System.Diagnostics;
+using Vecxy.Kernel;
 using Vecxy.Native;
+using Vecxy.Rendering;
 
 namespace Vecxy.Engine;
 
 public class Engine : IDisposable
 {
     private readonly Stack<AppLayer> _appLayers;
+    private readonly Stack<IModule> _modules;
     private readonly Window _window;
 
     public Engine(AppLayer[] layers)
@@ -18,10 +21,26 @@ public class Engine : IDisposable
             Width = 800,
             Height = 600
         });
+
+        _modules = new Stack<IModule>([
+            new RenderingModule(_window)
+        ]);
     }
 
     public void Run()
     {
+        _window.Initialize();
+
+        foreach (var module in _modules)
+        {
+            module.OnLoad();
+        }
+
+        foreach (var module in _modules)
+        {
+            module.OnInitialize();
+        }
+
         foreach (var appLayer in _appLayers)
         {
             appLayer.OnInitialize();
@@ -67,6 +86,11 @@ public class Engine : IDisposable
 
     public void Tick(float dt)
     {
+        foreach (var module in _modules)
+        {
+            module.OnTick(dt);
+        }
+
         foreach (var appLayer in _appLayers)
         {
             appLayer.OnTick(dt);
@@ -80,6 +104,10 @@ public class Engine : IDisposable
 
     public void Dispose()
     {
+        foreach (var module in _modules)
+        {
+            module.OnUnload();
+        }
         // TODO release managed resources here
     }
 }

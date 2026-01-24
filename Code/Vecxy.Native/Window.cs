@@ -17,6 +17,9 @@ namespace Vecxy.Native
         [LibraryImport("Vecxy.Native.Windows.dll", EntryPoint = "Window_Create", StringMarshalling = StringMarshalling.Utf16)]
         private static partial void* Window_Create(string className, string title, int width, int height);
 
+        [LibraryImport("Vecxy.Native.Windows.dll", EntryPoint = "Window_Initialize", StringMarshalling = StringMarshalling.Utf16)]
+        private static partial void Window_Initialize(void* ptr);
+
         [LibraryImport("Vecxy.Native.Windows.dll", EntryPoint = "Window_Destroy")]
         private static partial void Window_Destroy(void* ptr);
 
@@ -24,7 +27,13 @@ namespace Vecxy.Native
         [return: MarshalAs(UnmanagedType.Bool)]
         private static partial bool Window_ProcessEvents(void* ptr);
 
-        private void* _ptr;
+        [LibraryImport("Vecxy.Native.Windows.dll", EntryPoint = "Window_SwapBuffers")]
+        private static partial void Window_SwapBuffers(void* ptr);
+
+        [LibraryImport("Vecxy.Native.Windows.dll", EntryPoint = "Window_GetGLProcAddress", StringMarshalling = StringMarshalling.Utf8)]
+        private static partial void* Window_GetGLProcAddress(void* ptr, string procName);
+
+        private void* _wPtr;
         private bool _isDisposed;
 
         public bool IsRunning { get; private set; }
@@ -33,9 +42,9 @@ namespace Vecxy.Native
         {
             var className = $"CLASS_{Guid.NewGuid():N}";
 
-            _ptr = Window_Create(className, config.Title, config.Width, config.Height);
+            _wPtr = Window_Create(className, config.Title, config.Width, config.Height);
 
-            if (_ptr == null)
+            if (_wPtr == null)
             {
                 throw new NotCreatedWindowException();
             }
@@ -48,15 +57,32 @@ namespace Vecxy.Native
             Dispose();
         }
 
+        public void Initialize()
+        {
+            Window_Initialize(_wPtr);
+        }
+
         public void ProcessEvents()
         {
-            if (_ptr == null)
+            if (_wPtr == null)
             {
                 IsRunning = false;
                 return;
             }
 
-            IsRunning = Window_ProcessEvents(_ptr);
+            IsRunning = Window_ProcessEvents(_wPtr);
+        }
+
+        public IntPtr GetProcAddress(string procName, int? slot = null)
+        {
+            var procPtr = Window_GetGLProcAddress(_wPtr, procName);
+
+            return new IntPtr(procPtr);
+        }
+
+        public void SwapBuffers()
+        {
+            Window_SwapBuffers(_wPtr);
         }
 
         public void Dispose()
@@ -66,16 +92,16 @@ namespace Vecxy.Native
                 return;
             }
 
-            if (_ptr == null)
+            if (_wPtr == null)
             {
                 return;
             }
 
             IsRunning = false;
 
-            Window_Destroy(_ptr);
+            Window_Destroy(_wPtr);
 
-            _ptr = null;
+            _wPtr = null;
 
             _isDisposed = true;
 

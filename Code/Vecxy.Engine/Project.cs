@@ -38,7 +38,6 @@ public class Project
         Path = path;
 
         var projectFile = GetReserverPath(path, RESERVED_PATH.PROJECT_JSON); ;
-        var versionPath = GetReserverPath(path, RESERVED_PATH.VERSION_JSON); ;
 
         if (!File.Exists(projectFile))
         {
@@ -138,7 +137,6 @@ public class Project
         TEMP_DIRECTORY,
 
         PROJECT_JSON,
-        VERSION_JSON,
 
         GAME_SETTINGS_JSON,
     }
