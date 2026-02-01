@@ -2,6 +2,7 @@
   "profiles": {
     "Vecxy.CLI": {
       "commandName": "Project",
+      "commandLineArgs": "build -p \"D:\\Projects\\vecxy\\vecxy.game.flappy-bird\" -c DEBUG -o \"D:\\Projects\\vecxy\\vecxy.game.flappy-bird\\Build\"",
       "nativeDebugging": true
     }
   }

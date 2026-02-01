@@ -1,19 +1,27 @@
 ﻿<Project>
-    <PropertyGroup>
-        <Configurations>Debug;Release</Configurations>
-        <Platforms>AnyCPU;x64</Platforms>
-        
-        <TargetFramework>net10.0</TargetFramework>
-        <ImplicitUsings>enable</ImplicitUsings>
-        <Nullable>enable</Nullable>
-        
-        <BaseOutputPath>$(MSBuildThisFileDirectory)Build\</BaseOutputPath>
-        <OutputPath>$(BaseOutputPath)$(Configuration)\</OutputPath>
+	<PropertyGroup>
+		<Configurations>Debug;Release</Configurations>
+		<Platforms>x64</Platforms>
+		<TargetFramework>net10.0</TargetFramework>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<Nullable>enable</Nullable>
+		<AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+		<SuppressNETCoreSdkPreviewMessage>true</SuppressNETCoreSdkPreviewMessage>
 
-        <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
-        <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
-        <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+		<BuildRoot>$(MSBuildThisFileDirectory)Build\</BuildRoot>
+		<BaseIntermediateOutputPath>$(BuildRoot)obj\$(MSBuildProjectName)\</BaseIntermediateOutputPath>
+		<IntermediateOutputPath>$(BaseIntermediateOutputPath)$(Configuration)\</IntermediateOutputPath>
 
-        <GenerateDependencyFile>true</GenerateDependencyFile>
-    </PropertyGroup>
+		<!-- ВСЕ проекты собираются в одну общую папку bin для разработки -->
+		<OutputPath>$(BuildRoot)$(Configuration)\bin\</OutputPath>
+		<OutDir>$(OutputPath)</OutDir>
+
+		<!-- Отключаем предупреждение о сборке в одну общую папку -->
+		<NoWarn>$(NoWarn);NETSDK1194</NoWarn>
+
+		<AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+	</PropertyGroup>
+
+	<!-- Импортируем сборщик дистрибутива -->
+	<Import Project="$(MSBuildThisFileDirectory)Distribution.targets" Condition="Exists('$(MSBuildThisFileDirectory)Distribution.targets')" />
 </Project>

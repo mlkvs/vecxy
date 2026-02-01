@@ -1,2 +1,10 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
+	<ItemGroup>
+		<Content Include="$(OutputPath)Vecxy.Native.Windows.dll">
+			<Link>Vecxy.Native.Windows.dll</Link>
+			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+			<Visible>false</Visible>
+			<Pack>false</Pack>
+		</Content>
+	</ItemGroup>
 </Project>

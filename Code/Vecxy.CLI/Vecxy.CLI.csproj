@@ -1,38 +1,20 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
-    <PropertyGroup>
-        <OutputType>Exe</OutputType>
-        <LangVersion>preview</LangVersion>
-    </PropertyGroup>
-    
-    <ItemGroup>
-      <ProjectReference Include="..\Vecxy.Builder\Vecxy.Builder.csproj" />
-      <ProjectReference Include="..\Vecxy.Native\Vecxy.Native.csproj" />
-    </ItemGroup>
+	<PropertyGroup>
+		<OutputType>Exe</OutputType>
+		<LangVersion>preview</LangVersion>
+		<AssemblyName>Vecxy.CLI</AssemblyName>
+	</PropertyGroup>
 
+	<ItemGroup>
+		<ProjectReference Include="..\Vecxy.Builder\Vecxy.Builder.csproj" />
+		<ProjectReference Include="..\Vecxy.Native\Vecxy.Native.csproj" />
+	</ItemGroup>
+
+	<!-- Шаблоны нужны CLI для корректной работы в режиме отладки -->
 	<ItemGroup>
 		<None Include="..\..\Templates\**">
 			<Link>Templates\%(RecursiveDir)%(FileName)%(Extension)</Link>
 			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
 		</None>
 	</ItemGroup>
-
-	<Target Name="CleanTemplates" AfterTargets="Clean">
-		<RemoveDir Directories="$(TargetDir)Templates" />
-	</Target>
-
-    <Target Name="CreateShim" AfterTargets="Build">
-        <PropertyGroup>
-            <ShimName>vecxy</ShimName>
-            <BashContent>#!/usr/bin/env bash 
-PARENT_PATH=%24(cd "%24(dirname "%240")"; pwd -P)
-"%24PARENT_PATH/$(AssemblyName).exe" "%24@"</BashContent>
-
-            <BatchContent>@echo off
-"%~dp0$(AssemblyName).exe" %*</BatchContent>
-        </PropertyGroup>
-        
-        <WriteLinesToFile File="$(TargetDir)$(ShimName).bat" Lines="$(BatchContent)" Overwrite="true" />
-        
-        <WriteLinesToFile File="$(TargetDir)$(ShimName)" Lines="$(BashContent)" Overwrite="true" />
-    </Target>
 </Project>

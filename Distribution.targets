@@ -1,0 +1,54 @@
+<Project>
+  <Target Name="AssembleEngineDist" AfterTargets="Build"
+          Condition="'$(Configuration)' == 'Release' AND '$(AssemblyName)' == 'Vecxy.CLI' AND '$(IsPublishing)' != 'true'">
+    <Message Importance="high" Text="======= ASSEMBLING ENGINE DISTRIBUTION =======" />
+    
+    <PropertyGroup>
+      <ProjectRootDir>$(MSBuildThisFileDirectory)</ProjectRootDir>
+      <DistRoot>$(ProjectRootDir)Build\Release\</DistRoot>
+      <BaseArgs>--no-build --nologo -p:IsPublishing=true</BaseArgs>
+    </PropertyGroup>
+
+    <!-- 1. Публикуем CLI (всегда в Release) -->
+    <Exec Command="dotnet publish &quot;$(ProjectRootDir)Code\Vecxy.CLI\Vecxy.CLI.csproj&quot; -c Release $(BaseArgs) -o &quot;$(DistRoot)CLI&quot;" />
+
+    <!-- 2. Публикуем Runner в двух конфигурациях -->
+    <Message Importance="high" Text="--- Publishing Debug Runner ---" />
+    <Exec Command="dotnet publish &quot;$(ProjectRootDir)Code\Vecxy.Executable\Vecxy.Executable.csproj&quot; -c Debug $(BaseArgs) -o &quot;$(DistRoot)Runner\Debug&quot;" />
+    
+    <Message Importance="high" Text="--- Publishing Release Runner ---" />
+    <Exec Command="dotnet publish &quot;$(ProjectRootDir)Code\Vecxy.Executable\Vecxy.Executable.csproj&quot; -c Release $(BaseArgs) -o &quot;$(DistRoot)Runner\Release&quot;" />
+
+    <!-- 3. Копируем нативные DLL (Debug -> Runner/Debug, Release -> Runner/Release и CLI) -->
+    <Copy SourceFiles="$(ProjectRootDir)Build\Debug\bin\Vecxy.Native.Windows.dll" 
+          DestinationFolder="$(DistRoot)Runner\Debug" 
+          SkipUnchangedFiles="true" 
+          Condition="Exists('$(ProjectRootDir)Build\Debug\bin\Vecxy.Native.Windows.dll')" />
+          
+    <Copy SourceFiles="$(ProjectRootDir)Build\Release\bin\Vecxy.Native.Windows.dll" 
+          DestinationFolder="$(DistRoot)Runner\Release" 
+          SkipUnchangedFiles="true" 
+          Condition="Exists('$(ProjectRootDir)Build\Release\bin\Vecxy.Native.Windows.dll')" />
+
+    <Copy SourceFiles="$(ProjectRootDir)Build\Release\bin\Vecxy.Native.Windows.dll" 
+          DestinationFolder="$(DistRoot)CLI" 
+          SkipUnchangedFiles="true" 
+          Condition="Exists('$(ProjectRootDir)Build\Release\bin\Vecxy.Native.Windows.dll')" />
+
+    <!-- 4. Копируем шаблоны в CLI -->
+    <ItemGroup>
+      <TemplateFiles Include="$(ProjectRootDir)Templates\**\*.*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(TemplateFiles)"
+          DestinationFiles="@(TemplateFiles->'$(DistRoot)CLI\Templates\%(RecursiveDir)%(FileName)%(Extension)')"
+          SkipUnchangedFiles="true" />
+
+    <!-- 5. Создаем батник запуска CLI в корне дистрибутива -->
+    <PropertyGroup>
+      <BatContent>@echo off%0D%0A"%~dp0CLI\Vecxy.CLI.exe" %*</BatContent>
+    </PropertyGroup>
+    <WriteLinesToFile File="$(DistRoot)vecxy.bat" Lines="$(BatContent)" Overwrite="true" />
+
+    <Message Importance="high" Text="======= ENGINE DISTRIBUTION READY =======%0D%0ALocation: $(DistRoot)" />
+  </Target>
+</Project>

@@ -1,13 +1,10 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
-    <PropertyGroup Condition="'$(Configuration)' == 'Debug'">
-        <OutputType>Exe</OutputType>
-    </PropertyGroup>
+	<PropertyGroup>
+		<OutputType Condition="'$(Configuration)' == 'Debug'">Exe</OutputType>
+		<OutputType Condition="'$(Configuration)' == 'Release'">WinExe</OutputType>
+	</PropertyGroup>
 
-    <PropertyGroup Condition="'$(Configuration)' == 'Release'">
-        <OutputType>WinExe</OutputType>
-    </PropertyGroup>
-
-    <ItemGroup>
-      <ProjectReference Include="..\Vecxy.Engine\Vecxy.Engine.csproj" />
-    </ItemGroup>
+	<ItemGroup>
+		<ProjectReference Include="..\Vecxy.Engine\Vecxy.Engine.csproj" />
+	</ItemGroup>
 </Project>

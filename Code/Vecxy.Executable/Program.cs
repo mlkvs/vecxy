@@ -1,87 +1,74 @@
 ﻿using System.Reflection;
 using System.Runtime.Loader;
+using System.Diagnostics;
 using Vecxy.Engine;
 
 internal class Program
 {
-    public class GameLoadContext(string gameDllPath, bool isCollectible = false) : AssemblyLoadContext(name: "GameLoadContext", isCollectible: isCollectible)
+    public class GameLoadContext(string gameDllPath) : AssemblyLoadContext(name: "GameLoadContext", isCollectible: true)
     {
         private readonly AssemblyDependencyResolver _resolver = new(gameDllPath);
-
-        private static readonly string[] EXTERNAL_MODULES = ["OpenTK", "ImGui.NET", "Newtonsoft.Json"];
+        private static readonly string[] EXTERNAL_MODULES = ["OpenTK", "ImGui.NET", "Newtonsoft.Json", "Silk.NET"];
 
         protected override Assembly? Load(AssemblyName assemblyName)
         {
             var name = assemblyName.Name!;
-
-            if (name.StartsWith("System.")) return null;
-            if (name.StartsWith("Microsoft.")) return null;
-            if (name.StartsWith("Vecxy.")) return null;
-            if (EXTERNAL_MODULES.Contains(assemblyName.Name)) return null;
+            if (name.StartsWith("System.") || name.StartsWith("Microsoft.") ||
+                name.StartsWith("Vecxy.") || EXTERNAL_MODULES.Any(m => name.Contains(m)))
+                return null;
 
             var assemblyPath = _resolver.ResolveAssemblyToPath(assemblyName);
-
             return assemblyPath != null ? LoadFromAssemblyPath(assemblyPath) : null;
-        }
-
-        protected override IntPtr LoadUnmanagedDll(string unmanagedDllName)
-        {
-            var libraryPath = _resolver.ResolveUnmanagedDllToPath(unmanagedDllName);
-
-            return libraryPath != null ? LoadUnmanagedDllFromPath(libraryPath) : IntPtr.Zero;
         }
     }
 
-    public static void Main()
+    public static void Main(string[] args)
     {
-        Console.WriteLine("Release");
-
-        var gameDllPath = "./FlappyBird.Game.dll";
-        var absolutePath = Path.GetFullPath(gameDllPath);
-
-        if (!File.Exists(absolutePath))
+        try
         {
-            throw new FileNotFoundException($"Game DLL not found at: {absolutePath}");
+            // Берем имя запущенного EXE (FlappyBird)
+            string currentExeName = Path.GetFileNameWithoutExtension(Process.GetCurrentProcess().MainModule?.FileName);
+
+            // Ищем FlappyBird.Game.dll
+            string gameDllPath = Path.Combine(AppContext.BaseDirectory, $"FlappyBird.Game.dll");
+
+            if (!File.Exists(gameDllPath))
+                throw new FileNotFoundException($"Game project DLL not found: {gameDllPath}");
+
+            Console.WriteLine($"[Runner] Loading Game: {Path.GetFileName(gameDllPath)}");
+            var loadContext = new GameLoadContext(gameDllPath);
+            var gameAssembly = loadContext.LoadFromAssemblyPath(gameDllPath);
+
+            var appType = gameAssembly.GetTypes().FirstOrDefault(t =>
+                t.IsClass && !t.IsAbstract && IsSubclassOfAppLayer(t));
+
+            if (appType == null)
+                throw new Exception($"No class inheriting from AppLayer found in {gameDllPath}");
+
+            var application = (AppLayer)Activator.CreateInstance(appType)!;
+            var engine = new Engine([application]);
+            engine.Run(); 
         }
-
-        var loadContext = new GameLoadContext(absolutePath, isCollectible: true);
-
-        var gameAssembly = loadContext.LoadFromAssemblyPath(absolutePath);
-
-        var types = gameAssembly.GetTypes();
-
-        Type? appType = null;
-
-        for (int index = 0; index < types.Length; index++)
+        catch (Exception ex)
         {
-            var type = types[index];
-
-            if (type.IsClass == false)
-            {
-                continue;
-            }
-
-            if (type.BaseType == null)
-            {
-                continue;
-            }
-
-            if (type.BaseType == typeof(AppLayer))
-            {
-                appType = type;
-                break;
-            }
+            Console.ForegroundColor = ConsoleColor.Red;
+            Console.WriteLine("\n--- CRITICAL ERROR ---");
+            Console.WriteLine(ex.Message);
+            Console.WriteLine(ex.StackTrace);
+            Console.ResetColor();
+            Console.WriteLine("\nPress any key to exit...");
+            Console.ReadKey();
         }
+    }
 
-        if (appType == null)
+    private static bool IsSubclassOfAppLayer(Type type)
+    {
+        var current = type.BaseType;
+        while (current != null)
         {
-            throw new Exception($"In build {Path.GetFileName(gameDllPath)} not found class, with implementation AppLayer!");
+            if (current.FullName == typeof(AppLayer).FullName) return true;
+            current = current.BaseType;
         }
-
-        var application = (AppLayer)Activator.CreateInstance(appType)!;
-
-        var engine = new Engine([application]);
-
-        //engine.Run();
+        return false;
     }
 }
