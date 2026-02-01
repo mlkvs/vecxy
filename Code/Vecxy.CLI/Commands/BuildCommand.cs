@@ -19,7 +19,7 @@ public struct BuildParameters
     public string OutputDir { get; set; }
 
     [CLIParameter(Name = "configuration", Alias = 'c', Default = BUILD_CONFIGURATION.RELEASE)]
-    public BUILD_CONFIGURATION Env { get; set; }
+    public BUILD_CONFIGURATION Configuration { get; set; }
 }
 
 public class BuildCommand : CLICommandBase<BuildParameters>
@@ -32,7 +32,7 @@ public class BuildCommand : CLICommandBase<BuildParameters>
         {
             ProjectDir = parameters.ProjectDir,
             OutputDir = parameters.OutputDir,
-            Configuration = parameters.Env
+            Configuration = parameters.Configuration
         };
 
         //BuildPipeline.Build(config);
