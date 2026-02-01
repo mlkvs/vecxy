@@ -1,105 +1,98 @@
-using System.Diagnostics;
-using Vecxy.Engine;
-using Vecxy.IO;
+using System.Reflection;
+using Vecxy.Diagnostics;
 
 namespace Vecxy.Builder;
 
+public enum BUILD_TARGET : byte
+{
+    NONE = 0,
+    WINDOWS = 1,
+    WEB = 2,
+}
+
+public enum BUILD_CONFIGURATION : byte
+{
+    DEBUG = 0,
+    RELEASE = 1
+}
+
+public record BuildArtifact<TArtifact>(string Name, TArtifact Value);
+
+public class BuildContext
+{
+    public BUILD_TARGET Target { get; init; }
+    public BUILD_CONFIGURATION Configuration { get; init; }
+
+    public string ProjectDir { get; init; }
+    public string OutputDir { get; init; }
+
+    private readonly Dictionary<string, object> _artifacts = new ();
+
+    public void SetArtifact<TArtifact>(string name, TArtifact artifact) => _artifacts[name] = artifact!;
+
+    public BuildArtifact<TArtifact> GetArtifact<TArtifact>(string name)
+    {
+        if (!_artifacts.TryGetValue(name, out var value))
+        {
+            throw new Exception($"Artifact '{name}' not found");
+        }
+
+        return (BuildArtifact<TArtifact>)value;
+    }
+}
+
+public abstract class BuildStage
+{
+    public abstract string Name { get; }
+    public virtual int Priority => 0;
+
+    public virtual bool Can(BuildContext ctx) => true;
+
+    public virtual void OnBefore(BuildContext ctx) { }
+    public virtual void Execute(BuildContext ctx) { }
+    public virtual void OnAfter(BuildContext ctx) { }
+}
+
 public static class BuildPipeline
 {
-    public static void Build(BuildConfig config)
+    public static void Build(BuildConfig cfg)
     {
-        const string PROJECT_PATH = @"D:\Projects\vecxy\vecxy.game.flappy-bird";
-
-        var project = new Project(PROJECT_PATH);
-
-        if (!Directory.Exists(project.BuildDir))
+        var ctx = new BuildContext
         {
-            Directory.CreateDirectory(project.BuildDir);
-        }
-        else
-        {
-            Directory.Delete(project.BuildDir, true);
-            Directory.CreateDirectory(project.BuildDir);
-        }
+            ProjectDir = cfg.ProjectDir,
+            OutputDir = cfg.OutputDir,
+            Configuration = cfg.Configuration,
+            Target = BUILD_TARGET.WINDOWS
+        };
 
-        var assetFiles = Directory
-            .GetFiles(project.AssetsDir, "*.*", SearchOption.AllDirectories)
+        var asm = Assembly.GetExecutingAssembly();
+
+        var stages = asm
+            .GetTypes()
+            .Where(t => t.IsSubclassOf(typeof(BuildStage)) && !t.IsAbstract)
+            .Select(t => (BuildStage)Activator.CreateInstance(t)!)
+            .Where(s => s.Can(ctx))
+            .OrderByDescending(s => s.Priority)
             .ToList();
 
-        foreach (var file in assetFiles)
+        foreach (var stage in stages) ExecuteStage("Before", stage.Name, () => stage.OnBefore(ctx));
+        foreach (var stage in stages) ExecuteStage("Execute", stage.Name, () => stage.Execute(ctx));
+        foreach (var stage in stages) ExecuteStage("After", stage.Name, () => stage.OnAfter(ctx));
+    }
+
+    private static void ExecuteStage(string phase, string stageName, Action action)
+    {
+        Logger.Info($"[{phase}] {stageName}...");
+
+        try
         {
-            Console.WriteLine(file);
+            action();
         }
-
-        Console.WriteLine("\n--- Starting external MSBuild process ---");
-
-        var slnPath = Path.Combine(PROJECT_PATH, "FlappyBird.sln");
-
-        const string DOTNET_CLI = "dotnet";
-
-        var msBuildArguments = new List<string>
+        catch (Exception ex)
         {
-            "build",
-            $"\"{slnPath}\"",
-            "-c", "Debug",
-        };
+            Logger.Error($"Failed at {stageName}: {ex.Message}");
 
-        var arguments = string.Join(" ", msBuildArguments);
-
-        var startInfo = new ProcessStartInfo
-        {
-            FileName = DOTNET_CLI,
-            Arguments = arguments,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            UseShellExecute = false,
-            CreateNoWindow = true
-        };
-
-        using (var process = new Process())
-        {
-            process.StartInfo = startInfo;
-
-            process.OutputDataReceived += (sender, e) =>
-            {
-                if (!string.IsNullOrEmpty(e.Data))
-                {
-                    Console.WriteLine($"[MSBuild stdout]: {e.Data}");
-                }
-            };
-
-            process.ErrorDataReceived += (sender, e) =>
-            {
-                if (!string.IsNullOrEmpty(e.Data))
-                {
-                    Console.Error.WriteLine($"[MSBuild stderr]: {e.Data}");
-                }
-            };
-
-            try
-            {
-                process.Start();
-                process.BeginOutputReadLine();
-                process.BeginErrorReadLine();
-                process.WaitForExit();
-
-                if (process.ExitCode == 0)
-                {
-                    Console.WriteLine("--- External MSBuild process completed successfully. ---");
-
-                    DirectoryUtils.CopyDirectory(Path.Combine(project.TempDir, "Debug", "Bin"), project.BuildDir);
-                }
-                else
-                {
-                    Console.Error.WriteLine($"--- External MSBuild process failed with exit code: {process.ExitCode}. ---");
-                }
-            }
-            catch (Exception ex)
-            {
-                Console.Error.WriteLine($"--- Failed to start/run external MSBuild process: {ex.Message} ---");
-            }
+            throw;
         }
-
-        Console.WriteLine("\n--- Build process finished ---");
     }
 }

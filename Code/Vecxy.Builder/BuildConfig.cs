@@ -2,16 +2,10 @@
 
 namespace Vecxy.Builder;
 
-public enum BUILD_MODE : byte
-{
-    RELEASE,
-    DEBUG
-}
-
 [DataContract]
 public class BuildConfig
 {
     [DataMember] public string ProjectDir { get; set; }
     [DataMember] public string OutputDir { get; set; }
-    [DataMember] public BUILD_MODE Mode { get; set; }
+    [DataMember] public BUILD_CONFIGURATION Configuration { get; set; }
 }
