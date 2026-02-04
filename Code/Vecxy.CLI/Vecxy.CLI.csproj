@@ -6,6 +6,7 @@
 	</PropertyGroup>
 
 	<ItemGroup>
+		<ProjectReference Include="..\Vecxy.Assets.Packer\Vecxy.Assets.Packer.csproj" />
 		<ProjectReference Include="..\Vecxy.Builder\Vecxy.Builder.csproj" />
 		<ProjectReference Include="..\Vecxy.Native\Vecxy.Native.csproj" />
 	</ItemGroup>

@@ -5,6 +5,9 @@
     <Platform Name="x86" />
   </Configurations>
   <Folder Name="/Engine/">
+    <Project Path="Code/Vecxy.Assets/Vecxy.Assets.csproj" Id="afc4ce25-dc51-462e-b6a9-c3bf89b27d75">
+      <Platform Project="x64" />
+    </Project>
     <Project Path="Code/Vecxy.Diagnostics/Vecxy.Diagnostics.csproj">
       <Platform Solution="*|x64" Project="x64" />
     </Project>
@@ -43,6 +46,9 @@
     </Project>
   </Folder>
   <Folder Name="/Tools/">
+    <Project Path="Code/Vecxy.Assets.Packer/Vecxy.Assets.Packer.csproj" Id="52622bfd-0317-40bd-8614-dfa99c1a4f43">
+      <Platform Project="x64" />
+    </Project>
     <Project Path="Code/Vecxy.Builder/Vecxy.Builder.csproj">
       <Platform Solution="*|x64" Project="x64" />
     </Project>

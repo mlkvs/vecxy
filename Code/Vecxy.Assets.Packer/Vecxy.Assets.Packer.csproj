@@ -1,9 +1,5 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
-  <PropertyGroup>
-    <OutputType>Exe</OutputType>
-  </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\Vecxy.Assets\Vecxy.Assets.csproj" />
-    <ProjectReference Include="..\Vecxy.Engine\Vecxy.Engine.csproj" />
   </ItemGroup>
 </Project>
