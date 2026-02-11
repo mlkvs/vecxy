@@ -3,6 +3,7 @@
       <ProjectReference Include="..\Vecxy.IO\Vecxy.IO.csproj" />
       <ProjectReference Include="..\Vecxy.Native\Vecxy.Native.csproj" />
       <ProjectReference Include="..\Vecxy.Rendering\Vecxy.Rendering.csproj" />
+      <ProjectReference Include="..\Vecxy.Scripting\Vecxy.Scripting.csproj" />
     </ItemGroup>
 
     <ItemGroup>

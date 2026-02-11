@@ -16,6 +16,11 @@ public interface IHotReloadable
 
 public interface IAssetsManager
 {
+    /*
+     *  LoadPack("Tank", PACK_TYPE.FILE_INTERNAL);
+     *  LoadPack(D:\Projects\vecxy\vecxy", PACK_TYPE.FILE_EXTERNAL)
+     *  LoadPack(D:\Projects\vecxy\vecxy", PACK_TYPE.DOWNLOAD)
+     */
     public AssetPack LoadPack(string path)
     {
         throw new NotImplementedException();

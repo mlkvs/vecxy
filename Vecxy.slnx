@@ -26,6 +26,9 @@
     <Project Path="Code/Vecxy.Rendering/Vecxy.Rendering.csproj">
       <Platform Solution="*|x64" Project="x64" />
     </Project>
+    <Project Path="Code/Vecxy.Scripting/Vecxy.Scripting.csproj" Id="8a450201-9a2b-473c-bbac-7abf7fb69aae">
+      <Platform Project="x64" />
+    </Project>
   </Folder>
   <Folder Name="/Native/">
     <Project Path="Code/Vecxy.Native.Windows/Vecxy.Native.Windows.vcxproj" Id="08c0319b-aaea-449a-aa85-0351825ce699">

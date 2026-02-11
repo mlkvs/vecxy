@@ -2,6 +2,7 @@
 using Vecxy.Kernel;
 using Vecxy.Native;
 using Vecxy.Rendering;
+using Vecxy.Scripting;
 
 namespace Vecxy.Engine;
 
@@ -23,7 +24,8 @@ public class Engine : IDisposable
         });
 
         _modules = new Stack<IModule>([
-            new RenderingModule(_window)
+            //new RenderingModule(_window),
+            new ScriptingModule()
         ]);
     }
 

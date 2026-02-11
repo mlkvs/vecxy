@@ -13,6 +13,6 @@ public class SandboxLayer : AppLayer
 
     public override void OnTick(float dt)
     {
-        Logger.Info("dt: " + dt.ToString(CultureInfo.InvariantCulture));
+        //Logger.Info("dt: " + dt.ToString(CultureInfo.InvariantCulture));
     }
 }
