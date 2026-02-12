@@ -1,58 +1,16 @@
 ﻿using Microsoft.ClearScript;
 using Microsoft.ClearScript.JavaScript;
 using Microsoft.ClearScript.V8;
-using System;
-using System.Collections.Generic;
 using System.Diagnostics;
-using System.IO;
+using System.Reflection;
 using Vecxy.Kernel;
 
 namespace Vecxy.Scripting;
 
-// 1. КЛАСС ЛОГГЕРА
-// Пробрасывает console.log из JS в консоль .NET
-public class EngineLogger
-{
-    public void log(params object[] args)
-    {
-        Console.WriteLine($"[JS]: {string.Join(" ", args)}");
-    }
-}
-
-// 2. КЛАСС ХОСТА
-// Хранит список всех JS-объектов (MonoBehaviour) и обновляет их
-public class ScriptingHost
-{
-    private readonly List<dynamic> _scripts = new();
-
-    public void registerScriptObject(dynamic script)
-    {
-        _scripts.Add(script);
-        // Console.WriteLine("DEBUG: Скрипт успешно зарегистрирован в C#");
-    }
-
-    public void UpdateAll(float dt)
-    {
-        // Итерируемся с конца, чтобы была возможность безопасно удалять объекты
-        for (int i = _scripts.Count - 1; i >= 0; i--)
-        {
-            try
-            {
-                _scripts[i].update(dt);
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Error updating script at index {i}: {ex.Message}");
-            }
-        }
-    }
-}
-
-// 3. ОСНОВНОЙ МОДУЛЬ СКРИПТИНГА
 public class ScriptingModule : IModule
 {
     private V8ScriptEngine _engine;
-    private ScriptingHost _host;
+    private JSHost _host;
     private string _scriptsPath;
     private string _distPath;
     private bool _initialized = false;
@@ -73,11 +31,24 @@ public class ScriptingModule : IModule
         _engine.DocumentSettings.AccessFlags = DocumentAccessFlags.EnableAllLoading;
         _engine.DocumentSettings.SearchPath = _distPath;
 
-        _host = new ScriptingHost();
+        var globalObjects = Assembly
+            .GetExecutingAssembly()
+            .GetTypes()
+            .Where(t => t.GetCustomAttribute<JSGlobalAttribute>() != null);
 
-        // 3. Добавление объектов в глобальный контекст JS
-        _engine.AddHostObject("console", new EngineLogger());
-        _engine.AddHostObject("host", _host);
+        foreach (var globalObject in globalObjects)
+        {
+            var attribute = globalObject.GetCustomAttribute<JSGlobalAttribute>()!;
+
+            var instance = Activator.CreateInstance(globalObject);
+
+            _engine.AddHostObject(attribute.Name, instance);
+
+            if (globalObject == typeof(JSHost))
+            {
+                _host = (JSHost)instance!;
+            }
+        }
 
         // 4. Загрузка скомпилированных JS-скриптов
         try
