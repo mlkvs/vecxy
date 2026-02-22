@@ -24,4 +24,8 @@
 
 	<!-- Импортируем сборщик дистрибутива -->
 	<Import Project="$(MSBuildThisFileDirectory)Distribution.targets" Condition="Exists('$(MSBuildThisFileDirectory)Distribution.targets')" />
+
+	<ItemGroup>
+		<PackageReference Include="Autofac" Version="9.0.0" />
+	</ItemGroup>
 </Project>

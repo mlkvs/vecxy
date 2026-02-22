@@ -1,5 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
     <ItemGroup>
+      <ProjectReference Include="..\Vecxy.Assets.V2\Vecxy.Assets.V2.csproj" />
+      <ProjectReference Include="..\Vecxy.Assets\Vecxy.Assets.csproj" />
       <ProjectReference Include="..\Vecxy.IO\Vecxy.IO.csproj" />
       <ProjectReference Include="..\Vecxy.Native\Vecxy.Native.csproj" />
       <ProjectReference Include="..\Vecxy.Rendering\Vecxy.Rendering.csproj" />

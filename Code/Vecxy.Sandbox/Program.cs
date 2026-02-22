@@ -1,11 +1,6 @@
-﻿using Vecxy.Assets;
-using Vecxy.Engine;
+﻿using Vecxy.Engine;
 using Vecxy.Sandbox;
 
-var engine = new Engine([new SandboxLayer()]);
+var engine = new Engine([new SandboxLayer(), new SandboxLayer2()]);
 
 engine.Run();
-
-/*var am = new AssetManager("D:\\Projects\\vecxy\\vecxy.game.flappy-bird\\Assets", true);
-
-Console.ReadLine();*/
