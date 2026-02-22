@@ -5,6 +5,10 @@
     <Platform Name="x86" />
   </Configurations>
   <Folder Name="/Engine/">
+    <Project Path="Code/Vecxy.Assets.V2/Vecxy.Assets.V2.csproj">
+      <Platform Solution="*|Any CPU" Project="x64" />
+      <Platform Solution="*|x86" Project="x64" />
+    </Project>
     <Project Path="Code/Vecxy.Assets/Vecxy.Assets.csproj" Id="afc4ce25-dc51-462e-b6a9-c3bf89b27d75">
       <Platform Project="x64" />
     </Project>

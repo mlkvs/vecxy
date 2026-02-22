@@ -23,12 +23,12 @@ public class PackCommand : CLICommandBase<PackParameters>
 
     public override void Execute(PackParameters parameters)
     {
-        var cfg = new PackConfig
+        /*var cfg = new AssetsPackConfig
         {
             PackDir = parameters.PackDir,
             OutputDir = parameters.OutputDir
-        };
+        };*/
 
-        AssetsPacker.Pack(cfg);
+        //AssetsPacker.Pack(cfg);
     }
 }

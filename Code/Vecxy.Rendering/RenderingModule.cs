@@ -1,6 +1,7 @@
 ﻿using Silk.NET.Core.Contexts;
 using Silk.NET.OpenGL;
 using System.Drawing;
+using Autofac;
 using Vecxy.Kernel;
 using Vecxy.Native;
 
@@ -27,6 +28,16 @@ public class RenderingModule(Window window) : IModule, INativeContext
         void main() {
             FragColor = vec4(1.0f, 0.5f, 1f, 1.0f);
         }";
+
+    public void OnBindings(ContainerBuilder builder)
+    {
+        throw new NotImplementedException();
+    }
+
+    public void OnLoad(ILifetimeScope scope)
+    {
+     
+    }
 
     public void OnInitialize()
     {
@@ -89,6 +100,16 @@ public class RenderingModule(Window window) : IModule, INativeContext
         _gl.DrawArrays(PrimitiveType.Triangles, 0, 3);
 
         window.SwapBuffers();
+    }
+
+    public void OnFrame()
+    {
+        throw new NotImplementedException();
+    }
+
+    public void OnUnload()
+    {
+        throw new NotImplementedException();
     }
 
     private uint CompileShader(ShaderType type, string source)

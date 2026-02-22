@@ -3,6 +3,7 @@ using Microsoft.ClearScript.JavaScript;
 using Microsoft.ClearScript.V8;
 using System.Diagnostics;
 using System.Reflection;
+using Autofac;
 using Vecxy.Kernel;
 
 namespace Vecxy.Scripting;
@@ -14,6 +15,16 @@ public class ScriptingModule : IModule
     private string _scriptsPath;
     private string _distPath;
     private bool _initialized = false;
+
+    public void OnBindings(ContainerBuilder builder)
+    {
+        throw new NotImplementedException();
+    }
+
+    public void OnLoad(ILifetimeScope scope)
+    {
+
+    }
 
     public void OnInitialize()
     {
@@ -154,6 +165,16 @@ public class ScriptingModule : IModule
         {
             _host.UpdateAll(dt);
         }
+    }
+
+    public void OnFrame()
+    {
+        throw new NotImplementedException();
+    }
+
+    public void OnUnload()
+    {
+
     }
 
     public void Dispose()

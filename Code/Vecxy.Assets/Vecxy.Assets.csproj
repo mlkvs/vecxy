@@ -1,2 +1,10 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="..\Vecxy.Diagnostics\Vecxy.Diagnostics.csproj" />
+    <ProjectReference Include="..\Vecxy.Kernel\Vecxy.Kernel.csproj" />
+  </ItemGroup>
+
+	<ItemGroup>
+		<PackageReference Include="Newtonsoft.Json" Version="13.0.5-beta1" />
+	</ItemGroup>
 </Project>
