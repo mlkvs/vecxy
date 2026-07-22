@@ -1,53 +1,64 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
+using Vecxy.Assets;
 using Vecxy.Engine.Objects;
 
-namespace Vecxy.Engine.Scene;
+namespace Vecxy.Engine.Scenes;
 
-public enum SCENE_MODE : byte
-{
-    SINGLE = 0,
-    ADDITIVE = 1,
-}
+public enum SceneMode : byte { Single, Additive }
 
-[Serializable]
-public class Scene
+public sealed class Scene : IDisposable
 {
+    private readonly List<SceneObject> _rootObjects = [];
+
     public string Name { get; set; }
-    public SCENE_MODE Mode { get; set; }
+    public SceneMode Mode { get; set; }
+    public IReadOnlyList<SceneObject> RootObjects => _rootObjects;
+    public IEnumerable<Transform> RootTransforms => _rootObjects.Select(x => x.Transform);
 
-    private readonly List<Transform> _rootTransforms = new();
-    public List<Transform> RootTransforms => _rootTransforms;
-
-    public Scene(string name, SCENE_MODE mode = SCENE_MODE.SINGLE)
+    public Scene(string name, SceneMode mode = SceneMode.Single)
     {
         Name = name;
         Mode = mode;
     }
 
-    public void OnLoad()
+    public SceneObject CreateObject(string name = "New Object", SceneObject? parent = null)
     {
-        // Инициализация скриптов при загрузке
-        foreach (var transform in _rootTransforms)
-            InitializeTransform(transform);
+        var result = new SceneObject(name);
+        if (parent is null) _rootObjects.Add(result);
+        else parent.AddChild(result);
+        return result;
     }
 
-    private void InitializeTransform(Transform t)
+    public SceneObject Instantiate(ModelAsset model, string? name = null, SceneObject? parent = null)
     {
-        foreach (var script in t.Scripts) script.OnStart();
-        foreach (var child in t.Children) InitializeTransform(child);
+        ArgumentNullException.ThrowIfNull(model);
+        var root = CreateObject(name ?? model.Name, parent);
+        root.AddScript(new ModelInstance(model));
+        return root;
     }
 
-    public void OnTick(float deltaTime)
+    public bool Remove(SceneObject sceneObject)
     {
-        foreach (var transform in _rootTransforms)
-            UpdateTransform(transform, deltaTime);
+        if (!_rootObjects.Remove(sceneObject)) return false;
+        sceneObject.Destroy();
+        return true;
     }
 
-    private void UpdateTransform(Transform t, float deltaTime)
+    internal IEnumerable<SceneObject> Traverse() => _rootObjects.SelectMany(Traverse);
+    public IEnumerable<SceneObject> Objects => _rootObjects.SelectMany(Traverse);
+
+    private static IEnumerable<SceneObject> Traverse(SceneObject root)
     {
-        foreach (var script in t.Scripts) script.OnUpdate(deltaTime);
-        foreach (var child in t.Children) UpdateTransform(child, deltaTime);
+        yield return root;
+        foreach (var child in root.Children)
+        foreach (var descendant in Traverse(child)) yield return descendant;
+    }
+
+    internal void Start() { foreach (var root in _rootObjects) root.Start(); }
+    internal void Update(float deltaTime) { foreach (var root in _rootObjects) root.Update(deltaTime); }
+
+    public void Dispose()
+    {
+        foreach (var root in _rootObjects) root.Destroy();
+        _rootObjects.Clear();
     }
 }

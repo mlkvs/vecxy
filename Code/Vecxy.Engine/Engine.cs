@@ -3,6 +3,8 @@ using Autofac;
 using Vecxy.Assets;
 using Vecxy.Kernel;
 using Vecxy.Rendering;
+using Vecxy.Engine.Scenes;
+using Vecxy.UI;
 
 namespace Vecxy.Engine;
 
@@ -16,6 +18,11 @@ public class Engine : IDisposable
     private readonly List<IModule> _moduleInstances = [];
     private readonly AppLayer[] _layerInstances;
     private readonly EngineOptions _options;
+    private readonly RenderingModule _renderingModule;
+    private readonly AppLayerRenderAdapter[] _renderLayers;
+    private readonly SceneManager _sceneManager;
+    private readonly AssetsModule _assetsModule;
+    private bool _disposed;
 
     public Engine(AppLayer[] layers) : this(new EngineOptions(), layers)
     {
@@ -27,20 +34,29 @@ public class Engine : IDisposable
         _rootContainer = new ContainerBuilder().Build();
 
         _window = new Window(new WindowConfig(options.WindowTitle, options.WindowWidth, options.WindowHeight));
-        _moduleInstances.Add(new AssetsModule
+        _assetsModule = new AssetsModule
         {
             LoadMode = options.UsePackedAssets ? AssetLoadMode.Packed : AssetLoadMode.LooseFiles,
             SourcePath = options.AssetsPath
-        });
-        _moduleInstances.Add(new RenderingModule(_window));
+        };
+        _moduleInstances.Add(_assetsModule);
+        _renderingModule = new RenderingModule(_window);
+        _sceneManager = new SceneManager(_renderingModule.Renderer, _window);
+        AppLayer[] allLayers = [.. layers, new EditorLayer()];
+        _moduleInstances.Add(_renderingModule);
 
         _modulesScope = _rootContainer.BeginLifetimeScope(builder =>
         {
-            builder.RegisterInstance(_window).AsSelf();
+            builder.RegisterInstance(_window).AsSelf().As<IInput>().ExternallyOwned();
+            builder.RegisterInstance(_renderingModule.Renderer).As<IRenderer>().ExternallyOwned();
+            builder.RegisterInstance(_renderingModule.UI).AsSelf().ExternallyOwned();
+            builder.RegisterInstance(_renderingModule.GameScreen).AsSelf().ExternallyOwned();
+            builder.RegisterInstance(_sceneManager).AsSelf().ExternallyOwned();
+            builder.RegisterInstance(_assetsModule.Manager).AsSelf().ExternallyOwned();
 
             foreach (var module in _moduleInstances)
             {
-                builder.RegisterInstance(module).AsSelf().As<IModule>();
+                builder.RegisterInstance(module).AsSelf().As<IModule>().ExternallyOwned();
                 var installers = module.GetType()
                     .GetNestedTypes()
                     .Where(t => t.IsSubclassOf(typeof(Autofac.Module)) && t.IsNested);
@@ -53,7 +69,7 @@ public class Engine : IDisposable
                 }
             }
             
-            foreach (var layer in layers)
+            foreach (var layer in allLayers)
             {
                 layer.OnGlobalBindings(builder);
             }
@@ -64,7 +80,7 @@ public class Engine : IDisposable
             _modulesScope.InjectProperties(module);
         }
         
-        foreach (var layer in layers)
+        foreach (var layer in allLayers)
         {
             var layerScope = _modulesScope.BeginLifetimeScope(builder =>
             {
@@ -72,6 +88,7 @@ public class Engine : IDisposable
 
                 builder.RegisterInstance(layer)
                     .AsSelf()
+                    .ExternallyOwned()
                     .PropertiesAutowired();
             });
 
@@ -80,7 +97,9 @@ public class Engine : IDisposable
             _layerScopes.Add(layerScope);
         }
         
-        _layerInstances = layers;
+        _layerInstances = allLayers;
+        _renderLayers = [new AppLayerRenderAdapter(_sceneManager.Render),
+            .. allLayers.Select(layer => new AppLayerRenderAdapter(layer.OnRender))];
     }
 
     public void Run()
@@ -112,7 +131,7 @@ public class Engine : IDisposable
             _window.ProcessEvents();
 
             Tick((float)dt);
-            Frame();
+            RenderFrame();
 
             var frameEndTime = sw.ElapsedTicks;
             var elapsedTicks = frameEndTime - currentFrameTicks;
@@ -132,17 +151,26 @@ public class Engine : IDisposable
     public void Tick(float dt)
     {
         foreach (var module in _moduleInstances) module.OnTick(dt);
+        _sceneManager.Update(dt);
         foreach (var appLayer in _layerInstances) appLayer.OnTick(dt);
     }
 
-    public void Frame()
+    private void RenderFrame()
     {
-        foreach (var module in _moduleInstances) module.OnFrame();
-        foreach (var appLayer in _layerInstances) appLayer.OnFrame();
+        _renderingModule.Render(_renderLayers, _options.ClearColor);
     }
 
     public void Dispose()
     {
+        if (_disposed) return;
+        _disposed = true;
+        for (var index = _layerInstances.Length - 1; index >= 0; index--)
+        {
+            _layerInstances[index].OnUnload();
+        }
+
+        _sceneManager.Dispose();
+
         for (var index = _moduleInstances.Count - 1; index >= 0; index--)
         {
             _moduleInstances[index].OnUnload();

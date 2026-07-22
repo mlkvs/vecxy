@@ -16,7 +16,6 @@ public class TextAsset : Asset, IHotReloadableAsset
     public void OnHotReload(byte[] newData)
     {
         Load(newData);
-        // Тут можно кинуть событие, например OnTextChanged?.Invoke();
-        System.Console.WriteLine($"[TextAsset] New content loaded: {Content[..Math.Min(10, Content.Length)]}...");
+        NotifyReloaded();
     }
 }

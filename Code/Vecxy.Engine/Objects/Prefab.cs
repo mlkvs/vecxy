@@ -1,36 +1,36 @@
-﻿using System;
+using System.Numerics;
 using System.Text.Json;
 
 namespace Vecxy.Engine.Objects;
 
-public class Prefab
+public sealed class Prefab
 {
-    public string PrefabName { get; set; }
+    public string PrefabName { get; }
+    public string SerializedData { get; }
 
-    // Храним данные объекта в сериализованном виде как "матрицу"
-    public string SerializedData { get; private set; }
-
-    public Prefab(Transform source)
+    public Prefab(SceneObject source)
     {
         PrefabName = source.Name;
-        // Сериализуем объект при создании префаба
-        SerializedData = JsonSerializer.Serialize(source);
+        SerializedData = JsonSerializer.Serialize(Capture(source));
     }
 
-    // Метод создания копии из префаба (Instantiate)
-    public Transform Instantiate()
+    public SceneObject Instantiate() => Restore(JsonSerializer.Deserialize<Snapshot>(SerializedData)
+        ?? throw new InvalidDataException("Prefab data is invalid."));
+
+    private static Snapshot Capture(SceneObject source) => new(source.Name, source.IsActive,
+        source.Transform.Position, source.Transform.Rotation, source.Transform.Scale,
+        source.Children.Select(Capture).ToArray());
+
+    private static SceneObject Restore(Snapshot snapshot)
     {
-        var copy = JsonSerializer.Deserialize<Transform>(SerializedData);
-        if (copy == null) throw new Exception("Failed to instantiate prefab.");
-
-        // Восстанавливаем ссылки Transform в скриптах после десериализации
-        FixReferences(copy);
-        return copy;
+        var result = new SceneObject(snapshot.Name) { IsActive = snapshot.IsActive };
+        result.Transform.Position = snapshot.Position;
+        result.Transform.Rotation = snapshot.Rotation;
+        result.Transform.Scale = snapshot.Scale;
+        foreach (var child in snapshot.Children) result.AddChild(Restore(child));
+        return result;
     }
 
-    private void FixReferences(Transform t)
-    {
-        foreach (var script in t.Scripts) script.Transform = t;
-        foreach (var child in t.Children) FixReferences(child);
-    }
+    private sealed record Snapshot(string Name, bool IsActive, Vector3 Position, Quaternion Rotation,
+        Vector3 Scale, Snapshot[] Children);
 }

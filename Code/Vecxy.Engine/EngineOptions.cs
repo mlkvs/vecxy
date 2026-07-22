@@ -1,3 +1,5 @@
+using Vecxy.Rendering;
+
 namespace Vecxy.Engine;
 
 public sealed class EngineOptions
@@ -8,4 +10,5 @@ public sealed class EngineOptions
     public int TargetFrameRate { get; init; } = 60;
     public string AssetsPath { get; init; } = Path.Combine(AppContext.BaseDirectory, "Assets");
     public bool UsePackedAssets { get; init; }
+    public Color ClearColor { get; init; } = Color.CornflowerBlue;
 }

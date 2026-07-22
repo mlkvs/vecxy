@@ -19,7 +19,8 @@ namespace Vecxy.Assets
 
     public class AssetsModule : IModule
     {
-        public AssetsManager? Manager { get; private set; }
+        private bool _disposed;
+        public AssetsManager Manager { get; } = new();
 
         // Configuration
         public AssetLoadMode LoadMode { get; set; }
@@ -51,8 +52,6 @@ namespace Vecxy.Assets
             }
 
             // 2. Initialize Manager
-            Manager = new AssetsManager();
-
             // 3. Mount the container based on Mode
             try
             {
@@ -90,27 +89,25 @@ namespace Vecxy.Assets
         {
             // AssetsManager doesn't need explicit Initialize if Mount is used, 
             // but we can use it for pre-warming or validation.
-            Manager?.Initialize();
+            Manager.Initialize();
         }
 
         public void OnTick(float deltaTime)
         {
-            Manager?.Update();
-        }
-
-        public void OnFrame()
-        {
+            Manager.Update();
         }
 
         public void OnUnload()
         {
-            Manager?.Dispose();
+            Dispose();
             Logger.Info("[AssetsModule] Unloaded.");
         }
 
         public void Dispose()
         {
-            Manager?.Dispose();
+            if (_disposed) return;
+            _disposed = true;
+            Manager.Dispose();
         }
     }
 }

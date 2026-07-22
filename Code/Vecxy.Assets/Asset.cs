@@ -15,6 +15,7 @@ namespace Vecxy.Assets
     [Serializable]
     public abstract class Asset
     {
+        public event Action<Asset>? Reloaded;
         public Guid Id { get; protected set; } = Guid.NewGuid();
         public abstract ASSET_TYPE Type { get; }
         public string Name { get; protected set; } = string.Empty;
@@ -35,5 +36,7 @@ namespace Vecxy.Assets
             Path = path.Replace("\\", "/");
             Name = System.IO.Path.GetFileNameWithoutExtension(path);
         }
+
+        protected void NotifyReloaded() => Reloaded?.Invoke(this);
     }
 }

@@ -19,7 +19,6 @@ namespace Vecxy.Assets
         // Hot Reload Stuff
         private FileSystemWatcher? _watcher;
         private readonly ConcurrentQueue<string> _changedQueue = new();
-        private readonly ConcurrentDictionary<string, DateTime> _lastEventTime = new();
 
         public AssetsManager()
         {
@@ -97,6 +96,20 @@ namespace Vecxy.Assets
             }
         }
 
+        public IReadOnlyList<string> EnumeratePaths()
+        {
+            var paths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var container in _containers)
+            {
+                if (container is FileSystemContainer fileSystem)
+                    foreach (var file in Directory.EnumerateFiles(fileSystem.RootPath, "*", SearchOption.AllDirectories))
+                        paths.Add(Path.GetRelativePath(fileSystem.RootPath, file).Replace('\\', '/'));
+                else if (container is PackedContainer packed)
+                    foreach (var asset in packed.Manifest.AssetsMeta) paths.Add(asset.Path.Replace('\\', '/'));
+            }
+            return paths.OrderBy(x => x, StringComparer.OrdinalIgnoreCase).ToArray();
+        }
+
         #region Watcher Logic
 
         private void SetupWatcher(string dir)
@@ -111,19 +124,14 @@ namespace Vecxy.Assets
 
             FileSystemEventHandler handler = (s, e) => OnFileEvent(e.FullPath);
             _watcher.Changed += handler;
+            _watcher.Created += handler;
+            _watcher.Renamed += (s, e) => OnFileEvent(e.FullPath);
             _watcher.EnableRaisingEvents = true;
             Logger.Info($"[AssetsManager] Hot Reload active for: {dir}");
         }
 
         private void OnFileEvent(string fullPath)
         {
-            var now = DateTime.UtcNow;
-            // Debounce: Ignore duplicate events within 500ms
-            if (_lastEventTime.TryGetValue(fullPath, out var lastTime))
-            {
-                if ((now - lastTime).TotalMilliseconds < 500) return;
-            }
-            _lastEventTime[fullPath] = now;
             _changedQueue.Enqueue(fullPath);
         }
 
@@ -160,12 +168,15 @@ namespace Vecxy.Assets
 
                 if (newData != null && asset is IHotReloadableAsset reloadable)
                 {
-                    // Reload Content in place
-                    reloadable.OnHotReload(newData);
-
-                    // Simple Dependency Notification logic
-                    // If any other asset lists this one as a dependency, notify/reload it
-                    NotifyDependencies(asset.Path);
+                    try
+                    {
+                        reloadable.OnHotReload(newData);
+                        NotifyDependencies(asset.Path);
+                    }
+                    catch (Exception exception)
+                    {
+                        Logger.Error(exception, $"[HotReload] Failed to reload '{relativePath}', keeping previous asset");
+                    }
                 }
             }
         }
