@@ -4,6 +4,7 @@ using Newtonsoft.Json;
 
 namespace Vecxy.Assets
 {
+    // Add comment for test git
     public enum ASSET_TYPE { UNDEFINED, TEXT, TEXTURE, MODEL, AUDIO }
 
     public interface IHotReloadableAsset
