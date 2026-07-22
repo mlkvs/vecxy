@@ -1,66 +1,10 @@
 <Solution>
-  <Configurations>
-    <Platform Name="Any CPU" />
-    <Platform Name="x64" />
-    <Platform Name="x86" />
-  </Configurations>
-  <Folder Name="/Engine/">
-    <Project Path="Code/Vecxy.Assets.V2/Vecxy.Assets.V2.csproj">
-      <Platform Solution="*|Any CPU" Project="x64" />
-      <Platform Solution="*|x86" Project="x64" />
-    </Project>
-    <Project Path="Code/Vecxy.Assets/Vecxy.Assets.csproj" Id="afc4ce25-dc51-462e-b6a9-c3bf89b27d75">
-      <Platform Project="x64" />
-    </Project>
-    <Project Path="Code/Vecxy.Diagnostics/Vecxy.Diagnostics.csproj">
-      <Platform Solution="*|x64" Project="x64" />
-    </Project>
-    <Project Path="Code/Vecxy.Engine/Vecxy.Engine.csproj">
-      <Platform Solution="*|x64" Project="x64" />
-    </Project>
-    <Project Path="Code/Vecxy.IO/Vecxy.IO.csproj">
-      <Platform Solution="*|x64" Project="x64" />
-    </Project>
-    <Project Path="Code/Vecxy.Kernel/Vecxy.Kernel.csproj">
-      <Platform Solution="*|x64" Project="x64" />
-    </Project>
-    <Project Path="Code/Vecxy.Reflection/Vecxy.Reflection.csproj">
-      <Platform Solution="*|x64" Project="x64" />
-    </Project>
-    <Project Path="Code/Vecxy.Rendering/Vecxy.Rendering.csproj">
-      <Platform Solution="*|x64" Project="x64" />
-    </Project>
-    <Project Path="Code/Vecxy.Scripting/Vecxy.Scripting.csproj" Id="8a450201-9a2b-473c-bbac-7abf7fb69aae">
-      <Platform Project="x64" />
-    </Project>
-  </Folder>
-  <Folder Name="/Native/">
-    <Project Path="Code/Vecxy.Native.Windows/Vecxy.Native.Windows.vcxproj" Id="08c0319b-aaea-449a-aa85-0351825ce699">
-      <Platform Solution="Release|Any CPU" Project="Win32" />
-    </Project>
-    <Project Path="Code/Vecxy.Native/Vecxy.Native.csproj" Id="45649d98-f563-4c4b-9da8-33627aa2c510">
-      <Platform Solution="*|x64" Project="x64" />
-    </Project>
-  </Folder>
-  <Folder Name="/Runtime/">
-    <Project Path="Code/Vecxy.Executable/Vecxy.Executable.csproj">
-      <Platform Solution="*|x64" Project="x64" />
-    </Project>
-  </Folder>
-  <Folder Name="/Sandbox/">
-    <Project Path="Code/Vecxy.Sandbox/Vecxy.Sandbox.csproj" Id="619e47fe-523e-411a-a296-1d941bf21c3c">
-      <Platform Solution="*|x64" Project="x64" />
-    </Project>
-  </Folder>
   <Folder Name="/Tools/">
-    <Project Path="Code/Vecxy.Assets.Packer/Vecxy.Assets.Packer.csproj" Id="52622bfd-0317-40bd-8614-dfa99c1a4f43">
-      <Platform Project="x64" />
-    </Project>
-    <Project Path="Code/Vecxy.Builder/Vecxy.Builder.csproj">
-      <Platform Solution="*|x64" Project="x64" />
-    </Project>
-    <Project Path="Code/Vecxy.CLI/Vecxy.CLI.csproj">
-      <Platform Solution="*|x64" Project="x64" />
-    </Project>
+    <Project Path="Code/Vecxy.CLI/Vecxy.CLI.csproj" />
   </Folder>
+  <Project Path="Code/Vecxy.Assets/Vecxy.Assets.csproj" />
+  <Project Path="Code/Vecxy.Diagnostics/Vecxy.Diagnostics.csproj" />
+  <Project Path="Code/Vecxy.Engine/Vecxy.Engine.csproj" />
+  <Project Path="Code/Vecxy.Kernel/Vecxy.Kernel.csproj" />
+  <Project Path="Code/Vecxy.Rendering/Vecxy.Rendering.csproj" />
 </Solution>

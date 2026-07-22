@@ -1,14 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
     <ItemGroup>
-      <ProjectReference Include="..\Vecxy.Assets.V2\Vecxy.Assets.V2.csproj" />
       <ProjectReference Include="..\Vecxy.Assets\Vecxy.Assets.csproj" />
-      <ProjectReference Include="..\Vecxy.IO\Vecxy.IO.csproj" />
-      <ProjectReference Include="..\Vecxy.Native\Vecxy.Native.csproj" />
+      <ProjectReference Include="..\Vecxy.Kernel\Vecxy.Kernel.csproj" />
       <ProjectReference Include="..\Vecxy.Rendering\Vecxy.Rendering.csproj" />
-      <ProjectReference Include="..\Vecxy.Scripting\Vecxy.Scripting.csproj" />
-    </ItemGroup>
-
-    <ItemGroup>
-      <PackageReference Include="Newtonsoft.Json" Version="13.0.5-beta1" />
     </ItemGroup>
 </Project>

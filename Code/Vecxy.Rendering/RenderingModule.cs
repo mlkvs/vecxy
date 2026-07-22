@@ -1,15 +1,12 @@
-﻿using Silk.NET.Core.Contexts;
-using Silk.NET.OpenGL;
-using System.Drawing;
+﻿using Silk.NET.OpenGL;
 using Autofac;
 using Vecxy.Kernel;
-using Vecxy.Native;
 
 namespace Vecxy.Rendering;
 
-public class RenderingModule(Window window) : IModule, INativeContext
+public sealed class RenderingModule(Window window) : IModule
 {
-    private GL _gl;
+    private GL? _gl;
     private uint _vao;
     private uint _vbo;
     private uint _program;
@@ -29,11 +26,6 @@ public class RenderingModule(Window window) : IModule, INativeContext
             FragColor = vec4(1.0f, 0.5f, 1f, 1.0f);
         }";
 
-    public void OnBindings(ContainerBuilder builder)
-    {
-        throw new NotImplementedException();
-    }
-
     public void OnLoad(ILifetimeScope scope)
     {
      
@@ -41,9 +33,10 @@ public class RenderingModule(Window window) : IModule, INativeContext
 
     public void OnInitialize()
     {
-        _gl = GL.GetApi(this);
+        _gl = GL.GetApi(window);
 
-        _gl.Viewport(0, 0, 800, 600);
+        Resize(window.Size.X, window.Size.Y);
+        window.Resized += size => Resize(size.X, size.Y);
 
         // 1. Создание шейдерной программы
         uint vertexShader = CompileShader(ShaderType.VertexShader, VertexShaderSource);
@@ -52,6 +45,12 @@ public class RenderingModule(Window window) : IModule, INativeContext
         _gl.AttachShader(_program, vertexShader);
         _gl.AttachShader(_program, fragmentShader);
         _gl.LinkProgram(_program);
+
+        _gl.GetProgram(_program, ProgramPropertyARB.LinkStatus, out var linked);
+        if (linked == 0)
+        {
+            throw new InvalidOperationException($"OpenGL program linking failed: {_gl.GetProgramInfoLog(_program)}");
+        }
 
         // Удаляем временные шейдеры после линковки
         _gl.DeleteShader(vertexShader);
@@ -89,6 +88,12 @@ public class RenderingModule(Window window) : IModule, INativeContext
 
     public void OnTick(float deltaTime)
     {
+    }
+
+    public void OnFrame()
+    {
+        if (_gl is null) return;
+
         _gl.ClearColor(0.2f, 0.3f, 0.2f, 1.0f);
         _gl.Clear(ClearBufferMask.ColorBufferBit);
 
@@ -102,42 +107,37 @@ public class RenderingModule(Window window) : IModule, INativeContext
         window.SwapBuffers();
     }
 
-    public void OnFrame()
-    {
-        throw new NotImplementedException();
-    }
-
     public void OnUnload()
     {
-        throw new NotImplementedException();
+        Dispose();
     }
 
     private uint CompileShader(ShaderType type, string source)
     {
-        uint shader = _gl.CreateShader(type);
-        _gl.ShaderSource(shader, source);
-        _gl.CompileShader(shader);
+        var gl = _gl ?? throw new InvalidOperationException("OpenGL is not initialized.");
+        uint shader = gl.CreateShader(type);
+        gl.ShaderSource(shader, source);
+        gl.CompileShader(shader);
 
-        string infoLog = _gl.GetShaderInfoLog(shader);
-        if (!string.IsNullOrWhiteSpace(infoLog))
-            throw new Exception($"Error compiling {type}: {infoLog}");
+        gl.GetShader(shader, ShaderParameterName.CompileStatus, out var compiled);
+        if (compiled == 0)
+            throw new InvalidOperationException($"Error compiling {type}: {gl.GetShaderInfoLog(shader)}");
 
         return shader;
     }
 
     public void Dispose()
     {
-        _gl.DeleteBuffer(_vbo);
-        _gl.DeleteVertexArray(_vao);
-        _gl.DeleteProgram(_program);
+        if (_gl is null) return;
+        if (_vbo != 0) _gl.DeleteBuffer(_vbo);
+        if (_vao != 0) _gl.DeleteVertexArray(_vao);
+        if (_program != 0) _gl.DeleteProgram(_program);
+        _gl.Dispose();
+        _gl = null;
     }
 
-    IntPtr INativeContext.GetProcAddress(string proc, int? slot = null)
-        => window.GetProcAddress(proc, slot);
-
-    bool INativeContext.TryGetProcAddress(string proc, out IntPtr addr, int? slot = null)
+    private void Resize(int width, int height)
     {
-        addr = window.GetProcAddress(proc, slot);
-        return addr != IntPtr.Zero;
+        _gl?.Viewport(0, 0, (uint)Math.Max(1, width), (uint)Math.Max(1, height));
     }
 }

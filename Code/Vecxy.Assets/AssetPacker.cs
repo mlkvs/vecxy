@@ -15,9 +15,9 @@ namespace Vecxy.Assets
     public class AssetMetaInfo
     {
         public ASSET_TYPE Type;
-        public string Name;
-        public string Path; // Relative (Key)
-        [JsonIgnore] public string FullPath; // Temp during packing
+        public string Name = string.Empty;
+        public string Path = string.Empty; // Relative (Key)
+        [JsonIgnore] public string FullPath = string.Empty; // Temp during packing
         public long Size;
         public long Offset;
         public long CompressedSize;
@@ -26,9 +26,9 @@ namespace Vecxy.Assets
     [Serializable]
     public class AssetPackManifest
     {
-        public string Version;
+        public string Version = string.Empty;
         public DateTime CreatedAt;
-        public List<AssetMetaInfo> AssetsMeta;
+        public List<AssetMetaInfo> AssetsMeta = [];
     }
 
     /// <summary>
@@ -36,7 +36,7 @@ namespace Vecxy.Assets
     /// </summary>
     public class PackConfig
     {
-        public string Name { get; set; } = null;
+        public string? Name { get; set; }
         public bool Compress { get; set; } = true;
     }
 
@@ -143,7 +143,7 @@ namespace Vecxy.Assets
             }
         }
 
-        private static PackConfig ParseConfigInFolder(string dir)
+        private static PackConfig? ParseConfigInFolder(string dir)
         {
             // Find any file ending in .pack
             var files = Directory.GetFiles(dir, "*.pack");

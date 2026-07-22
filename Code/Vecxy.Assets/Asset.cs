@@ -16,8 +16,8 @@ namespace Vecxy.Assets
     {
         public Guid Id { get; protected set; } = Guid.NewGuid();
         public abstract ASSET_TYPE Type { get; }
-        public string Name { get; protected set; }
-        public string Path { get; protected set; } // Relative Path
+        public string Name { get; protected set; } = string.Empty;
+        public string Path { get; protected set; } = string.Empty; // Relative Path
 
         public HashSet<string> Dependencies { get; } = new(StringComparer.OrdinalIgnoreCase);
 

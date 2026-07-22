@@ -1,11 +1,9 @@
 ﻿using System.Text;
-using Vecxy.Assets;
-
 namespace Vecxy.Assets;
 
 public class TextAsset : Asset, IHotReloadableAsset
 {
-    public string Content { get; private set; }
+    public string Content { get; private set; } = string.Empty;
     public override ASSET_TYPE Type => ASSET_TYPE.TEXT;
 
     // 1. Первичная загрузка
@@ -19,6 +17,6 @@ public class TextAsset : Asset, IHotReloadableAsset
     {
         Load(newData);
         // Тут можно кинуть событие, например OnTextChanged?.Invoke();
-        System.Console.WriteLine($"[TextAsset] New content loaded: {Content.Substring(0, 10)}...");
+        System.Console.WriteLine($"[TextAsset] New content loaded: {Content[..Math.Min(10, Content.Length)]}...");
     }
 }

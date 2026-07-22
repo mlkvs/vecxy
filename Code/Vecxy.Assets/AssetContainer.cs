@@ -14,12 +14,12 @@ namespace Vecxy.Assets
     /// </summary>
     public abstract class AssetContainer : IDisposable
     {
-        public string Name { get; protected set; }
+        public string Name { get; protected set; } = string.Empty;
 
         /// <summary>
         /// Reads raw bytes of the asset. Returns null if not found.
         /// </summary>
-        public abstract byte[] LoadBytes(string relativePath);
+        public abstract byte[]? LoadBytes(string relativePath);
 
         /// <summary>
         /// Checks if asset exists in this container.
@@ -48,7 +48,7 @@ namespace Vecxy.Assets
             return File.Exists(fullPath);
         }
 
-        public override byte[] LoadBytes(string relativePath)
+        public override byte[]? LoadBytes(string relativePath)
         {
             var fullPath = Path.Combine(RootPath, relativePath);
             if (!File.Exists(fullPath)) return null;
@@ -113,7 +113,8 @@ namespace Vecxy.Assets
                 // Read Manifest
                 fs.Seek(manifestPos, SeekOrigin.Begin);
                 var jsonBytes = reader.ReadBytes((int)(fs.Length - manifestPos));
-                var manifest = JsonConvert.DeserializeObject<AssetPackManifest>(Encoding.UTF8.GetString(jsonBytes));
+                var manifest = JsonConvert.DeserializeObject<AssetPackManifest>(Encoding.UTF8.GetString(jsonBytes))
+                    ?? throw new InvalidDataException("Pack manifest is invalid.");
 
                 return new PackedContainer(Path.GetFileNameWithoutExtension(packPath), fs, manifest);
             }
@@ -129,7 +130,7 @@ namespace Vecxy.Assets
             return _metaLookup.ContainsKey(relativePath.Replace("\\", "/"));
         }
 
-        public override byte[] LoadBytes(string relativePath)
+        public override byte[]? LoadBytes(string relativePath)
         {
             var path = relativePath.Replace("\\", "/");
             if (!_metaLookup.TryGetValue(path, out var meta)) return null;

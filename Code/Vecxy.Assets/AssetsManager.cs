@@ -10,14 +10,14 @@ namespace Vecxy.Assets
 {
     public class AssetsManager : IDisposable
     {
-        public static AssetsManager Instance { get; private set; }
+        public static AssetsManager? Instance { get; private set; }
 
         private readonly Dictionary<string, Asset> _loadedAssets = new(StringComparer.OrdinalIgnoreCase);
         // List of mounted containers (First Checked Priority -> Last)
         private readonly List<AssetContainer> _containers = new();
 
         // Hot Reload Stuff
-        private FileSystemWatcher _watcher;
+        private FileSystemWatcher? _watcher;
         private readonly ConcurrentQueue<string> _changedQueue = new();
         private readonly ConcurrentDictionary<string, DateTime> _lastEventTime = new();
 
@@ -53,7 +53,7 @@ namespace Vecxy.Assets
             }
         }
 
-        public T Get<T>(string relativePath) where T : Asset, new()
+        public T? Get<T>(string relativePath) where T : Asset, new()
         {
             // Normalize
             relativePath = relativePath.Replace("\\", "/");
@@ -65,7 +65,7 @@ namespace Vecxy.Assets
             }
 
             // 2. Find in Containers
-            byte[] data = null;
+            byte[]? data = null;
             foreach (var container in _containers)
             {
                 if (container.Contains(relativePath))
@@ -132,8 +132,8 @@ namespace Vecxy.Assets
             // We need to resolve fullPath -> relativePath used in keys
             // This assumes we can match it against our FileSystemContainers
 
-            string relativePath = null;
-            FileSystemContainer ownerContainer = null;
+            string? relativePath = null;
+            FileSystemContainer? ownerContainer = null;
 
             foreach (var container in _containers)
             {
@@ -156,7 +156,7 @@ namespace Vecxy.Assets
                 Logger.Info($"[HotReload] detected: {relativePath}");
 
                 // Read from disk immediately
-                byte[] newData = ownerContainer.LoadBytes(relativePath);
+                byte[]? newData = ownerContainer.LoadBytes(relativePath);
 
                 if (newData != null && asset is IHotReloadableAsset reloadable)
                 {

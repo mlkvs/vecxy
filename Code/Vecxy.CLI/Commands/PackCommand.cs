@@ -1,6 +1,4 @@
-﻿using Vecxy.Assets.Packer;
-
-namespace Vecxy.CLI;
+﻿namespace Vecxy.CLI;
 
 /*
  *  vecxy pack

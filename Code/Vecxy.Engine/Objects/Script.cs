@@ -7,7 +7,7 @@ public abstract class Script
 {
     // Ссылка на трансформ, к которому прикреплен скрипт
     [NonSerialized]
-    public Transform Transform;
+    public Transform Transform = null!;
 
     public virtual void OnStart() { }
     public virtual void OnUpdate(float deltaTime) { }

@@ -5,11 +5,7 @@ public static class Program
 {
     public static void Main(string[] args)
     {
-        ICLICommand[] commands =
-        [
-            new BuildCommand(),
-            new NewCommand()
-        ];
+        ICLICommand[] commands = [];
 
         CLIParser.Execute(args, commands);
     }

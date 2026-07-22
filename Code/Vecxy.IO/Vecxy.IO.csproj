@@ -1,5 +1,0 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
-  <ItemGroup>
-    <ProjectReference Include="..\Vecxy.Diagnostics\Vecxy.Diagnostics.csproj" />
-  </ItemGroup>
-</Project>

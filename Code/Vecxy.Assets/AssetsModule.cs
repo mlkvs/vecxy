@@ -19,11 +19,11 @@ namespace Vecxy.Assets
 
     public class AssetsModule : IModule
     {
-        public AssetsManager Manager { get; private set; }
+        public AssetsManager? Manager { get; private set; }
 
         // Configuration
         public AssetLoadMode LoadMode { get; set; }
-        public string SourcePath { get; set; } // Path to Folder or Path to .vpack file
+        public string? SourcePath { get; set; } // Path to Folder or Path to .vpack file
 
         public void OnLoad(Autofac.ILifetimeScope scope)
         {
@@ -90,17 +90,16 @@ namespace Vecxy.Assets
         {
             // AssetsManager doesn't need explicit Initialize if Mount is used, 
             // but we can use it for pre-warming or validation.
-            Manager.Initialize();
+            Manager?.Initialize();
         }
 
         public void OnTick(float deltaTime)
         {
-            Manager.Update();
+            Manager?.Update();
         }
 
         public void OnFrame()
         {
-            throw new NotImplementedException();
         }
 
         public void OnUnload()

@@ -1,4 +1,4 @@
-﻿using Vecxy.Builder;
+﻿/*using Vecxy.Builder;
 using Vecxy.Diagnostics;
 using Vecxy.Engine;
 
@@ -10,7 +10,7 @@ namespace Vecxy.CLI;
  *      -e | --env DEBUG | RELEASE (default DEBUG)
  *      -o | --output ./some/path/folder (default: ./build)
  *      -c | --config ./some/config.json (optional)
- */
+ #1#
 
 public struct BuildParameters
 {
@@ -62,4 +62,4 @@ public class BuildCommand : CLICommandBase<BuildParameters>
 
         Logger.Info("Build success!");
     }
-}
+}*/

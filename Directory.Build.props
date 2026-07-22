@@ -1,29 +1,12 @@
 ﻿<Project>
 	<PropertyGroup>
 		<Configurations>Debug;Release</Configurations>
-		<Platforms>x64</Platforms>
+		<Platforms>AnyCPU</Platforms>
 		<TargetFramework>net10.0</TargetFramework>
 		<ImplicitUsings>enable</ImplicitUsings>
 		<Nullable>enable</Nullable>
 		<AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-		<SuppressNETCoreSdkPreviewMessage>true</SuppressNETCoreSdkPreviewMessage>
-
-		<BuildRoot>$(MSBuildThisFileDirectory)Build\</BuildRoot>
-		<BaseIntermediateOutputPath>$(BuildRoot)obj\$(MSBuildProjectName)\</BaseIntermediateOutputPath>
-		<IntermediateOutputPath>$(BaseIntermediateOutputPath)$(Configuration)\</IntermediateOutputPath>
-
-		<!-- ВСЕ проекты собираются в одну общую папку bin для разработки -->
-		<OutputPath>$(BuildRoot)$(Configuration)\bin\</OutputPath>
-		<OutDir>$(OutputPath)</OutDir>
-
-		<!-- Отключаем предупреждение о сборке в одну общую папку -->
-		<NoWarn>$(NoWarn);NETSDK1194</NoWarn>
-
-		<AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
 	</PropertyGroup>
-
-	<!-- Импортируем сборщик дистрибутива -->
-	<Import Project="$(MSBuildThisFileDirectory)Distribution.targets" Condition="Exists('$(MSBuildThisFileDirectory)Distribution.targets')" />
 
 	<ItemGroup>
 		<PackageReference Include="Autofac" Version="9.0.0" />

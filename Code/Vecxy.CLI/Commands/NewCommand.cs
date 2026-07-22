@@ -1,4 +1,4 @@
-﻿using System.Diagnostics;
+﻿/*using System.Diagnostics;
 using Vecxy.Diagnostics;
 using Vecxy.Engine;
 using Vecxy.IO;
@@ -12,7 +12,7 @@ namespace Vecxy.CLI;
  *      -n | --name
  *      -d | --description (optional)
  *      -a | --author (optional)
- */
+ #1#
 
 public struct NewProjectParameters
 {
@@ -62,4 +62,4 @@ public class NewCommand : CLICommandBase<NewProjectParameters>
 
         Logger.Error("Success. Project created.");
     }
-}
+}*/
