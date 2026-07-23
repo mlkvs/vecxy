@@ -1,5 +1,6 @@
 using System.Numerics;
 using Vecxy.Rendering;
+using Vecxy.Rendering._Legacy;
 
 namespace Vecxy.Engine.Objects;
 

@@ -1,7 +1,7 @@
 using System.Numerics;
 using Vecxy.Assets;
 
-namespace Vecxy.Rendering;
+namespace Vecxy.Rendering._Legacy;
 
 public interface IRenderer
 {

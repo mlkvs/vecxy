@@ -1,58 +1,163 @@
-﻿using System.Runtime.CompilerServices;
+﻿using System.Diagnostics;
+using System.Runtime.CompilerServices;
 
 namespace Vecxy.Diagnostics;
 
-public enum LOG_LEVEL : byte
+public enum ELogLevel : byte
 {
-    TRACE = 0,
-    DEBUG = 1,
-    INFO = 2,
-    WARNING = 3,
-    ERROR = 4
+    Trace = 0,
+    Debug = 1,
+    Info = 2,
+    Warning = 3,
+    Error = 4
 }
 
-public record Log(LOG_LEVEL Level, string Message, string Caller, string Timestamp);
+public record Log(ELogLevel Level, string Message, string Caller, string Timestamp);
 
 public static class Logger
 {
+    private static readonly Lock Sync = new();
+    private static int _level = (int)ELogLevel.Info;
+
     public static event Action<Log>? OnLog;
-    public static LOG_LEVEL Level { get; set; } = LOG_LEVEL.INFO;
 
-    public static void Info(string message, [CallerMemberName] string caller = "")
+    public static ELogLevel Level
     {
-        Log(LOG_LEVEL.INFO, message, caller);
+        get => (ELogLevel)Volatile.Read(ref _level);
+        set
+        {
+            if (!Enum.IsDefined(value))
+            {
+                throw new ArgumentOutOfRangeException(nameof(value), value, "Unknown log level.");
+            }
+
+            Volatile.Write(ref _level, (int)value);
+        }
     }
 
-    public static void Warning(string message, [CallerMemberName] string caller = "")
+    [Conditional("TRACE")]
+    public static void Trace(string message, [CallerMemberName] string caller = "") =>
+        Write(ELogLevel.Trace, message, caller);
+
+    [Conditional("DEBUG")]
+    public static void Debug(string message, [CallerMemberName] string caller = "") =>
+        Write(ELogLevel.Debug, message, caller);
+
+    public static void Info(string message, [CallerMemberName] string caller = "") =>
+        Write(ELogLevel.Info, message, caller);
+
+    public static void Warning(string message, [CallerMemberName] string caller = "") =>
+        Write(ELogLevel.Warning, message, caller);
+
+    public static void Error(string message, [CallerMemberName] string caller = "") =>
+        Write(ELogLevel.Error, message, caller);
+
+    public static void Error(
+        Exception exception,
+        string message = "",
+        [CallerMemberName] string caller = "")
     {
-        Log(LOG_LEVEL.WARNING, message, caller);
+        ArgumentNullException.ThrowIfNull(exception);
+
+        var exceptionMessage = string.IsNullOrWhiteSpace(message)
+            ? exception.ToString()
+            : $"{message}{Environment.NewLine}{exception}";
+
+        Write(ELogLevel.Error, exceptionMessage, caller);
     }
 
-    public static void Error(string message, [CallerMemberName] string caller = "")
+    public static void Write(
+        ELogLevel level,
+        string message,
+        [CallerMemberName] string caller = "")
     {
-        Log(LOG_LEVEL.ERROR, message, caller);
-    }
+        ArgumentNullException.ThrowIfNull(message);
 
-    public static void Error(Exception exception, string message = "", [CallerMemberName] string caller = "")
-    {
-        Log(LOG_LEVEL.ERROR, $"{message}: {exception}", caller);
-    }
-
-    private static void Log(LOG_LEVEL level, string message, string caller)
-    {
-        if (level < Level)
+        if ((int)level < Volatile.Read(ref _level))
         {
             return;
         }
 
-        var timestamp = DateTime.Now.ToString("HH:mm:ss.fff");
+        var timestamp = DateTimeOffset.Now.ToString("HH:mm:ss.fff");
+        var entry = new Log(level, message, caller, timestamp);
+        var formattedMessage = Format(entry);
 
-        var logMessage = $"[{timestamp}] [{level}] [{caller}] {message}";
+        lock (Sync)
+        {
+            WriteToConsole(level, formattedMessage);
+        }
 
-        Console.WriteLine(logMessage);
+        Publish(entry);
+    }
 
-        var log = new Log(level, message, caller, timestamp);
+    private static string Format(Log entry)
+    {
+        var caller = string.IsNullOrWhiteSpace(entry.Caller)
+            ? string.Empty
+            : $" [{entry.Caller}]";
 
-        OnLog?.Invoke(log);
+        return $"[{entry.Timestamp}] [{entry.Level.ToString().ToUpperInvariant()}]{caller} {entry.Message}";
+    }
+
+    private static void WriteToConsole(ELogLevel level, string message)
+    {
+        var writer = level >= ELogLevel.Error ? Console.Error : Console.Out;
+
+        if (writer == Console.Out && Console.IsOutputRedirected ||
+            writer == Console.Error && Console.IsErrorRedirected)
+        {
+            writer.WriteLine(message);
+            return;
+        }
+
+        var previousColor = Console.ForegroundColor;
+
+        try
+        {
+            Console.ForegroundColor = GetColor(level);
+            writer.WriteLine(message);
+        }
+        finally
+        {
+            Console.ForegroundColor = previousColor;
+        }
+    }
+
+    private static ConsoleColor GetColor(ELogLevel level) =>
+        level switch
+        {
+            ELogLevel.Trace => ConsoleColor.DarkGray,
+            ELogLevel.Debug => ConsoleColor.Gray,
+            ELogLevel.Info => ConsoleColor.Cyan,
+            ELogLevel.Warning => ConsoleColor.Yellow,
+            ELogLevel.Error => ConsoleColor.Red,
+            _ => ConsoleColor.White
+        };
+
+    private static void Publish(Log entry)
+    {
+        var subscribers = OnLog;
+
+        if (subscribers is null)
+        {
+            return;
+        }
+
+        foreach (Action<Log> subscriber in subscribers.GetInvocationList())
+        {
+            try
+            {
+                subscriber(entry);
+            }
+            catch (Exception exception)
+            {
+                lock (Sync)
+                {
+                    WriteToConsole(
+                        ELogLevel.Error,
+                        $"[{entry.Timestamp}] [LOGGER] Log subscriber failed:{Environment.NewLine}{exception}");
+                }
+            }
+        }
     }
 }

@@ -1,6 +1,6 @@
 using System.Numerics;
 
-namespace Vecxy.UI;
+namespace Vecxy.Rendering._Legacy.UI;
 
 [Flags]
 public enum UiDirtyFlags { None = 0, Style = 1, Layout = 2, Visual = 4, Text = 8, Hierarchy = 16 }
@@ -113,10 +113,10 @@ public sealed class UiStyle
     public UiAlign TextAlign { get; set; } = UiAlign.Start;
     public UiAlign VerticalAlign { get; set; } = UiAlign.Center;
     public float IconSize { get; set; } = 16;
-    public Vecxy.Rendering.Color Background { get; set; } = new(0, 0, 0, 0);
-    public Vecxy.Rendering.Color Color { get; set; } = Vecxy.Rendering.Color.White;
-    public Vecxy.Rendering.Color BorderColor { get; set; } = new(0, 0, 0, 0);
-    public Vecxy.Rendering.Color FillColor { get; set; } = Vecxy.Rendering.Color.White;
+    public Color Background { get; set; } = new(0, 0, 0, 0);
+    public Color Color { get; set; } = Color.White;
+    public Color BorderColor { get; set; } = new(0, 0, 0, 0);
+    public Color FillColor { get; set; } = Color.White;
     public float BorderWidth { get; set; }
     public float FontSize { get; set; } = 14;
 }

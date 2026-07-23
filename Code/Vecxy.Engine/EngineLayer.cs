@@ -1,51 +1,34 @@
 ﻿using Autofac;
+using JetBrains.Annotations;
 using Vecxy.Kernel;
+using Vecxy.Rendering;
 
 namespace Vecxy.Engine;
 
-public sealed class EngineLayer : AppLayer
+[UsedImplicitly]
+public sealed class EngineLayer(IEnumerable<IModule> modules): AppLayer
 {
-    private readonly List<IModule> _modules;
-    private int _initializedModuleCount;
-
-    public EngineLayer(IEnumerable<IModule> modules)
+    public sealed class Definition : Definition<EngineLayer>
     {
-        ArgumentNullException.ThrowIfNull(modules);
-
-        _modules = modules.ToList();
-    }
-
-    public override void OnLocalBindings(ContainerBuilder builder)
-    {
-        foreach (var module in _modules)
+        public override void RegisterLocal(ContainerBuilder builder)
         {
-            builder.RegisterInstance(module)
-                .As(module.GetType())
-                .AsImplementedInterfaces()
-                .ExternallyOwned();
+            builder.RegisterType<RenderingModule>()
+                .As<IModule>()
+                .SingleInstance();
         }
     }
-
-    internal override void OnScopeCreated(ILifetimeScope scope)
-    {
-        foreach (var module in _modules)
-        {
-            scope.InjectProperties(module);
-        }
-    }
-
+    
     public override void OnInitialize()
     {
-        foreach (var module in _modules)
+        foreach (var module in modules)
         {
             module.OnInitialize();
-            _initializedModuleCount++;
         }
     }
 
     public override void OnUpdate(float deltaTime)
     {
-        foreach (var module in _modules)
+        foreach (var module in modules)
         {
             if (module is IModule.IUpdatable updatable)
             {
@@ -56,7 +39,7 @@ public sealed class EngineLayer : AppLayer
 
     public override void OnRender()
     {
-        foreach (var module in _modules)
+        foreach (var module in modules)
         {
             if (module is IModule.IRenderable renderable)
             {
@@ -67,22 +50,16 @@ public sealed class EngineLayer : AppLayer
 
     public override void OnUnload()
     {
-        for (var index = _initializedModuleCount - 1; index >= 0; index--)
+        foreach (var module in modules)
         {
             try
             {
-                _modules[index].OnShutdown();
+                module.OnShutdown();
             }
             catch
             {
+                // Ignore
             }
-        }
-
-        _initializedModuleCount = 0;
-
-        for (var index = _modules.Count - 1; index >= 0; index--)
-        {
-            _modules[index].Dispose();
         }
     }
 }

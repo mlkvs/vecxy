@@ -6,7 +6,7 @@ using static Facebook.Yoga.YGNodeAPI;
 using static Facebook.Yoga.YGNodeLayoutAPI;
 using static Facebook.Yoga.YGNodeStyleAPI;
 
-namespace Vecxy.UI;
+namespace Vecxy.Rendering._Legacy.UI;
 
 public sealed class UiDocument
 {
@@ -289,7 +289,7 @@ public sealed class UiDocument
         };
         private static UiLength Length(string value) => value.Trim() switch { "auto" => UiLength.Auto, var x when x.EndsWith('%') => new(UiUnit.Percent, Number(x)), _ => new(UiUnit.Pixel, Number(value)) };
         private static float Number(string value) => float.TryParse(value.Trim().TrimEnd('p', 'x', '%'), CultureInfo.InvariantCulture, out var n) ? n : 0;
-        private static Vecxy.Rendering.Color ParseColor(string text)
+        private static Color ParseColor(string text)
         {
             var value = text.Trim().TrimStart('#');
             if (value.Length is 6 or 8 && uint.TryParse(value, NumberStyles.HexNumber, null, out var rgba))

@@ -1,11 +1,11 @@
+using System.Numerics;
+using System.Text;
 using Silk.NET.Core.Contexts;
 using Silk.NET.Input;
 using Silk.NET.Maths;
 using Silk.NET.Windowing;
-using System.Numerics;
-using System.Text;
 
-namespace Vecxy.Rendering;
+namespace Vecxy.Rendering._Legacy;
 
 public readonly record struct WindowConfig(string Title, int Width, int Height);
 
@@ -29,7 +29,7 @@ public sealed class Window : INativeContext, IInput, IDisposable
 
     public Window(WindowConfig config, IGLContext? sharedContext = null)
     {
-        var options = WindowOptions.Default;
+        var options = Silk.NET.Windowing.WindowOptions.Default;
         options.Title = config.Title;
         options.Size = new Vector2D<int>(config.Width, config.Height);
         options.API = new GraphicsAPI(ContextAPI.OpenGL, ContextProfile.Core,

@@ -4,18 +4,24 @@ namespace Vecxy.Engine;
 
 public abstract class AppLayer
 {
-    public virtual void OnGlobalBindings(ContainerBuilder builder)
+    public interface IDefinition
     {
+        Type LayerType { get; }
+
+        void RegisterGlobal(ContainerBuilder builder);
+        
+        void RegisterLocal(ContainerBuilder builder);
     }
 
-    public virtual void OnLocalBindings(ContainerBuilder builder)
+    public abstract class Definition<TLayer> : IDefinition where TLayer : AppLayer
     {
-    }
+        public Type LayerType => typeof(TLayer);
 
-    internal virtual void OnScopeCreated(ILifetimeScope scope)
-    {
+        public virtual void RegisterGlobal(ContainerBuilder builder) { }
+        
+        public virtual void RegisterLocal(ContainerBuilder builder) { }
     }
-
+    
     public virtual void OnInitialize()
     {
     }

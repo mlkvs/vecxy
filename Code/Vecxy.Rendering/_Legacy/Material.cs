@@ -1,6 +1,6 @@
 using System.Numerics;
 
-namespace Vecxy.Rendering;
+namespace Vecxy.Rendering._Legacy;
 
 public enum CullMode { None, Back, Front }
 

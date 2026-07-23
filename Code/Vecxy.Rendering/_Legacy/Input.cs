@@ -1,6 +1,6 @@
 using System.Numerics;
 
-namespace Vecxy.Rendering;
+namespace Vecxy.Rendering._Legacy;
 
 public enum InputKey { W, A, S, D, Q, E, LeftShift, Escape }
 public enum TextEditCommand { Left, Right, SelectLeft, SelectRight, Home, End, SelectHome, SelectEnd, Backspace, Delete, SelectAll, Copy, Cut, Paste }

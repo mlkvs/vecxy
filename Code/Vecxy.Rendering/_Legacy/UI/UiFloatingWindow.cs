@@ -1,11 +1,11 @@
 using Silk.NET.OpenGL;
 
-namespace Vecxy.UI;
+namespace Vecxy.Rendering._Legacy.UI;
 
 public sealed class UiFloatingWindow : IDisposable
 {
-    private readonly Vecxy.Rendering.Window _window;
-    private readonly Vecxy.Rendering.GraphicsDevice _device;
+    private readonly Window _window;
+    private readonly GraphicsDevice _device;
     private readonly UiSystem _ui;
     private bool _disposed;
     private bool _failed;
@@ -13,14 +13,14 @@ public sealed class UiFloatingWindow : IDisposable
     public bool IsOpen => !_disposed && !_failed && _window.IsRunning;
     public UiDocument? Document => _ui.Document;
 
-    public UiFloatingWindow(string title, int width, int height, Vecxy.Rendering.Window owner,
+    public UiFloatingWindow(string title, int width, int height, Window owner,
         string uxml, string css)
     {
         // A floating panel owns its small UI renderer and therefore must own an independent GL context.
         // Sharing the main context makes GLFW teardown order platform-dependent and is unnecessary here.
-        _window = new Vecxy.Rendering.Window(new Vecxy.Rendering.WindowConfig(title, width, height));
+        _window = new Window(new WindowConfig(title, width, height));
         _window.Initialize();
-        _device = new Vecxy.Rendering.GraphicsDevice(_window);
+        _device = new GraphicsDevice(_window);
         _device.Initialize();
         _device.Resize(width, height);
         _window.Resized += size => _device.Resize(size.X, size.Y);

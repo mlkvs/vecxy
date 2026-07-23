@@ -1,4 +1,4 @@
-namespace Vecxy.UI;
+namespace Vecxy.Rendering._Legacy.UI;
 
 internal static class UiTextMetrics
 {

@@ -1,6 +1,6 @@
 using Silk.NET.OpenGL;
 
-namespace Vecxy.Rendering;
+namespace Vecxy.Rendering._Legacy;
 
 public sealed class GraphicsDevice : IDisposable
 {

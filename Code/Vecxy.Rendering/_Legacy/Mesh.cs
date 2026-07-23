@@ -1,7 +1,7 @@
 using System.Runtime.InteropServices;
 using Silk.NET.OpenGL;
 
-namespace Vecxy.Rendering;
+namespace Vecxy.Rendering._Legacy;
 
 public sealed class Mesh : IDisposable
 {

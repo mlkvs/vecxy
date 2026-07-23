@@ -3,7 +3,7 @@ using Silk.NET.OpenGL;
 using Vecxy.Assets;
 using Vecxy.Diagnostics;
 
-namespace Vecxy.Rendering;
+namespace Vecxy.Rendering._Legacy;
 
 public sealed class ShaderProgram : IDisposable
 {

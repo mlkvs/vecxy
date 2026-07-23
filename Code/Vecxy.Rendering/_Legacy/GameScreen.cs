@@ -1,6 +1,6 @@
 using System.Numerics;
 
-namespace Vecxy.Rendering;
+namespace Vecxy.Rendering._Legacy;
 
 public readonly record struct ScreenRect(int X, int Y, int Width, int Height)
 {

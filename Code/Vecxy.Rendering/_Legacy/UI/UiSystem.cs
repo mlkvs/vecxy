@@ -2,12 +2,12 @@ using System.Diagnostics;
 using System.Numerics;
 using Vecxy.Assets;
 
-namespace Vecxy.UI;
+namespace Vecxy.Rendering._Legacy.UI;
 
 public sealed class UiSystem
 {
-    private readonly Vecxy.Rendering.GraphicsDevice _device;
-    private readonly Vecxy.Rendering.IInput _input;
+    private readonly GraphicsDevice _device;
+    private readonly IInput _input;
     private UiOpenGlRenderer? _renderer;
     private readonly Stopwatch _clock = Stopwatch.StartNew();
     private double _lastTime;
@@ -22,7 +22,7 @@ public sealed class UiSystem
     private bool _selectingText;
     public UiDocument? Document { get; private set; }
 
-    internal UiSystem(Vecxy.Rendering.GraphicsDevice device, Vecxy.Rendering.IInput input) { _device = device; _input = input; }
+    internal UiSystem(GraphicsDevice device, IInput input) { _device = device; _input = input; }
     internal void Initialize() => _renderer = new UiOpenGlRenderer(_device);
 
     public UiDocument Load(TextAsset uxml, TextAsset css)
@@ -154,29 +154,29 @@ public sealed class UiSystem
         field.TextScrollX = MathF.Max(0, field.TextScrollX);
     }
 
-    private void Edit(UiElement field, Vecxy.Rendering.TextEditCommand command)
+    private void Edit(UiElement field, TextEditCommand command)
     {
         switch (command)
         {
-            case Vecxy.Rendering.TextEditCommand.Left: field.CaretIndex = field.SelectionLength > 0 ? field.SelectionStart : Math.Max(0, field.CaretIndex - 1); field.SelectionAnchor = field.CaretIndex; break;
-            case Vecxy.Rendering.TextEditCommand.Right: field.CaretIndex = field.SelectionLength > 0 ? field.SelectionStart + field.SelectionLength : Math.Min(field.Text.Length, field.CaretIndex + 1); field.SelectionAnchor = field.CaretIndex; break;
-            case Vecxy.Rendering.TextEditCommand.SelectLeft: field.CaretIndex = Math.Max(0, field.CaretIndex - 1); break;
-            case Vecxy.Rendering.TextEditCommand.SelectRight: field.CaretIndex = Math.Min(field.Text.Length, field.CaretIndex + 1); break;
-            case Vecxy.Rendering.TextEditCommand.Home: field.CaretIndex = field.SelectionAnchor = 0; break;
-            case Vecxy.Rendering.TextEditCommand.End: field.CaretIndex = field.SelectionAnchor = field.Text.Length; break;
-            case Vecxy.Rendering.TextEditCommand.SelectHome: field.CaretIndex = 0; break;
-            case Vecxy.Rendering.TextEditCommand.SelectEnd: field.CaretIndex = field.Text.Length; break;
-            case Vecxy.Rendering.TextEditCommand.SelectAll: field.SelectionAnchor = 0; field.CaretIndex = field.Text.Length; break;
-            case Vecxy.Rendering.TextEditCommand.Copy: if (field.SelectionLength > 0) _input.ClipboardText = field.Text.Substring(field.SelectionStart, field.SelectionLength); break;
-            case Vecxy.Rendering.TextEditCommand.Cut:
+            case TextEditCommand.Left: field.CaretIndex = field.SelectionLength > 0 ? field.SelectionStart : Math.Max(0, field.CaretIndex - 1); field.SelectionAnchor = field.CaretIndex; break;
+            case TextEditCommand.Right: field.CaretIndex = field.SelectionLength > 0 ? field.SelectionStart + field.SelectionLength : Math.Min(field.Text.Length, field.CaretIndex + 1); field.SelectionAnchor = field.CaretIndex; break;
+            case TextEditCommand.SelectLeft: field.CaretIndex = Math.Max(0, field.CaretIndex - 1); break;
+            case TextEditCommand.SelectRight: field.CaretIndex = Math.Min(field.Text.Length, field.CaretIndex + 1); break;
+            case TextEditCommand.Home: field.CaretIndex = field.SelectionAnchor = 0; break;
+            case TextEditCommand.End: field.CaretIndex = field.SelectionAnchor = field.Text.Length; break;
+            case TextEditCommand.SelectHome: field.CaretIndex = 0; break;
+            case TextEditCommand.SelectEnd: field.CaretIndex = field.Text.Length; break;
+            case TextEditCommand.SelectAll: field.SelectionAnchor = 0; field.CaretIndex = field.Text.Length; break;
+            case TextEditCommand.Copy: if (field.SelectionLength > 0) _input.ClipboardText = field.Text.Substring(field.SelectionStart, field.SelectionLength); break;
+            case TextEditCommand.Cut:
                 if (field.SelectionLength > 0) { _input.ClipboardText = field.Text.Substring(field.SelectionStart, field.SelectionLength); ReplaceSelection(field, ""); }
                 break;
-            case Vecxy.Rendering.TextEditCommand.Paste: ReplaceSelection(field, _input.ClipboardText); break;
-            case Vecxy.Rendering.TextEditCommand.Backspace:
+            case TextEditCommand.Paste: ReplaceSelection(field, _input.ClipboardText); break;
+            case TextEditCommand.Backspace:
                 if (field.SelectionLength > 0) ReplaceSelection(field, "");
                 else if (field.CaretIndex > 0) { field.SelectionAnchor = field.CaretIndex - 1; ReplaceSelection(field, ""); }
                 break;
-            case Vecxy.Rendering.TextEditCommand.Delete:
+            case TextEditCommand.Delete:
                 if (field.SelectionLength > 0) ReplaceSelection(field, "");
                 else if (field.CaretIndex < field.Text.Length) { field.SelectionAnchor = field.CaretIndex + 1; ReplaceSelection(field, ""); }
                 break;
@@ -229,7 +229,7 @@ public sealed class UiSystem
         return new(x, y, MathF.Max(0, right - x), MathF.Max(0, bottom - y));
     }
 
-    internal void Render(int width, int height, Vecxy.Rendering.RenderStats stats, int originX = 0, int originY = 0,
+    internal void Render(int width, int height, RenderStats stats, int originX = 0, int originY = 0,
         int windowWidth = 0, int windowHeight = 0)
     {
         if (Document is null) return;
@@ -270,28 +270,28 @@ public sealed class UiSystem
 
 internal sealed class UiOpenGlRenderer : IDisposable
 {
-    private readonly Vecxy.Rendering.GraphicsDevice _device;
-    private readonly Vecxy.Rendering.ShaderProgram _shader;
+    private readonly GraphicsDevice _device;
+    private readonly ShaderProgram _shader;
     private uint _vao;
     private uint _vbo;
     private readonly List<UiVertex> _vertices = [];
 
-    internal unsafe UiOpenGlRenderer(Vecxy.Rendering.GraphicsDevice device)
+    internal unsafe UiOpenGlRenderer(GraphicsDevice device)
     {
         _device = device;
-        _shader = new Vecxy.Rendering.ShaderProgram(device, """
-            #version 330 core
-            layout(location=0) in vec2 aPosition;
-            layout(location=1) in vec4 aColor;
-            uniform vec2 uViewport;
-            uniform vec2 uOrigin;
-            out vec4 vColor;
-            void main() { vec2 p = (aPosition + uOrigin) / uViewport * 2.0 - 1.0; gl_Position = vec4(p.x, -p.y, 0, 1); vColor = aColor; }
-            """, """
-            #version 330 core
-            in vec4 vColor; out vec4 fragColor;
-            void main() { fragColor = vColor; }
-            """, "BuiltIn/UI");
+        _shader = new ShaderProgram(device, """
+                                            #version 330 core
+                                            layout(location=0) in vec2 aPosition;
+                                            layout(location=1) in vec4 aColor;
+                                            uniform vec2 uViewport;
+                                            uniform vec2 uOrigin;
+                                            out vec4 vColor;
+                                            void main() { vec2 p = (aPosition + uOrigin) / uViewport * 2.0 - 1.0; gl_Position = vec4(p.x, -p.y, 0, 1); vColor = aColor; }
+                                            """, """
+                                                 #version 330 core
+                                                 in vec4 vColor; out vec4 fragColor;
+                                                 void main() { fragColor = vColor; }
+                                                 """, "BuiltIn/UI");
         var gl = device.GL;
         _vao = gl.GenVertexArray();
         _vbo = gl.GenBuffer();
@@ -354,7 +354,7 @@ internal sealed class UiOpenGlRenderer : IDisposable
         {
             var advance = UiTextMetrics.Advance(element.Style.FontSize);
             Rect(r.X + element.Style.Padding.Left + element.SelectionStart * advance - element.TextScrollX, r.Y + 3,
-                element.SelectionLength * advance, MathF.Max(0, r.W - 6), new Vecxy.Rendering.Color(.22f, .48f, .75f, .75f));
+                element.SelectionLength * advance, MathF.Max(0, r.W - 6), new Color(.22f, .48f, .75f, .75f));
         }
         if (element.Style.BorderWidth > 0)
         {
@@ -404,13 +404,13 @@ internal sealed class UiOpenGlRenderer : IDisposable
                 var thumbHeight = MathF.Max(18, r.W * r.W / contentHeight);
                 var maxScroll = contentHeight - r.W;
                 var thumbY = r.Y + (r.W - thumbHeight) * element.ScrollY / MathF.Max(1, maxScroll);
-                Rect(r.X + r.Z - 3, thumbY, 3, thumbHeight, new Vecxy.Rendering.Color(.55f, .65f, .75f, .8f));
+                Rect(r.X + r.Z - 3, thumbY, 3, thumbHeight, new Color(.55f, .65f, .75f, .8f));
             }
         }
         _clip = previousClip;
     }
 
-    private void Text(string text, float x, float y, float size, Vecxy.Rendering.Color color)
+    private void Text(string text, float x, float y, float size, Color color)
     {
         var scale = UiTextMetrics.PixelScale(size);
         foreach (var character in text.ToUpperInvariant())
@@ -422,7 +422,7 @@ internal sealed class UiOpenGlRenderer : IDisposable
         }
     }
 
-    private void DrawIcon(string name, Vector4 bounds, float requestedSize, Vecxy.Rendering.Color color)
+    private void DrawIcon(string name, Vector4 bounds, float requestedSize, Color color)
     {
         var size = MathF.Min(requestedSize, MathF.Min(bounds.Z, bounds.W));
         var x = bounds.X + (bounds.Z - size) * .5f; var y = bounds.Y + (bounds.W - size) * .5f;
@@ -438,22 +438,22 @@ internal sealed class UiOpenGlRenderer : IDisposable
             case "search": Circle(x+10*u,y+10*u,6*u,stroke,color); Line(14.5f,14.5f,21,21); break;
             case "chevron-down": Line(5,9,12,16); Line(12,16,19,9); break;
             case "settings": Circle(x+12*u,y+12*u,4*u,stroke,color); for(var i=0;i<8;i++){var a=i*MathF.PI/4; Line(12+MathF.Cos(a)*7,12+MathF.Sin(a)*7,12+MathF.Cos(a)*10,12+MathF.Sin(a)*10);} break;
-            default: Rect(x+4*u,y+4*u,16*u,16*u,new Vecxy.Rendering.Color(color.R,color.G,color.B,color.A*.35f)); break;
+            default: Rect(x+4*u,y+4*u,16*u,16*u,new Color(color.R,color.G,color.B,color.A*.35f)); break;
         }
     }
 
-    private void Stroke(float x1, float y1, float x2, float y2, float width, Vecxy.Rendering.Color color)
+    private void Stroke(float x1, float y1, float x2, float y2, float width, Color color)
     {
         var direction = Vector2.Normalize(new Vector2(x2-x1,y2-y1)); var normal = new Vector2(-direction.Y,direction.X)*width*.5f;
         var a=new Vector2(x1,y1)+normal; var b=new Vector2(x2,y2)+normal; var c=new Vector2(x2,y2)-normal; var d=new Vector2(x1,y1)-normal;
         Triangle(a.X,a.Y,b.X,b.Y,c.X,c.Y,color); Triangle(a.X,a.Y,c.X,c.Y,d.X,d.Y,color);
     }
-    private void Circle(float cx,float cy,float radius,float width,Vecxy.Rendering.Color color)
+    private void Circle(float cx,float cy,float radius,float width,Color color)
     { const int segments=20; for(var i=0;i<segments;i++){var a=i*MathF.Tau/segments;var b=(i+1)*MathF.Tau/segments;Stroke(cx+MathF.Cos(a)*radius,cy+MathF.Sin(a)*radius,cx+MathF.Cos(b)*radius,cy+MathF.Sin(b)*radius,width,color);} }
-    private void Triangle(float ax,float ay,float bx,float by,float cx,float cy,Vecxy.Rendering.Color color)
+    private void Triangle(float ax,float ay,float bx,float by,float cx,float cy,Color color)
     { _vertices.Add(new UiVertex(ax,ay,color)); _vertices.Add(new UiVertex(bx,by,color)); _vertices.Add(new UiVertex(cx,cy,color)); }
 
-    private void Rect(float x, float y, float width, float height, Vecxy.Rendering.Color color)
+    private void Rect(float x, float y, float width, float height, Color color)
     {
         if (width <= 0 || height <= 0 || color.A <= 0) return;
         if (_clip is { } clip)
@@ -484,8 +484,8 @@ internal sealed class UiOpenGlRenderer : IDisposable
     }
 
     [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
-    private readonly struct UiVertex(float x, float y, Vecxy.Rendering.Color color)
-    { public readonly Vector2 Position = new(x, y); public readonly Vecxy.Rendering.Color Color = color; }
+    private readonly struct UiVertex(float x, float y, Color color)
+    { public readonly Vector2 Position = new(x, y); public readonly Color Color = color; }
 
     private static readonly Dictionary<char, byte[]> Glyphs = new()
     {

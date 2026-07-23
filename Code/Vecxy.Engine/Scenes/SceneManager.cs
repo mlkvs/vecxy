@@ -4,6 +4,7 @@ using Vecxy.Assets;
 using Vecxy.Diagnostics;
 using Vecxy.Engine.Objects;
 using Vecxy.Rendering;
+using Vecxy.Rendering._Legacy;
 
 namespace Vecxy.Engine.Scenes;
 

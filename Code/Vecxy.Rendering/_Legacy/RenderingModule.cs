@@ -1,11 +1,16 @@
 using Autofac;
 using Silk.NET.Maths;
 using Vecxy.Kernel;
-using Vecxy.UI;
+using Vecxy.Rendering._Legacy.UI;
 
-namespace Vecxy.Rendering;
+namespace Vecxy.Rendering._Legacy;
 
-public sealed class RenderingModule : IModule
+public class Test
+{
+    
+}
+
+public sealed class RenderingModule : IModule, IModule.IUpdatable, IModule.IRenderable
 {
     private readonly Window _window;
     private readonly GraphicsDevice _device;
@@ -16,7 +21,7 @@ public sealed class RenderingModule : IModule
     public GameScreen GameScreen { get; }
     private bool _disposed;
 
-    public RenderingModule(Window window)
+    public RenderingModule(Window window, Test test)
     {
         _window = window;
         _device = new GraphicsDevice(window);
@@ -39,6 +44,11 @@ public sealed class RenderingModule : IModule
         _window.Resized += OnWindowResized;
     }
 
+    public void OnShutdown()
+    {
+        
+    }
+
     public void OnUpdate(float deltaTime)
     {
         EditorUI.Update(deltaTime, _window.Size.X, _window.Size.Y);
@@ -47,14 +57,7 @@ public sealed class RenderingModule : IModule
 
     public void Render(IReadOnlyList<AppLayerRenderAdapter> layers, Color clearColor)
     {
-        _window.MakeCurrent();
-        Renderer.BeginFrame(clearColor);
-        foreach (var layer in layers) layer.Render(Renderer);
-        Renderer.EndFrame();
-        UI.Render(Renderer.Width, Renderer.Height, Renderer.Stats, GameScreen.Bounds.X, GameScreen.Bounds.Y,
-            _window.Size.X, _window.Size.Y);
-        EditorUI.Render(_window.Size.X, _window.Size.Y, Renderer.Stats, 0, 0, _window.Size.X, _window.Size.Y);
-        _window.SwapBuffers();
+       
     }
 
     public void OnUnload() => Dispose();
@@ -74,6 +77,18 @@ public sealed class RenderingModule : IModule
     {
         _device.Resize(size.X, size.Y);
         if (EditorUI.Document is null) GameScreen.FillWindow(size.X, size.Y);
+    }
+
+    public void OnRender()
+    {
+        _window.MakeCurrent();
+        Renderer.BeginFrame(Color.CornflowerBlue);
+        //foreach (var layer in layers) layer.Render(Renderer);
+        Renderer.EndFrame();
+        UI.Render(Renderer.Width, Renderer.Height, Renderer.Stats, GameScreen.Bounds.X, GameScreen.Bounds.Y,
+            _window.Size.X, _window.Size.Y);
+        EditorUI.Render(_window.Size.X, _window.Size.Y, Renderer.Stats, 0, 0, _window.Size.X, _window.Size.Y);
+        _window.SwapBuffers();
     }
 }
 

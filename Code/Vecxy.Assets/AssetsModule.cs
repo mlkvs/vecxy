@@ -92,6 +92,11 @@ namespace Vecxy.Assets
             Manager.Initialize();
         }
 
+        public void OnShutdown()
+        {
+            throw new NotImplementedException();
+        }
+
         public void OnUpdate(float deltaTime)
         {
             Manager.Update();
