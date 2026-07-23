@@ -14,7 +14,7 @@ namespace Vecxy.Assets
     [Serializable]
     public class AssetMetaInfo
     {
-        public ASSET_TYPE Type;
+        public EAssetType Type;
         public string Name = string.Empty;
         public string Path = string.Empty; // Relative (Key)
         [JsonIgnore] public string FullPath = string.Empty; // Temp during packing
@@ -181,14 +181,14 @@ namespace Vecxy.Assets
             return conf;
         }
 
-        private static ASSET_TYPE ExtensionToType(string ext)
+        private static EAssetType ExtensionToType(string ext)
         {
             return ext switch
             {
-                ".txt" or ".json" or ".xml" or ".yaml" => ASSET_TYPE.TEXT,
-                ".png" or ".jpg" or ".tga" => ASSET_TYPE.TEXTURE,
-                ".obj" or ".fbx" => ASSET_TYPE.MODEL,
-                _ => ASSET_TYPE.UNDEFINED
+                ".txt" or ".json" or ".xml" or ".yaml" => EAssetType.Text,
+                ".png" or ".jpg" or ".tga" => EAssetType.Texture,
+                ".obj" or ".fbx" => EAssetType.Model,
+                _ => EAssetType.Undefined
             };
         }
     }

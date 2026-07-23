@@ -4,7 +4,7 @@ namespace Vecxy.Assets;
 
 public sealed class ImageAsset : Asset, IHotReloadableAsset
 {
-    public override ASSET_TYPE Type => ASSET_TYPE.TEXTURE;
+    public override EAssetType Type => EAssetType.Texture;
     public int Width { get; private set; }
     public int Height { get; private set; }
     public byte[] Pixels { get; private set; } = [];

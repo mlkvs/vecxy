@@ -7,7 +7,7 @@ namespace Vecxy.Assets;
 
 public sealed class ModelAsset : Asset, IHotReloadableAsset
 {
-    public override ASSET_TYPE Type => ASSET_TYPE.MODEL;
+    public override EAssetType Type => EAssetType.Model;
     public IReadOnlyList<ModelNode> Nodes { get; private set; } = [];
 
     public override void Load(byte[] data)

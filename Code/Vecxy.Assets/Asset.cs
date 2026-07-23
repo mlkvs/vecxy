@@ -1,11 +1,12 @@
-﻿using System;
-using System.Collections.Generic;
-using Newtonsoft.Json;
-
-namespace Vecxy.Assets
+﻿namespace Vecxy.Assets
 {
-    // Add comment for test git
-    public enum ASSET_TYPE { UNDEFINED, TEXT, TEXTURE, MODEL, AUDIO }
+    public enum EAssetType
+    {
+        Undefined, 
+        Text, 
+        Texture, 
+        Model,
+    }
 
     public interface IHotReloadableAsset
     {
@@ -17,7 +18,7 @@ namespace Vecxy.Assets
     {
         public event Action<Asset>? Reloaded;
         public Guid Id { get; protected set; } = Guid.NewGuid();
-        public abstract ASSET_TYPE Type { get; }
+        public abstract EAssetType Type { get; }
         public string Name { get; protected set; } = string.Empty;
         public string Path { get; protected set; } = string.Empty; // Relative Path
 

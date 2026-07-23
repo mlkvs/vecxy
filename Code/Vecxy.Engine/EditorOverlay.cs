@@ -23,7 +23,7 @@ public sealed class EditorLayer : AppLayer
     private string _aspectPreset = "16:9";
     public bool IsActive { get; private set; }
 
-    public override void OnTick(float dt)
+    public override void OnUpdate(float dt)
     {
         foreach (var floating in _floating.Values.ToArray()) floating.Pump(dt);
         var closed = _floating.Where(x => !x.Value.IsOpen).Select(x => x.Key).ToArray();

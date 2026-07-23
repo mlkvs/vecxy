@@ -2,8 +2,19 @@
 
 public interface IModule : IDisposable
 {
-    public void OnLoad(Autofac.ILifetimeScope scope);
-    public void OnInitialize();
-    public void OnTick(float deltaTime);
-    public void OnUnload();
+    void OnInitialize();
+    void OnShutdown();
+    
+    public interface IUpdatable
+    {
+        void OnUpdate(float deltaTime);
+    }
+    
+    public interface IRenderable
+    {
+        void OnRender();
+    }
 }
+
+
+

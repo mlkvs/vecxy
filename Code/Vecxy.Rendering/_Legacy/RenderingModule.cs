@@ -39,7 +39,7 @@ public sealed class RenderingModule : IModule
         _window.Resized += OnWindowResized;
     }
 
-    public void OnTick(float deltaTime)
+    public void OnUpdate(float deltaTime)
     {
         EditorUI.Update(deltaTime, _window.Size.X, _window.Size.Y);
         UI.Update(deltaTime, Renderer.Width, Renderer.Height, GameScreen.Bounds.X, GameScreen.Bounds.Y);

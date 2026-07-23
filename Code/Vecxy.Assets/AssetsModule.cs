@@ -92,7 +92,7 @@ namespace Vecxy.Assets
             Manager.Initialize();
         }
 
-        public void OnTick(float deltaTime)
+        public void OnUpdate(float deltaTime)
         {
             Manager.Update();
         }
