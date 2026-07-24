@@ -1,8 +1,12 @@
 ﻿namespace Vecxy.Scene;
 
+/*  TODO:
+ *  - Add Parent / Children objects
+ *  - Static?
+ */
 public sealed class SceneObject
 {
-    private readonly List<Component> _components = [];
+    private readonly List<AComponent> _components = [];
 
     private bool _active;
     private bool _enabled = true;
@@ -21,7 +25,7 @@ public sealed class SceneObject
 
     public bool IsDestroyed => _destroyed;
 
-    public IReadOnlyList<Component> Components => _components;
+    public IReadOnlyList<AComponent> Components => _components;
 
     public bool Enabled
     {
@@ -51,12 +55,12 @@ public sealed class SceneObject
         Transform = AddComponent<Transform>();
     }
 
-    public T AddComponent<T>() where T : Component, new()
+    public T AddComponent<T>() where T : AComponent, new()
     {
         return AddComponent(new T());
     }
 
-    public T AddComponent<T>(T component) where T : Component
+    public T AddComponent<T>(T component) where T : AComponent
     {
         ThrowIfDestroyed();
         ArgumentNullException.ThrowIfNull(component);
@@ -73,7 +77,7 @@ public sealed class SceneObject
         return component;
     }
 
-    public T? GetComponent<T>() where T : Component
+    public T? GetComponent<T>() where T : AComponent
     {
         ThrowIfDestroyed();
 
@@ -86,18 +90,18 @@ public sealed class SceneObject
         return null;
     }
 
-    public bool TryGetComponent<T>(out T? component) where T : Component
+    public bool TryGetComponent<T>(out T? component) where T : AComponent
     {
         component = GetComponent<T>();
         return component is not null;
     }
 
-    public bool HasComponent<T>() where T : Component
+    public bool HasComponent<T>() where T : AComponent
     {
         return GetComponent<T>() is not null;
     }
 
-    public bool RemoveComponent<T>() where T : Component
+    public bool RemoveComponent<T>() where T : AComponent
     {
         ThrowIfDestroyed();
 

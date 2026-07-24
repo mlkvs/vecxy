@@ -1,6 +1,6 @@
 ﻿namespace Vecxy.Scene;
 
-public abstract class Component
+public abstract class AComponent
 {
     private bool _enabled = true;
     private bool _awake;

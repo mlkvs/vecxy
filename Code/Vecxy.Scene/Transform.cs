@@ -2,7 +2,7 @@
 
 namespace Vecxy.Scene;
 
-public sealed class Transform : Component
+public sealed class Transform : AComponent
 {
     public Vector3 Position { get; set; }
 

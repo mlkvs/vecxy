@@ -1,5 +1,6 @@
 ﻿using System.Text;
-namespace Vecxy.Assets;
+
+namespace Vecxy.Assets._Legacy;
 
 public class TextAsset : Asset, IHotReloadableAsset
 {

@@ -1,6 +1,6 @@
 using StbImageSharp;
 
-namespace Vecxy.Assets;
+namespace Vecxy.Assets._Legacy;
 
 public sealed class ImageAsset : Asset, IHotReloadableAsset
 {

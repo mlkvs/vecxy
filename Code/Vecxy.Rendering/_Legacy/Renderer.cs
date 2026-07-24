@@ -2,6 +2,7 @@ using System.Numerics;
 using System.Runtime.CompilerServices;
 using Silk.NET.OpenGL;
 using Vecxy.Assets;
+using Vecxy.Assets._Legacy;
 using Vecxy.Diagnostics;
 
 namespace Vecxy.Rendering._Legacy;

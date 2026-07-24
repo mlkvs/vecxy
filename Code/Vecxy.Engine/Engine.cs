@@ -9,20 +9,17 @@ public sealed class Engine : IDisposable
 {
     public sealed class Options
     {
-        public WindowOptions Window = new();
+        public IWindow.Options Window = new();
         public int TargetFrameRate { get; init; } = 60;
-        public string AssetsPath { get; init; } = Path.Combine(AppContext.BaseDirectory, "Assets");
-        public bool UsePackedAssets { get; init; }
-        public Vecxy.Rendering._Legacy.Color ClearColor { get; init; } = Vecxy.Rendering._Legacy.Color.CornflowerBlue;
     }
     
     private readonly Options _options;
 
-    private readonly IRunContext _runContext;
+    private readonly IWindow _window;
     private readonly IContainer _container;
     
-    private readonly IReadOnlyList<AppLayer.IDefinition> _layerDefinitions;
-    private readonly List<AppLayer> _appLayers = [];
+    private readonly IReadOnlyList<AAppLayer.IDefinition> _layerDefinitions;
+    private readonly List<AAppLayer> _appLayers = [];
     private readonly List<ILifetimeScope> _layerScopes = [];
 
     private int _initializedLayerCount;
@@ -30,7 +27,7 @@ public sealed class Engine : IDisposable
     private bool _isRunning;
     private bool _disposed;
 
-    public Engine(Options options, IReadOnlyList<AppLayer.IDefinition> layerDefinitions)
+    public Engine(Options options, IReadOnlyList<AAppLayer.IDefinition> layerDefinitions)
     {
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(layerDefinitions);
@@ -38,16 +35,12 @@ public sealed class Engine : IDisposable
         _options = options;
         _layerDefinitions = layerDefinitions;
 
-        var window = new Window(options.Window);
-
-        _runContext = window;
+        _window = new Window(options.Window);
 
         var builder = new ContainerBuilder();
 
-        builder.RegisterInstance(window)
+        builder.RegisterInstance(_window)
             .As<IWindow>()
-            .As<IGraphicsContext>()
-            .As<IRunContext>()
             .SingleInstance();
 
         builder.RegisterInstance(_options)
@@ -69,7 +62,7 @@ public sealed class Engine : IDisposable
         {
             DisposeLayerScopes();
             _container.Dispose();
-            _runContext.Dispose();
+            _window.Dispose();
 
             throw;
         }
@@ -88,7 +81,7 @@ public sealed class Engine : IDisposable
 
         try
         {
-            _runContext.Initialize();
+            _window.Initialize();
             InitializeLayers();
             RunLoop();
         }
@@ -110,7 +103,7 @@ public sealed class Engine : IDisposable
 
             try
             {
-                var layer = (AppLayer)scope.Resolve(definition.LayerType);
+                var layer = (AAppLayer)scope.Resolve(definition.LayerType);
                 _layerScopes.Add(scope);
                 _appLayers.Add(layer);
             }
@@ -139,7 +132,7 @@ public sealed class Engine : IDisposable
         var stopwatch = Stopwatch.StartNew();
         var lastFrameTicks = stopwatch.ElapsedTicks;
 
-        while (_runContext.IsRunning)
+        while (_window.IsRunning)
         {
             var frameStartTicks = stopwatch.ElapsedTicks;
 
@@ -151,7 +144,7 @@ public sealed class Engine : IDisposable
 
             deltaTime = Math.Min(deltaTime, 0.1);
 
-            _runContext.PollEvents();
+            _window.PollEvents();
 
             Update((float)deltaTime);
             Render();
@@ -240,6 +233,6 @@ public sealed class Engine : IDisposable
         DisposeLayerScopes();
 
         _container.Dispose();
-        _runContext.Dispose();
+        _window.Dispose();
     }
 }

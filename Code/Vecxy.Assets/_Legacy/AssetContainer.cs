@@ -1,13 +1,8 @@
-﻿using System;
-using System.Collections.Generic;
-using System.IO;
-using System.IO.Compression;
-using System.Linq;
+﻿using System.IO.Compression;
 using System.Text;
 using Newtonsoft.Json;
-using Vecxy.Diagnostics;
 
-namespace Vecxy.Assets
+namespace Vecxy.Assets._Legacy
 {
     /// <summary>
     /// Abstract base class for any asset source (Folder, Zip, VPack, Network, etc.)

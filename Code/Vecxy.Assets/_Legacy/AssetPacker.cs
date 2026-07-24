@@ -1,12 +1,8 @@
-﻿using System;
-using System.Collections.Generic;
-using System.IO;
-using System.IO.Compression;
-using System.Linq;
+﻿using System.IO.Compression;
 using System.Text;
 using Newtonsoft.Json;
 
-namespace Vecxy.Assets
+namespace Vecxy.Assets._Legacy
 {
     /// <summary>
     /// Metadata stored in the Pack Manifest

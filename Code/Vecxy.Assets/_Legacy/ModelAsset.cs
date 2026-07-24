@@ -3,7 +3,7 @@ using System.Numerics;
 using glTFLoader;
 using glTFLoader.Schema;
 
-namespace Vecxy.Assets;
+namespace Vecxy.Assets._Legacy;
 
 public sealed class ModelAsset : Asset, IHotReloadableAsset
 {

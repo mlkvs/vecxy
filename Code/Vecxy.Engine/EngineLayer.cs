@@ -8,9 +8,9 @@ using Vecxy.Scene;
 namespace Vecxy.Engine;
 
 [UsedImplicitly]
-public sealed class EngineLayer(IEnumerable<IModule> modules): AppLayer
+public sealed class EngineLayer(IEnumerable<IModule> modules): AAppLayer
 {
-    public sealed class Definition : Definition<EngineLayer>
+    public sealed class Definition : ADefinition<EngineLayer>
     {
         public override void RegisterGlobal(ContainerBuilder builder)
         {

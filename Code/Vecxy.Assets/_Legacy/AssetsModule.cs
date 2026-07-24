@@ -1,9 +1,7 @@
-﻿
-using Autofac;
+﻿using Vecxy.Diagnostics;
 using Vecxy.Kernel;
-using Vecxy.Diagnostics;
 
-namespace Vecxy.Assets
+namespace Vecxy.Assets._Legacy
 {
     public enum AssetLoadMode
     {

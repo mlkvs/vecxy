@@ -1,12 +1,7 @@
-﻿using System;
-using System.Collections.Concurrent;
-using System.Collections.Generic;
-using System.IO;
-using System.Threading;
-using Vecxy.Kernel;
+﻿using System.Collections.Concurrent;
 using Vecxy.Diagnostics;
 
-namespace Vecxy.Assets
+namespace Vecxy.Assets._Legacy
 {
     public class AssetsManager : IDisposable
     {

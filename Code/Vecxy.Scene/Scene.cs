@@ -1,5 +1,9 @@
 ﻿namespace Vecxy.Scene;
 
+/*  TODO:
+ *  - Mode: Single / Additive
+ *  - Load / Unload Resources
+ */
 public sealed class Scene
 {
     private readonly List<SceneObject> _objects = [];

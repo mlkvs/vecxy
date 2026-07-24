@@ -1,11 +1,10 @@
 using Silk.NET.Maths;
 using Silk.NET.Windowing;
 using IWindow = Vecxy.Kernel.IWindow;
-using WindowOptions = Vecxy.Kernel.WindowOptions;
 
 namespace Vecxy.Rendering;
 
-public class Window : IWindow
+public sealed class Window : IWindow
 {
     public int Width => _instance.FramebufferSize.X;
     public int Height => _instance.FramebufferSize.Y;
@@ -18,17 +17,22 @@ public class Window : IWindow
 
     private bool _initialized;
 
-    public Window(WindowOptions windowOptions)
+    public Window(IWindow.Options options)
     {
-        var options = Silk.NET.Windowing.WindowOptions.Default;
+        var wOptions = WindowOptions.Default;
 
-        options.Title = windowOptions.Title;
-        options.Size = new Vector2D<int>(windowOptions.Width, windowOptions.Height);
-        options.API = new GraphicsAPI(ContextAPI.OpenGL, ContextProfile.Core, ContextFlags.ForwardCompatible,
-            new APIVersion(3, 3));
-        options.ShouldSwapAutomatically = false;
+        wOptions.Title = options.Title;
+        wOptions.Size = new Vector2D<int>(options.Width, options.Height);
+        wOptions.API = new GraphicsAPI
+        (
+            ContextAPI.OpenGL,
+            ContextProfile.Core,
+            ContextFlags.ForwardCompatible,
+            new APIVersion(3, 3)
+        );
+        wOptions.ShouldSwapAutomatically = false;
 
-        _instance = Silk.NET.Windowing.Window.Create(options);
+        _instance = Silk.NET.Windowing.Window.Create(wOptions);
     }
 
     public void Initialize()

@@ -1,13 +1,17 @@
 namespace Vecxy.Kernel;
 
-public readonly record struct WindowOptions(string Title, int Width, int Height);
 
-public interface IWindow : 
-    IRunContext,
-    IGraphicsContext
+public interface IWindow : IGraphicsContext, IDisposable
 {
+    public readonly record struct Options(string Title, int Width, int Height);
+    
     int Width { get; }
     int Height { get; }
 
+    bool IsRunning { get; }
+    
     event Action<int, int>? Resized;
+    
+    void Initialize();
+    void PollEvents();
 }

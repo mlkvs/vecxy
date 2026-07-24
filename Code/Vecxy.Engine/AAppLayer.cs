@@ -2,7 +2,7 @@ using Autofac;
 
 namespace Vecxy.Engine;
 
-public abstract class AppLayer
+public abstract class AAppLayer
 {
     public interface IDefinition
     {
@@ -13,7 +13,7 @@ public abstract class AppLayer
         void RegisterLocal(ContainerBuilder builder);
     }
 
-    public abstract class Definition<TLayer> : IDefinition where TLayer : AppLayer
+    public abstract class ADefinition<TLayer> : IDefinition where TLayer : AAppLayer
     {
         public Type LayerType => typeof(TLayer);
 

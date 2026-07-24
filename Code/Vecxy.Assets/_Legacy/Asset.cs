@@ -1,4 +1,4 @@
-﻿namespace Vecxy.Assets
+﻿namespace Vecxy.Assets._Legacy
 {
     public enum EAssetType
     {
