@@ -1,7 +1,7 @@
 using System.Numerics;
 using System.Text.Json;
 
-namespace Vecxy.Engine.Objects;
+namespace Vecxy.Engine._Legacy;
 
 public sealed class Prefab
 {

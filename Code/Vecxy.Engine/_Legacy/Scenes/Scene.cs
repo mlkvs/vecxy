@@ -1,7 +1,6 @@
 using Vecxy.Assets;
-using Vecxy.Engine.Objects;
 
-namespace Vecxy.Engine.Scenes;
+namespace Vecxy.Engine._Legacy;
 
 public enum SceneMode : byte { Single, Additive }
 

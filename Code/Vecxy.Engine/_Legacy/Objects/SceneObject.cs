@@ -1,4 +1,4 @@
-namespace Vecxy.Engine.Objects;
+namespace Vecxy.Engine._Legacy;
 
 public class SceneObject
 {

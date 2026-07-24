@@ -26,7 +26,7 @@ namespace Vecxy.Assets
         public AssetLoadMode LoadMode { get; set; }
         public string? SourcePath { get; set; } // Path to Folder or Path to .vpack file
 
-        public void OnLoad(Autofac.ILifetimeScope scope)
+        public void OnLoad()
         {
             // 1. Determine Paths intelligently if not set manually
             if (string.IsNullOrEmpty(SourcePath))

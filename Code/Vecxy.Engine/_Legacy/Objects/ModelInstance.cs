@@ -1,6 +1,6 @@
 using Vecxy.Assets;
 
-namespace Vecxy.Engine.Objects;
+namespace Vecxy.Engine._Legacy;
 
 public sealed class ModelInstance(ModelAsset model) : Script
 {

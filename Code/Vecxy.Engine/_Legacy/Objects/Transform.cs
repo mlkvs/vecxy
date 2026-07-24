@@ -1,6 +1,6 @@
 using System.Numerics;
 
-namespace Vecxy.Engine.Objects;
+namespace Vecxy.Engine._Legacy;
 
 [Serializable]
 public sealed class Transform
