@@ -1,6 +1,5 @@
-﻿using Autofac;
 using JetBrains.Annotations;
-using Vecxy.Diagnostics;
+using Vecxy.Assets;
 using Vecxy.Kernel;
 using Vecxy.Rendering;
 using Vecxy.Scene;
@@ -8,32 +7,23 @@ using Vecxy.Scene;
 namespace Vecxy.Engine;
 
 [UsedImplicitly]
-public sealed class EngineLayer(IEnumerable<IModule> modules): AAppLayer
+public sealed class EngineLayer(IEnumerable<IModule> modules) : AAppLayer
 {
     public sealed class Definition : ADefinition<EngineLayer>
     {
-        public override void RegisterGlobal(ContainerBuilder builder)
-        {
-            builder
-                .RegisterType<ScenesModule>()
-                .As<ISceneManager>()
-                .SingleInstance();
-        }
+        public override IReadOnlyList<Vecxy.Kernel.IDefinition> Children { get; }
 
-        public override void RegisterLocal(ContainerBuilder builder)
+        public Definition(AssetsModule.Options? assets = null)
         {
-            builder
-                .RegisterType<RenderingModule>()
-                .As<IModule>()
-                .SingleInstance();
-
-            builder
-                .Register(context => (ScenesModule)context.Resolve<ISceneManager>())
-                .As<IModule>()
-                .ExternallyOwned();
+            Children =
+            [
+                new AssetsModule.Definition(assets),
+                new RenderingModule.Definition(),
+                new ScenesModule.Definition()
+            ];
         }
     }
-    
+
     public override void OnInitialize()
     {
         foreach (var module in modules)

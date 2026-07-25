@@ -7,12 +7,12 @@ public sealed class GraphicsDevice : IDisposable
 {
     public GL GL { get; }
 
-    public GraphicsDevice(IGraphicsContext context)
+    public GraphicsDevice(IWindow window)
     {
-        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(window);
 
-        context.MakeCurrent();
-        GL = Silk.NET.OpenGL.GL.GetApi(context.GetProcAddress);
+        window.MakeCurrent();
+        GL = GL.GetApi(window.GetProcAddress);
     }
 
     public void Dispose()

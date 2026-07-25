@@ -1,4 +1,5 @@
-﻿using Vecxy.Kernel;
+﻿using Autofac;
+using Vecxy.Kernel;
 
 namespace Vecxy.Scene;
 
@@ -15,6 +16,19 @@ public sealed class ScenesModule :
     IModule.IUpdatable,
     ISceneManager
 {
+    public sealed class Definition : AModuleDefinition<ScenesModule>
+    {
+        protected override IReadOnlyList<Type> Exports => [typeof(ISceneManager)];
+
+        protected override void RegisterModule(ContainerBuilder builder)
+        {
+            builder
+                .RegisterType<ScenesModule>()
+                .AsSelf()
+                .SingleInstance();
+        }
+    }
+
     private Scene? _activeScene;
     private bool _initialized;
     private bool _disposed;

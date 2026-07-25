@@ -1,56 +1,157 @@
+using System.Numerics;
+using Autofac;
 using Silk.NET.OpenGL;
+using Vecxy.Assets;
 using Vecxy.Kernel;
 
 namespace Vecxy.Rendering;
 
-public sealed class RenderingModule(IWindow window) :
-    IModule,
-    IModule.IRenderable,
-    IModule.IUpdatable
+public interface IRenderer
 {
-    private GraphicsDevice? _device;
+    GameView CreateGameView(IRenderTarget? target = null);
+    void DestroyGameView(GameView view);
+    Mesh CreateQuad();
+}
+
+public sealed class RenderingModule(
+    GraphicsDevice device,
+    BackbufferRenderTarget backbuffer,
+    MaterialLibrary materials)
+    :
+        IModule,
+        IModule.IRenderable,
+        IRenderer
+{
+    public sealed class Definition : AModuleDefinition<RenderingModule>
+    {
+        protected override IReadOnlyList<Type> Exports => [typeof(IRenderer)];
+
+        protected override void RegisterModule(ContainerBuilder builder)
+        {
+            builder
+                .RegisterType<RenderingModule>()
+                .AsSelf()
+                .SingleInstance();
+
+            builder
+                .RegisterType<GraphicsDevice>()
+                .AsSelf()
+                .SingleInstance();
+
+            builder
+                .RegisterType<BackbufferRenderTarget>()
+                .AsSelf()
+                .SingleInstance();
+
+            builder
+                .RegisterType<ShaderCompiler>()
+                .AsSelf()
+                .SingleInstance();
+
+            builder
+                .RegisterType<ShaderLibrary>()
+                .AsSelf()
+                .SingleInstance();
+
+            builder
+                .RegisterType<TextureLibrary>()
+                .AsSelf()
+                .SingleInstance();
+
+            builder
+                .RegisterType<MaterialLibrary>()
+                .AsSelf()
+                .SingleInstance();
+        }
+    }
+
+    private readonly List<GameView> _views = [];
 
     public void OnInitialize()
     {
-        _device = new GraphicsDevice(window);
-        
-        window.Resized += OnWindowResized;
-        
-        SetViewport(window.Width, window.Height);
     }
 
     public void OnRender()
     {
-        window.MakeCurrent();
-        _device?.GL.ClearColor(0.02f, 0.08f, 0.04f, 1f);
-        _device?.GL.Clear(ClearBufferMask.ColorBufferBit);
-        window.SwapBuffers();
+        var presentedTargets = new HashSet<IRenderTarget>();
+
+        foreach (var view in _views.Where(view => view.Enabled))
+        {
+            view.Target.Bind(device);
+            device.GL.ClearColor(
+                view.ClearColor.X,
+                view.ClearColor.Y,
+                view.ClearColor.Z,
+                view.ClearColor.W);
+            device.GL.Clear(ClearBufferMask.ColorBufferBit);
+
+            var aspectCorrection =
+                (float)view.Target.Height /
+                Math.Max(1, view.Target.Width);
+            var viewTransform = Matrix4x4.CreateScale(
+                aspectCorrection,
+                1.0f,
+                1.0f);
+
+            foreach (var item in view.Items
+                         .Where(item => item.Enabled)
+                         .OrderBy(item => item.Phase))
+            {
+                var material = materials.Get(item.Material);
+                var shader = material.Bind(item.Material);
+                shader.Set("uTransform", item.Transform * viewTransform);
+                item.Mesh.Draw();
+            }
+
+            presentedTargets.Add(view.Target);
+        }
+
+        foreach (var target in presentedTargets)
+        {
+            target.Present();
+        }
     }
 
-    public void OnUpdate(float deltaTime)
+    public GameView CreateGameView(IRenderTarget? target = null)
     {
+        var view = new GameView(target ?? backbuffer);
+        _views.Add(view);
+        return view;
+    }
+
+    public void DestroyGameView(GameView view)
+    {
+        ArgumentNullException.ThrowIfNull(view);
+        _views.Remove(view);
+        view.Clear();
+    }
+
+    public Mesh CreateQuad()
+    {
+        ReadOnlySpan<float> vertices =
+        [
+            -0.5f,  0.5f, 0.0f, 1.0f,
+            -0.5f, -0.5f, 0.0f, 0.0f,
+             0.5f, -0.5f, 1.0f, 0.0f,
+             0.5f,  0.5f, 1.0f, 1.0f
+        ];
+
+        ReadOnlySpan<uint> indices = [0, 1, 2, 2, 3, 0];
+        return new Mesh(device, vertices, indices);
     }
 
     public void OnShutdown()
     {
-        window.Resized -= OnWindowResized;
+        foreach (var view in _views)
+        {
+            view.Clear();
+        }
+
+        _views.Clear();
+        materials.Clear();
     }
 
     public void Dispose()
     {
-        _device?.Dispose();
-        _device = null;
-    }
-
-    private void OnWindowResized(int width, int height) =>
-        SetViewport(width, height);
-
-    private void SetViewport(int width, int height)
-    {
-        _device?.GL.Viewport(
-            0,
-            0,
-            (uint)Math.Max(0, width),
-            (uint)Math.Max(0, height));
     }
 }

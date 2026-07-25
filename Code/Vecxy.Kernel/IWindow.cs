@@ -1,7 +1,7 @@
 namespace Vecxy.Kernel;
 
 
-public interface IWindow : IGraphicsContext, IDisposable
+public interface IWindow : IDisposable
 {
     public readonly record struct Options(string Title, int Width, int Height);
     
@@ -14,4 +14,7 @@ public interface IWindow : IGraphicsContext, IDisposable
     
     void Initialize();
     void PollEvents();
+    void MakeCurrent();
+    void SwapBuffers();
+    nint GetProcAddress(string name);
 }

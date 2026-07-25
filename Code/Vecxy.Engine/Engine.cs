@@ -12,13 +12,14 @@ public sealed class Engine : IDisposable
         public IWindow.Options Window = new();
         public int TargetFrameRate { get; init; } = 60;
     }
-    
+
     private readonly Options _options;
 
     private readonly IWindow _window;
     private readonly IContainer _container;
-    
+
     private readonly IReadOnlyList<AAppLayer.IDefinition> _layerDefinitions;
+    private readonly IReadOnlyList<IReadOnlyList<Vecxy.Kernel.IDefinition>> _layerDefinitionTrees;
     private readonly List<AAppLayer> _appLayers = [];
     private readonly List<ILifetimeScope> _layerScopes = [];
 
@@ -34,6 +35,7 @@ public sealed class Engine : IDisposable
 
         _options = options;
         _layerDefinitions = layerDefinitions;
+        _layerDefinitionTrees = FlattenLayerDefinitions(layerDefinitions);
 
         _window = new Window(options.Window);
 
@@ -47,25 +49,15 @@ public sealed class Engine : IDisposable
             .AsSelf()
             .SingleInstance();
 
-        foreach (var definition in _layerDefinitions)
+        foreach (var definitions in _layerDefinitionTrees)
         {
-            definition.RegisterGlobal(builder);
+            foreach (var definition in definitions)
+            {
+                definition.RegisterGlobal(builder);
+            }
         }
 
         _container = builder.Build();
-
-        try
-        {
-            CreateLayerScopes();
-        }
-        catch
-        {
-            DisposeLayerScopes();
-            _container.Dispose();
-            _window.Dispose();
-
-            throw;
-        }
     }
 
     public void Run()
@@ -82,6 +74,7 @@ public sealed class Engine : IDisposable
         try
         {
             _window.Initialize();
+            CreateLayerScopes();
             InitializeLayers();
             RunLoop();
         }
@@ -93,25 +86,95 @@ public sealed class Engine : IDisposable
 
     private void CreateLayerScopes()
     {
-        foreach (var definition in _layerDefinitions)
+        ILifetimeScope parentScope = _container;
+
+        for (var index = 0; index < _layerDefinitions.Count; index++)
         {
-            var scope = _container.BeginLifetimeScope(builder =>
+            var definition = _layerDefinitions[index];
+            var definitions = _layerDefinitionTrees[index];
+            var layerType = definition.LayerType
+                ?? throw new InvalidOperationException(
+                    $"Top-level definition '{definition.GetType().FullName}' does not define a layer type.");
+
+            var scope = parentScope.BeginLifetimeScope(builder =>
             {
-                definition.RegisterLocal(builder);
-                builder.RegisterType(definition.LayerType);
+                foreach (var current in definitions)
+                {
+                    current.RegisterLocal(builder);
+                }
+
+                builder.RegisterType(layerType);
             });
 
             try
             {
-                var layer = (AAppLayer)scope.Resolve(definition.LayerType);
+                var layer = (AAppLayer)scope.Resolve(layerType);
                 _layerScopes.Add(scope);
                 _appLayers.Add(layer);
+                parentScope = scope;
             }
             catch
             {
                 scope.Dispose();
                 throw;
             }
+        }
+    }
+
+    private static IReadOnlyList<IReadOnlyList<Vecxy.Kernel.IDefinition>> FlattenLayerDefinitions(
+        IReadOnlyList<AAppLayer.IDefinition> roots)
+    {
+        var result = new List<IReadOnlyList<Vecxy.Kernel.IDefinition>>(roots.Count);
+        var visited = new HashSet<Vecxy.Kernel.IDefinition>(ReferenceEqualityComparer.Instance);
+
+        foreach (var root in roots)
+        {
+            if (root.LayerType is null)
+            {
+                throw new InvalidOperationException(
+                    $"Top-level definition '{root.GetType().FullName}' must define a layer type.");
+            }
+
+            var flattened = new List<Vecxy.Kernel.IDefinition>();
+            var active = new HashSet<Vecxy.Kernel.IDefinition>(ReferenceEqualityComparer.Instance);
+            Visit(root, flattened, active, visited);
+            result.Add(flattened);
+        }
+
+        return result;
+
+        static void Visit(
+            Vecxy.Kernel.IDefinition definition,
+            ICollection<Vecxy.Kernel.IDefinition> flattened,
+            ISet<Vecxy.Kernel.IDefinition> active,
+            ISet<Vecxy.Kernel.IDefinition> visited)
+        {
+            if (!active.Add(definition))
+            {
+                throw new InvalidOperationException(
+                    $"Definition cycle detected at '{definition.GetType().FullName}'.");
+            }
+
+            if (!visited.Add(definition))
+            {
+                throw new InvalidOperationException(
+                    $"Definition instance '{definition.GetType().FullName}' is used more than once.");
+            }
+
+            flattened.Add(definition);
+
+            foreach (var child in definition.Children)
+            {
+                if (child is null)
+                {
+                    throw new InvalidOperationException(
+                        $"Definition '{definition.GetType().FullName}' contains a null child.");
+                }
+
+                Visit(child, flattened, active, visited);
+            }
+
+            active.Remove(definition);
         }
     }
 
