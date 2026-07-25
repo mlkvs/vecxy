@@ -18,6 +18,9 @@ public sealed class Scene
 
     public IReadOnlyList<SceneObject> Objects => _objects;
 
+    public IEnumerable<SceneObject> RootObjects =>
+        _objects.Where(sceneObject => sceneObject.Parent is null);
+
     public Scene(string name = "Scene")
     {
         Name = name;
@@ -63,8 +66,8 @@ public sealed class Scene
 
         _active = true;
 
-        for (int index = 0, count = _objects.Count; index < count; ++index)
-            _objects[index].Activate();
+        foreach (var sceneObject in RootObjects)
+            sceneObject.Activate();
     }
 
     internal void Update(float deltaTime)
@@ -106,8 +109,8 @@ public sealed class Scene
 
         _active = false;
 
-        for (var index = _objects.Count - 1; index >= 0; --index)
-            _objects[index].Deactivate();
+        foreach (var sceneObject in RootObjects.Reverse())
+            sceneObject.Deactivate();
 
         FlushDestroyedObjects();
     }
@@ -122,9 +125,13 @@ public sealed class Scene
 
     private void DestroyObjectImmediately(SceneObject sceneObject)
     {
-        if (!_objects.Remove(sceneObject))
+        if (sceneObject.IsDestroyed || !_objects.Contains(sceneObject))
             return;
 
+        foreach (var child in sceneObject.Children.ToArray().Reverse())
+            DestroyObjectImmediately(child);
+
+        _objects.Remove(sceneObject);
         sceneObject.DestroyImmediately();
     }
 }

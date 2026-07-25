@@ -12,58 +12,107 @@ public sealed class Mesh : IDisposable
 
     public uint IndexCount { get; }
 
-    internal unsafe Mesh(
+    internal Mesh(
         GraphicsDevice device,
         ReadOnlySpan<float> vertices,
-        ReadOnlySpan<uint> indices)
+        ReadOnlySpan<uint> indices,
+        int stride,
+        params VertexAttribute[] attributes)
     {
-        _device = device;
-        IndexCount = (uint)indices.Length;
+        ArgumentNullException.ThrowIfNull(device);
 
-        var gl = device.GL;
+        if (stride <= 0)
+            throw new ArgumentOutOfRangeException(nameof(stride));
+
+        if (vertices.Length == 0 || vertices.Length % stride != 0)
+            throw new ArgumentException(
+                "Vertex data does not match its stride.",
+                nameof(vertices));
+
+        if (indices.Length == 0)
+            throw new ArgumentException(
+                "Mesh must contain indices.",
+                nameof(indices));
+
+        if (attributes.Length == 0)
+            throw new ArgumentException(
+                "Mesh must define at least one vertex attribute.",
+                nameof(attributes));
+
+        _device = device;
+        IndexCount = checked((uint)indices.Length);
+
+        CreateBuffers(vertices, indices, stride, attributes);
+    }
+
+    private unsafe void CreateBuffers(
+        ReadOnlySpan<float> vertices,
+        ReadOnlySpan<uint> indices,
+        int stride,
+        IReadOnlyList<VertexAttribute> attributes)
+    {
+        var gl = _device.GL;
         _vertexArray = gl.GenVertexArray();
         _vertexBuffer = gl.GenBuffer();
         _indexBuffer = gl.GenBuffer();
 
-        gl.BindVertexArray(_vertexArray);
-        gl.BindBuffer(BufferTargetARB.ArrayBuffer, _vertexBuffer);
-        fixed (float* data = vertices)
+        try
         {
-            gl.BufferData(
+            gl.BindVertexArray(_vertexArray);
+            gl.BindBuffer(
                 BufferTargetARB.ArrayBuffer,
-                (nuint)(vertices.Length * sizeof(float)),
-                data,
-                BufferUsageARB.StaticDraw);
-        }
+                _vertexBuffer);
 
-        gl.BindBuffer(BufferTargetARB.ElementArrayBuffer, _indexBuffer);
-        fixed (uint* data = indices)
-        {
-            gl.BufferData(
+            fixed (float* data = vertices)
+            {
+                gl.BufferData(
+                    BufferTargetARB.ArrayBuffer,
+                    checked((nuint)(vertices.Length * sizeof(float))),
+                    data,
+                    BufferUsageARB.StaticDraw);
+            }
+
+            gl.BindBuffer(
                 BufferTargetARB.ElementArrayBuffer,
-                (nuint)(indices.Length * sizeof(uint)),
-                data,
-                BufferUsageARB.StaticDraw);
-        }
+                _indexBuffer);
 
-        const uint stride = 4 * sizeof(float);
-        gl.VertexAttribPointer(
-            0,
-            2,
-            VertexAttribPointerType.Float,
-            false,
-            stride,
-            0);
-        gl.EnableVertexAttribArray(0);
-        gl.VertexAttribPointer(
-            1,
-            2,
-            VertexAttribPointerType.Float,
-            false,
-            stride,
-            2 * sizeof(float));
-        gl.EnableVertexAttribArray(1);
-        gl.BindVertexArray(0);
+            fixed (uint* data = indices)
+            {
+                gl.BufferData(
+                    BufferTargetARB.ElementArrayBuffer,
+                    checked((nuint)(indices.Length * sizeof(uint))),
+                    data,
+                    BufferUsageARB.StaticDraw);
+            }
+
+            foreach (var attribute in attributes)
+            {
+                if (attribute.ComponentCount is < 1 or > 4 ||
+                    attribute.Offset < 0 ||
+                    attribute.Offset + attribute.ComponentCount > stride)
+                {
+                    throw new ArgumentException(
+                        "Mesh contains an invalid vertex attribute.",
+                        nameof(attributes));
+                }
+
+                gl.VertexAttribPointer(
+                    attribute.Location,
+                    attribute.ComponentCount,
+                    VertexAttribPointerType.Float,
+                    false,
+                    checked((uint)(stride * sizeof(float))),
+                    checked(attribute.Offset * sizeof(float)));
+                gl.EnableVertexAttribArray(attribute.Location);
+            }
+
+            gl.BindVertexArray(0);
+        }
+        catch
+        {
+            Dispose();
+            throw;
+        }
     }
 
     internal unsafe void Draw()
@@ -80,26 +129,26 @@ public sealed class Mesh : IDisposable
     public void Dispose()
     {
         if (_disposed)
-        {
             return;
-        }
 
         _disposed = true;
+
         if (_indexBuffer != 0)
-        {
             _device.GL.DeleteBuffer(_indexBuffer);
-        }
 
         if (_vertexBuffer != 0)
-        {
             _device.GL.DeleteBuffer(_vertexBuffer);
-        }
 
         if (_vertexArray != 0)
-        {
             _device.GL.DeleteVertexArray(_vertexArray);
-        }
 
-        _indexBuffer = _vertexBuffer = _vertexArray = 0;
+        _indexBuffer = 0;
+        _vertexBuffer = 0;
+        _vertexArray = 0;
     }
 }
+
+internal readonly record struct VertexAttribute(
+    uint Location,
+    int ComponentCount,
+    int Offset);

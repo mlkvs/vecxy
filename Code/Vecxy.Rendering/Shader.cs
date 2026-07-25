@@ -64,8 +64,14 @@ public sealed class Shader : IDisposable
         var location = GetUniformLocation(name);
         if (location >= 0)
         {
-            var transposed = Matrix4x4.Transpose(value);
-            _device.GL.UniformMatrix4(location, 1, false, (float*)&transposed);
+            // Matrix4x4 uses row-vector transforms while GLSL uses column
+            // vectors. Its row-major memory is therefore already the
+            // column-major representation GLSL needs.
+            _device.GL.UniformMatrix4(
+                location,
+                1,
+                false,
+                (float*)&value);
         }
     }
 

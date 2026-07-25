@@ -1,3 +1,4 @@
+using System.Numerics;
 using ImGuiNET;
 using Silk.NET.Input;
 using Silk.NET.OpenGL.Extensions.ImGui;
@@ -7,7 +8,8 @@ namespace Vecxy.Rendering;
 
 public sealed class ImGuiOverlay(
     IWindow window,
-    GraphicsDevice device) : IDisposable
+    GraphicsDevice device,
+    MaterialLibrary materials) : IDisposable
 {
     private IInputContext? _input;
     private ImGuiController? _controller;

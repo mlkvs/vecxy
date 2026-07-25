@@ -266,6 +266,7 @@ public sealed class AssetsModule :
         RegisterImporter<ShaderAsset>(new ShaderAssetImporter());
         RegisterImporter<TextureAsset>(new TextureAssetImporter());
         RegisterImporter<MaterialAsset>(new MaterialAssetImporter());
+        RegisterImporter<ModelAsset>(new ModelAssetImporter());
         Logger.Info($"Assets directory: {AssetsDirectory}");
 
         if (_options.HotReloadEnabled)
