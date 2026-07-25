@@ -8,6 +8,8 @@ namespace Vecxy.Rendering;
 
 public interface IRenderer
 {
+    RenderingStatistics Statistics { get; }
+
     GameView CreateGameView(IRenderTarget? target = null);
     void DestroyGameView(GameView view);
     Mesh CreateQuad();
@@ -16,9 +18,12 @@ public interface IRenderer
 public sealed class RenderingModule(
     GraphicsDevice device,
     BackbufferRenderTarget backbuffer,
-    MaterialLibrary materials)
+    MaterialLibrary materials,
+    RenderingStatistics statistics,
+    ImGuiOverlay overlay)
     :
         IModule,
+        IModule.IUpdatable,
         IModule.IRenderable,
         IRenderer
 {
@@ -62,13 +67,34 @@ public sealed class RenderingModule(
                 .RegisterType<MaterialLibrary>()
                 .AsSelf()
                 .SingleInstance();
+
+            builder
+                .RegisterType<RenderingStatistics>()
+                .AsSelf()
+                .SingleInstance();
+
+            builder
+                .RegisterType<ImGuiOverlay>()
+                .AsSelf()
+                .SingleInstance();
         }
     }
 
     private readonly List<GameView> _views = [];
 
+    public RenderingStatistics Statistics => statistics;
+
     public void OnInitialize()
     {
+        overlay.Initialize();
+    }
+
+    public void OnUpdate(float deltaTime)
+    {
+        statistics.BeginFrame(
+            deltaTime,
+            _views.Count(view => view.Enabled));
+        overlay.BeginFrame(deltaTime);
     }
 
     public void OnRender()
@@ -101,10 +127,15 @@ public sealed class RenderingModule(
                 var shader = material.Bind(item.Material);
                 shader.Set("uTransform", item.Transform * viewTransform);
                 item.Mesh.Draw();
+                statistics.RecordDraw();
             }
 
             presentedTargets.Add(view.Target);
         }
+
+        backbuffer.Bind(device);
+        overlay.Render(statistics);
+        presentedTargets.Add(backbuffer);
 
         foreach (var target in presentedTargets)
         {

@@ -6,6 +6,8 @@ namespace Vecxy.Rendering;
 
 public sealed class Window : IWindow
 {
+    internal Silk.NET.Windowing.IWindow Native => _instance;
+
     public int Width => _instance.FramebufferSize.X;
     public int Height => _instance.FramebufferSize.Y;
 
