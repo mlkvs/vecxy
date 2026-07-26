@@ -1,80 +1,72 @@
-using Vecxy.Assets;
+using System.Numerics;
 using Vecxy.Scene;
 
 namespace Vecxy.Rendering;
 
 public sealed class MeshRenderer : AComponent
 {
-    private AssetRef<ModelAsset>? _model;
-    private AssetRef<MaterialAsset>? _material;
-
-    public int MeshIndex { get; private set; } = -1;
+    private Mesh? _mesh;
+    private Material? _material;
 
     public ERenderPhase Phase { get; set; } =
         ERenderPhase.Opaque;
 
     public bool IsConfigured =>
-        _model is not null &&
-        _material is not null &&
-        MeshIndex >= 0;
+        _mesh is not null &&
+        _material is not null;
 
-    internal AssetRef<ModelAsset> Model =>
-        _model ??
+    public Mesh Mesh =>
+        _mesh ??
         throw new InvalidOperationException(
-            "MeshRenderer has no model.");
+            "MeshRenderer has no mesh.");
 
-    internal AssetRef<MaterialAsset> Material =>
+    public Material Material =>
         _material ??
         throw new InvalidOperationException(
             "MeshRenderer has no material.");
 
+    public Vector3 LocalBoundsMin => Mesh.BoundsMin;
+
+    public Vector3 LocalBoundsMax => Mesh.BoundsMax;
+
+    public Vector3 LocalBoundsSize => Mesh.BoundsSize;
+
+    public Vector3 LocalBoundsCenter => Mesh.BoundsCenter;
+
     public void SetMesh(
-        AssetRef<ModelAsset> model,
-        int meshIndex,
-        AssetRef<MaterialAsset> material)
+        Mesh mesh,
+        Material material)
     {
         ObjectDisposedException.ThrowIf(IsDestroyed, this);
-        ArgumentNullException.ThrowIfNull(model);
+        ArgumentNullException.ThrowIfNull(mesh);
         ArgumentNullException.ThrowIfNull(material);
 
-        if (model.HasError)
-            throw new InvalidOperationException(
-                $"Cannot configure MeshRenderer with failed model '{model.Metadata.Path}'.",
-                model.Error);
+        _material?.Dispose();
+        _mesh = mesh;
+        _material = material;
+    }
 
-        if (meshIndex < 0 || meshIndex >= model.Value.Meshes.Count)
-            throw new ArgumentOutOfRangeException(nameof(meshIndex));
+    public void SetMesh(Mesh mesh)
+    {
+        ObjectDisposedException.ThrowIf(IsDestroyed, this);
+        ArgumentNullException.ThrowIfNull(mesh);
 
-        var nextModel = model.Acquire();
-        AssetRef<MaterialAsset>? nextMaterial = null;
+        _mesh = mesh;
+    }
 
-        try
-        {
-            nextMaterial = material.Acquire();
-        }
-        catch
-        {
-            nextModel.Dispose();
-            throw;
-        }
+    public void SetMaterial(Material material)
+    {
+        ObjectDisposedException.ThrowIf(IsDestroyed, this);
+        ArgumentNullException.ThrowIfNull(material);
 
-        var previousModel = _model;
-        var previousMaterial = _material;
-
-        _model = nextModel;
-        _material = nextMaterial;
-        MeshIndex = meshIndex;
-
-        previousModel?.Dispose();
-        previousMaterial?.Dispose();
+        _material?.Dispose();
+        _material = material;
     }
 
     protected override void OnDestroy()
     {
-        _model?.Dispose();
         _material?.Dispose();
-        _model = null;
+        _mesh = null;
         _material = null;
-        MeshIndex = -1;
     }
 }
