@@ -150,6 +150,66 @@ public sealed class SceneObject
         return GetComponent<T>() is not null;
     }
 
+    public IEnumerable<SceneObject> EnumerateHierarchy(
+        bool includeSelf = true)
+    {
+        ThrowIfDestroyed();
+
+        if (includeSelf)
+            yield return this;
+
+        foreach (var child in _children)
+        {
+            yield return child;
+
+            foreach (var nested in child.EnumerateHierarchy(includeSelf: false))
+                yield return nested;
+        }
+    }
+
+    public IEnumerable<T> GetComponentsInChildren<T>(
+        bool includeSelf = true)
+        where T : AComponent
+    {
+        foreach (var sceneObject in EnumerateHierarchy(includeSelf))
+        {
+            if (sceneObject.GetComponent<T>() is { } component)
+                yield return component;
+        }
+    }
+
+    public T? GetComponentInChildren<T>(
+        bool includeSelf = true)
+        where T : AComponent
+    {
+        return GetComponentsInChildren<T>(includeSelf)
+            .FirstOrDefault();
+    }
+
+    public SceneObject? FindChild(
+        string name,
+        bool recursive = true)
+    {
+        ThrowIfDestroyed();
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+
+        if (recursive)
+        {
+            return EnumerateHierarchy(includeSelf: false)
+                .FirstOrDefault(
+                    child => string.Equals(
+                        child.Name,
+                        name,
+                        StringComparison.Ordinal));
+        }
+
+        return _children.FirstOrDefault(
+            child => string.Equals(
+                child.Name,
+                name,
+                StringComparison.Ordinal));
+    }
+
     public bool RemoveComponent<T>() where T : AComponent
     {
         ThrowIfDestroyed();
@@ -172,6 +232,24 @@ public sealed class SceneObject
         }
 
         return false;
+    }
+
+    public bool RemoveComponent(AComponent component)
+    {
+        ThrowIfDestroyed();
+        ArgumentNullException.ThrowIfNull(component);
+
+        var index = _components.IndexOf(component);
+        if (index < 0)
+            return false;
+
+        if (ReferenceEquals(component, Transform))
+            throw new InvalidOperationException(
+                "Transform cannot be removed.");
+
+        component.Destroy();
+        _components.RemoveAt(index);
+        return true;
     }
 
     public void Destroy()

@@ -51,6 +51,7 @@ public abstract class AComponent
     protected internal virtual void OnEnable() { }
     protected internal virtual void OnDisable() { }
     protected internal virtual void OnDestroy() { }
+    protected internal virtual void OnGizmos(ISceneGizmoDrawer gizmos) { }
 
     internal void Attach(SceneObject sceneObject)
     {
@@ -145,5 +146,13 @@ public abstract class AComponent
         _active = false;
         _destroyed = true;
         SceneObject = null;
+    }
+
+    public void DrawGizmos(ISceneGizmoDrawer gizmos)
+    {
+        if (!_active || !_enabled || _destroyed)
+            return;
+
+        OnGizmos(gizmos);
     }
 }

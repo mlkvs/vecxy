@@ -6,6 +6,7 @@ namespace Vecxy.Scene;
 public interface ISceneManager
 {
     Scene? ActiveScene { get; }
+    IReadOnlyList<Scene> LoadedScenes { get; }
 
     void SetActiveScene(Scene scene);
     void UnloadActiveScene();
@@ -29,11 +30,13 @@ public sealed class ScenesModule :
         }
     }
 
+    private readonly List<Scene> _loadedScenes = [];
     private Scene? _activeScene;
     private bool _initialized;
     private bool _disposed;
 
     public Scene? ActiveScene => _activeScene;
+    public IReadOnlyList<Scene> LoadedScenes => _loadedScenes;
 
     public void OnInitialize()
     {
@@ -51,6 +54,9 @@ public sealed class ScenesModule :
         ObjectDisposedException.ThrowIf(_disposed, this);
         ArgumentNullException.ThrowIfNull(scene);
 
+        if (!_loadedScenes.Contains(scene))
+            _loadedScenes.Add(scene);
+
         if (ReferenceEquals(_activeScene, scene))
             return;
 
@@ -66,7 +72,12 @@ public sealed class ScenesModule :
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
 
-        _activeScene?.Deactivate();
+        if (_activeScene is not null)
+        {
+            _activeScene.Deactivate();
+            _loadedScenes.Remove(_activeScene);
+        }
+
         _activeScene = null;
     }
 
@@ -85,8 +96,14 @@ public sealed class ScenesModule :
         if (!_initialized)
             return;
 
-        _activeScene?.Deactivate();
+        foreach (var scene in _loadedScenes.ToArray().Reverse())
+        {
+            if (ReferenceEquals(scene, _activeScene))
+                scene.Deactivate();
+        }
+
         _activeScene = null;
+        _loadedScenes.Clear();
 
         _initialized = false;
     }

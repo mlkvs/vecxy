@@ -14,6 +14,8 @@ public sealed class Scene
 
     public string Name { get; }
 
+    public SceneLightingSettings Lighting { get; } = new();
+
     public bool IsActive => _active;
 
     public IReadOnlyList<SceneObject> Objects => _objects;
@@ -66,7 +68,7 @@ public sealed class Scene
 
         _active = true;
 
-        foreach (var sceneObject in RootObjects)
+        foreach (var sceneObject in RootObjects.ToArray())
             sceneObject.Activate();
     }
 
@@ -109,7 +111,7 @@ public sealed class Scene
 
         _active = false;
 
-        foreach (var sceneObject in RootObjects.Reverse())
+        foreach (var sceneObject in RootObjects.ToArray().Reverse())
             sceneObject.Deactivate();
 
         FlushDestroyedObjects();
