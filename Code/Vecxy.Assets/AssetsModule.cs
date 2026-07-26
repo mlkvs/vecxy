@@ -2,6 +2,8 @@ using System.Diagnostics;
 using Autofac;
 using Vecxy.Diagnostics;
 using Vecxy.Kernel;
+using YamlDotNet.Serialization;
+using YamlDotNet.Serialization.NamingConventions;
 
 namespace Vecxy.Assets;
 
@@ -24,7 +26,8 @@ public interface IAssetsManager
 public sealed class AssetsModule :
     IModule,
     IModule.IUpdatable,
-    IAssetsManager
+    IAssetsManager,
+    IConfigProvider
 {
     public sealed class Options
     {
@@ -38,7 +41,7 @@ public sealed class AssetsModule :
     {
         private readonly Options _options;
 
-        protected override IReadOnlyList<Type> Exports => [typeof(IAssetsManager)];
+        protected override IReadOnlyList<Type> Exports => [typeof(IAssetsManager), typeof(IConfigProvider)];
 
         public Definition(Options? options = null)
         {
@@ -60,13 +63,20 @@ public sealed class AssetsModule :
     }
 
     private readonly Dictionary<Type, IAssetImporter> _importers = [];
+    private readonly HashSet<Type> _registeredConfigs = [];
+    private readonly Dictionary<string, List<IConfigRef>> _configRefs =
+        new(StringComparer.Ordinal);
     private readonly Dictionary<string, Type> _extensionTypes =
         new(StringComparer.OrdinalIgnoreCase);
-    private readonly Dictionary<AssetId, IAssetRefEntry> _loaded = [];
+    private readonly Dictionary<AssetLoadKey, IAssetRefEntry> _loaded = [];
     private readonly Dictionary<string, long> _pendingReloads =
         new(StringComparer.Ordinal);
     private readonly AssetImportContext _importContext;
     private readonly Options _options;
+    private static readonly ISerializer ConfigSerializer =
+        new SerializerBuilder()
+            .WithNamingConvention(CamelCaseNamingConvention.Instance)
+            .Build();
     private AssetFileWatcher? _fileWatcher;
     private bool _disposed;
 
@@ -104,23 +114,10 @@ public sealed class AssetsModule :
                 $"An importer for {assetType.Name} is already registered.");
         }
 
-        var registeredExtensions = new List<string>();
         foreach (var extension in importer.Extensions)
         {
             var normalized = NormalizeExtension(extension);
-            if (!_extensionTypes.TryAdd(normalized, assetType))
-            {
-                foreach (var registered in registeredExtensions)
-                {
-                    _extensionTypes.Remove(registered);
-                }
-
-                _importers.Remove(assetType);
-                throw new InvalidOperationException(
-                    $"An importer for extension '{normalized}' is already registered.");
-            }
-
-            registeredExtensions.Add(normalized);
+            _extensionTypes.TryAdd(normalized, assetType);
         }
     }
 
@@ -134,7 +131,12 @@ public sealed class AssetsModule :
 
         foreach (var extension in importer.Extensions)
         {
-            _extensionTypes.Remove(NormalizeExtension(extension));
+            var normalized = NormalizeExtension(extension);
+            if (_extensionTypes.TryGetValue(normalized, out var registeredType) &&
+                registeredType == assetType)
+            {
+                _extensionTypes.Remove(normalized);
+            }
         }
     }
 
@@ -168,11 +170,76 @@ public sealed class AssetsModule :
     public AssetRef<T> Load<T>(string path) where T : class =>
         Load<T>(Find(path));
 
+    public void Register<T>() where T : class, IYamlConfig
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        _registeredConfigs.Add(typeof(T));
+    }
+
+    public ConfigRef<T> LoadConfig<T>(string path) where T : class, IYamlConfig
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+
+        if (!_registeredConfigs.Contains(typeof(T)))
+        {
+            throw new InvalidOperationException(
+                $"Config type '{typeof(T).Name}' is not registered.");
+        }
+
+        using var source = Load<TextAsset>(path);
+        var config = new ConfigRef<T>(source, UnregisterConfigRef);
+        RegisterConfigRef(config);
+        return config;
+    }
+
+    public IReadOnlyList<IConfigRef> GetLoadedConfigs()
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+
+        return _configRefs.Values
+            .SelectMany(values => values)
+            .GroupBy(config => config.Path, StringComparer.Ordinal)
+            .Select(group => group.First())
+            .OrderBy(config => config.Path, StringComparer.Ordinal)
+            .ToArray();
+    }
+
+    public void SaveConfig(IConfigRef config, object value)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        ArgumentNullException.ThrowIfNull(config);
+        ArgumentNullException.ThrowIfNull(value);
+
+        if (!config.ValueType.IsInstanceOfType(value))
+        {
+            throw new InvalidOperationException(
+                $"Config '{config.Path}' expects '{config.ValueType.Name}', got '{value.GetType().Name}'.");
+        }
+
+        if (value is not IYamlConfig yamlConfig)
+        {
+            throw new InvalidOperationException(
+                $"Config '{config.Path}' does not implement IYamlConfig.");
+        }
+
+        yamlConfig.Validate(config.Path);
+
+        var fullPath = Path.Combine(AssetsDirectory, config.Path);
+        Directory.CreateDirectory(Path.GetDirectoryName(fullPath)!);
+        var yaml = ConfigSerializer.Serialize(value);
+        File.WriteAllText(fullPath, yaml);
+
+        var assetId = Find(config.Path);
+        Reload(assetId);
+    }
+
     public AssetRef<T> Load<T>(AssetId id) where T : class
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
 
-        if (_loaded.TryGetValue(id, out var cached))
+        var key = new AssetLoadKey(id, typeof(T));
+
+        if (_loaded.TryGetValue(key, out var cached))
         {
             return Cast<T>(cached).CreateReference();
         }
@@ -182,7 +249,7 @@ public sealed class AssetsModule :
             throw new KeyNotFoundException($"Unknown asset ID: {id}");
         }
 
-        if (metadata.AssetType != typeof(T))
+        if (!CanImportAs(metadata, typeof(T)))
         {
             throw new InvalidCastException(
                 $"Asset '{metadata.Path}' is {metadata.AssetType.Name}, not {typeof(T).Name}.");
@@ -191,7 +258,7 @@ public sealed class AssetsModule :
         AssetRefEntry<T> entry;
         try
         {
-            var value = Import(metadata);
+            var value = Import(metadata, typeof(T));
             entry = new AssetRefEntry<T>(
                 metadata,
                 (T)value,
@@ -208,18 +275,24 @@ public sealed class AssetsModule :
                 $"Asset import failed, using fallback: {metadata.Path}");
         }
 
-        _loaded.Add(id, entry);
+        _loaded.Add(key, entry);
         metadata.IsLoaded = true;
         return entry.CreateReference();
     }
 
-    public bool IsLoaded(AssetId id) => _loaded.ContainsKey(id);
+    public bool IsLoaded(AssetId id) =>
+        _loaded.Keys.Any(key => key.Id == id);
 
     public void Reload(AssetId id)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
 
-        if (!_loaded.TryGetValue(id, out var assetRef))
+        var entries = _loaded
+            .Where(pair => pair.Key.Id == id)
+            .Select(pair => pair.Value)
+            .ToArray();
+
+        if (entries.Length == 0)
         {
             return;
         }
@@ -229,33 +302,53 @@ public sealed class AssetsModule :
             throw new KeyNotFoundException($"Unknown asset ID: {id}");
         }
 
-        object replacement;
-        try
+        var reloaded = false;
+
+        foreach (var assetRef in entries)
         {
-            replacement = Import(metadata);
-        }
-        catch (Exception exception)
-        {
-            assetRef.MarkFailed(exception);
-            throw;
+            object replacement;
+            try
+            {
+                replacement = Import(metadata, assetRef.ValueType);
+            }
+            catch (Exception exception)
+            {
+                assetRef.MarkFailed(exception);
+
+                if (assetRef.IsLoaded)
+                {
+                    Logger.Error(
+                        exception,
+                        $"Asset hot reload failed, keeping previous value: {metadata.Path} ({assetRef.ValueType.Name})");
+                    continue;
+                }
+
+                throw;
+            }
+
+            var previous = assetRef.Replace(replacement);
+            DisposeValue(previous);
+            reloaded = true;
         }
 
-        var previous = assetRef.Replace(replacement);
-        DisposeValue(previous);
-        Logger.Info($"Reloaded asset: {metadata.Path}");
+        if (reloaded)
+        {
+            NotifyConfigRefs(metadata.Path);
+            Logger.Info($"Reloaded asset: {metadata.Path}");
+        }
     }
 
     public void Unload<T>() where T : class
     {
         var assetType = typeof(T);
         var ids = _loaded
-            .Where(pair => pair.Value.ValueType == assetType)
+            .Where(pair => pair.Key.ValueType == assetType)
             .Select(pair => pair.Key)
             .ToArray();
 
-        foreach (var id in ids)
+        foreach (var key in ids)
         {
-            UnloadEntry(_loaded[id]);
+            UnloadEntry(_loaded[key]);
         }
     }
 
@@ -266,6 +359,7 @@ public sealed class AssetsModule :
         RegisterImporter<ShaderAsset>(new ShaderAssetImporter());
         RegisterImporter<TextureAsset>(new TextureAssetImporter());
         RegisterImporter<MaterialAsset>(new MaterialAssetImporter());
+        RegisterImporter<InputAsset>(new InputAssetImporter());
         RegisterImporter<ModelAsset>(new ModelAssetImporter());
         Logger.Info($"Assets directory: {AssetsDirectory}");
 
@@ -328,15 +422,39 @@ public sealed class AssetsModule :
         _pendingReloads.Clear();
     }
 
-    private object Import(AssetMetadata metadata)
+    private object Import(
+        AssetMetadata metadata,
+        Type assetType)
     {
-        if (!_importers.TryGetValue(metadata.AssetType, out var importer))
+        if (!_importers.TryGetValue(assetType, out var importer))
         {
             throw new InvalidOperationException(
-                $"No importer is registered for {metadata.AssetType.Name}.");
+                $"No importer is registered for {assetType.Name}.");
         }
 
         return importer.Import(metadata, _importContext);
+    }
+
+    private bool CanImportAs(
+        AssetMetadata metadata,
+        Type assetType)
+    {
+        if (metadata.AssetType == assetType)
+        {
+            return true;
+        }
+
+        if (!_importers.TryGetValue(assetType, out var importer))
+        {
+            return false;
+        }
+
+        var extension = NormalizeExtension(Path.GetExtension(metadata.Path));
+        return importer.Extensions.Any(value =>
+            string.Equals(
+                NormalizeExtension(value),
+                extension,
+                StringComparison.OrdinalIgnoreCase));
     }
 
     private static AssetRefEntry<T> Cast<T>(IAssetRefEntry assetRef) where T : class =>
@@ -348,7 +466,9 @@ public sealed class AssetsModule :
     private void ReleaseEntry<T>(AssetRefEntry<T> entry) where T : class
     {
         if (_disposed ||
-            !_loaded.TryGetValue(entry.Id, out var current) ||
+            !_loaded.TryGetValue(
+                new AssetLoadKey(entry.Id, entry.ValueType),
+                out var current) ||
             !ReferenceEquals(current, entry))
         {
             return;
@@ -359,12 +479,42 @@ public sealed class AssetsModule :
 
     private void UnloadEntry(IAssetRefEntry entry)
     {
-        _loaded.Remove(entry.Id);
-        entry.Metadata.IsLoaded = false;
+        _loaded.Remove(new AssetLoadKey(entry.Id, entry.ValueType));
+        entry.Metadata.IsLoaded = _loaded.Keys.Any(key => key.Id == entry.Id);
 
         var value = entry.ForceUnload();
         DisposeValue(value);
         Unloaded?.Invoke(entry.Id, entry.ValueType);
+    }
+
+    private void RegisterConfigRef(IConfigRef configRef)
+    {
+        if (!_configRefs.TryGetValue(configRef.Path, out var refs))
+        {
+            refs = [];
+            _configRefs.Add(configRef.Path, refs);
+        }
+
+        refs.Add(configRef);
+    }
+
+    private void UnregisterConfigRef(IConfigRef configRef)
+    {
+        if (!_configRefs.TryGetValue(configRef.Path, out var refs))
+            return;
+
+        refs.Remove(configRef);
+        if (refs.Count == 0)
+            _configRefs.Remove(configRef.Path);
+    }
+
+    private void NotifyConfigRefs(string path)
+    {
+        if (!_configRefs.TryGetValue(path, out var refs))
+            return;
+
+        foreach (var configRef in refs.ToArray())
+            configRef.NotifySourceChanged();
     }
 
     private static void DisposeValue(object? value)
@@ -414,4 +564,8 @@ public sealed class AssetsModule :
         _importers.Clear();
         _extensionTypes.Clear();
     }
+
+    private readonly record struct AssetLoadKey(
+        AssetId Id,
+        Type ValueType);
 }

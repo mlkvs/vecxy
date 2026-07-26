@@ -8,7 +8,7 @@ public sealed class TextAsset
 public sealed class TextAssetImporter : IAssetImporter<TextAsset>
 {
     public IReadOnlyCollection<string> Extensions { get; } =
-        [".txt", ".vert", ".frag"];
+        [".txt", ".vert", ".frag", ".yaml", ".yml", ".postfx"];
 
     public TextAsset Import(AssetMetadata metadata, AssetImportContext context) =>
         new()

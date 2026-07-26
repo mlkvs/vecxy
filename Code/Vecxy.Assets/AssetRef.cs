@@ -8,8 +8,9 @@ public sealed class AssetRef<T> : IDisposable where T : class
     public AssetMetadata Metadata => Entry.Metadata;
     public int Version => Entry.Version;
     public bool IsLoaded => _entry?.IsLoaded == true;
-    public bool HasError => Entry.Error is not null;
+    public bool HasError => Entry.HasError;
     public Exception? Error => Entry.Error;
+    public Exception? LastError => Entry.LastError;
     public T Value => Entry.Value;
 
     internal AssetRef(AssetRefEntry<T> entry)
@@ -42,6 +43,10 @@ internal interface IAssetRefEntry
     AssetMetadata Metadata { get; }
     Type ValueType { get; }
     int ReferenceCount { get; }
+    bool IsLoaded { get; }
+    bool HasError { get; }
+    Exception? Error { get; }
+    Exception? LastError { get; }
 
     object? Replace(object value);
     void MarkFailed(Exception exception);
@@ -60,7 +65,9 @@ internal sealed class AssetRefEntry<T> : IAssetRefEntry where T : class
     public int Version { get; private set; } = 1;
     public int ReferenceCount => _referenceCount;
     public bool IsLoaded => _value is not null;
+    public bool HasError => _value is null && Error is not null;
     public Exception? Error { get; private set; }
+    public Exception? LastError { get; private set; }
 
     public T Value =>
         _value ?? throw new InvalidOperationException(
@@ -84,6 +91,7 @@ internal sealed class AssetRefEntry<T> : IAssetRefEntry where T : class
     {
         Metadata = metadata;
         Error = error;
+        LastError = error;
         _onLastReferenceReleased = onLastReferenceReleased;
     }
 
@@ -132,6 +140,7 @@ internal sealed class AssetRefEntry<T> : IAssetRefEntry where T : class
         var previous = _value;
         _value = typedValue;
         Error = null;
+        LastError = null;
         Version++;
         return previous;
     }
@@ -139,7 +148,11 @@ internal sealed class AssetRefEntry<T> : IAssetRefEntry where T : class
     public void MarkFailed(Exception exception)
     {
         ArgumentNullException.ThrowIfNull(exception);
-        Error = exception;
+        LastError = exception;
+
+        if (_value is null)
+            Error = exception;
+
         Version++;
     }
 
