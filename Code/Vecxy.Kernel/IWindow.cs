@@ -14,6 +14,7 @@ public interface IWindow : IDisposable
 
     bool IsRunning { get; }
     bool IsFullscreen { get; }
+    bool IsCursorCaptured { get; }
     
     event Action<int, int>? Resized;
     event Action<KeyEvent>? KeyChanged;
@@ -26,5 +27,6 @@ public interface IWindow : IDisposable
     void MakeCurrent();
     void SwapBuffers();
     void ToggleFullscreen();
+    void SetCursorCaptured(bool captured);
     nint GetProcAddress(string name);
 }

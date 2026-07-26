@@ -16,8 +16,8 @@ public sealed class Window : IWindow
     public int Height => _instance.FramebufferSize.Y;
 
     public bool IsRunning => _initialized && !_instance.IsClosing;
-    public bool IsFullscreen =>
-        _instance.WindowState == WindowState.Fullscreen;
+    public bool IsFullscreen => _isFullscreen;
+    public bool IsCursorCaptured { get; private set; }
 
     public event Action<int, int>? Resized;
     public event Action<IWindow.KeyEvent>? KeyChanged;
@@ -27,9 +27,13 @@ public sealed class Window : IWindow
 
     private readonly Silk.NET.Windowing.IWindow _instance;
     private IInputContext? _input;
+    private IMouse? _primaryMouse;
     private Vector2D<int> _windowedSize;
+    private Vector2D<int> _windowedPosition;
+    private WindowState _windowedState = WindowState.Normal;
 
     private bool _initialized;
+    private bool _isFullscreen;
 
     public Window(IWindow.Options options)
     {
@@ -65,12 +69,15 @@ public sealed class Window : IWindow
 
         foreach (var mouse in _input.Mice)
         {
+            _primaryMouse ??= mouse;
             mouse.MouseDown += OnMouseDown;
             mouse.MouseUp += OnMouseUp;
             mouse.MouseMove += OnMouseMove;
             mouse.Scroll += OnMouseScroll;
         }
 
+        _windowedSize = _instance.Size;
+        _windowedPosition = _instance.Position;
         _initialized = true;
     }
 
@@ -82,19 +89,55 @@ public sealed class Window : IWindow
 
     public void ToggleFullscreen()
     {
-        if (_instance.WindowState == WindowState.Fullscreen)
+        if (_isFullscreen)
         {
             _instance.WindowState = WindowState.Normal;
+            if (_windowedState == WindowState.Maximized)
+                _instance.WindowState = WindowState.Maximized;
+
             _instance.Size = _windowedSize;
+            _instance.Position = _windowedPosition;
+            _isFullscreen = false;
         }
         else
         {
             _windowedSize = _instance.Size;
+            _windowedPosition = _instance.Position;
+            _windowedState = _instance.WindowState;
             _instance.WindowState = WindowState.Fullscreen;
+            _isFullscreen = true;
         }
 
         var framebufferSize = _instance.FramebufferSize;
         Resized?.Invoke(framebufferSize.X, framebufferSize.Y);
+    }
+
+    public void SetCursorCaptured(bool captured)
+    {
+        if (!_initialized)
+        {
+            IsCursorCaptured = captured;
+            return;
+        }
+
+        var cursor = _primaryMouse?.Cursor;
+        if (cursor is null)
+        {
+            IsCursorCaptured = false;
+            return;
+        }
+
+        var targetMode = captured
+            ? cursor.IsSupported(CursorMode.Disabled)
+                ? CursorMode.Disabled
+                : CursorMode.Hidden
+            : CursorMode.Normal;
+
+        if (!cursor.IsSupported(targetMode))
+            return;
+
+        cursor.CursorMode = targetMode;
+        IsCursorCaptured = captured;
     }
 
     public nint GetProcAddress(string name) =>
@@ -104,6 +147,7 @@ public sealed class Window : IWindow
     {
         try
         {
+            SetCursorCaptured(false);
             _input?.Dispose();
             _instance.Dispose();
         }
