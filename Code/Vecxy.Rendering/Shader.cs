@@ -50,6 +50,15 @@ public sealed class Shader : IDisposable
         }
     }
 
+    public void Set(string name, Vector3 value)
+    {
+        var location = GetUniformLocation(name);
+        if (location >= 0)
+        {
+            _device.GL.Uniform3(location, value.X, value.Y, value.Z);
+        }
+    }
+
     public void Set(string name, Vector4 value)
     {
         var location = GetUniformLocation(name);

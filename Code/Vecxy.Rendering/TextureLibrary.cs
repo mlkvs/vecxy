@@ -8,6 +8,7 @@ public sealed class TextureLibrary : IDisposable
     private readonly IAssetsManager _assets;
     private readonly GraphicsDevice _device;
     private readonly Dictionary<AssetId, Entry> _textures = [];
+    private Texture? _whiteTexture;
     private bool _disposed;
 
     public TextureLibrary(IAssetsManager assets, GraphicsDevice device)
@@ -52,6 +53,32 @@ public sealed class TextureLibrary : IDisposable
         return texture;
     }
 
+    public Texture Get(TextureAsset asset)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        ArgumentNullException.ThrowIfNull(asset);
+
+        var key = asset;
+        if (_embeddedTextures.TryGetValue(key, out var texture))
+            return texture;
+
+        texture = new Texture(_device, asset);
+        _embeddedTextures.Add(key, texture);
+        return texture;
+    }
+
+    public Texture GetWhite()
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+
+        if (_whiteTexture is not null)
+            return _whiteTexture;
+
+        ReadOnlySpan<byte> pixels = [255, 255, 255, 255];
+        _whiteTexture = new Texture(_device, 1, 1, pixels);
+        return _whiteTexture;
+    }
+
     private void OnAssetUnloaded(AssetId id, Type assetType)
     {
         if (assetType == typeof(TextureAsset) &&
@@ -76,7 +103,17 @@ public sealed class TextureLibrary : IDisposable
         }
 
         _textures.Clear();
+
+        foreach (var texture in _embeddedTextures.Values)
+            texture.Dispose();
+
+        _embeddedTextures.Clear();
+        _whiteTexture?.Dispose();
+        _whiteTexture = null;
     }
+
+    private readonly Dictionary<TextureAsset, Texture> _embeddedTextures =
+        new(ReferenceEqualityComparer.Instance);
 
     private sealed class Entry(int assetVersion, Texture texture)
     {

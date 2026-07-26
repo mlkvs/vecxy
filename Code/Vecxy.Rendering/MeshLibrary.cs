@@ -20,10 +20,13 @@ public sealed class MeshLibrary : IDisposable
     }
 
     public IReadOnlyList<Mesh> Get(
-        AssetRef<ModelAsset> asset,
+        Model model,
         int meshIndex)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
+        ArgumentNullException.ThrowIfNull(model);
+
+        var asset = model.Source;
 
         if (_models.TryGetValue(asset.Id, out var entry))
         {
@@ -33,7 +36,7 @@ public sealed class MeshLibrary : IDisposable
             return GetMesh(entry.Meshes, meshIndex, asset.Metadata.Path);
         }
 
-        var meshes = CreateMeshes(asset.Value);
+        var meshes = CreateMeshes(asset.Value, asset.Metadata.Path);
         entry = new Entry(asset.Version, meshes);
         _models.Add(asset.Id, entry);
         return GetMesh(meshes, meshIndex, asset.Metadata.Path);
@@ -45,7 +48,7 @@ public sealed class MeshLibrary : IDisposable
     {
         try
         {
-            var replacement = CreateMeshes(asset.Value);
+            var replacement = CreateMeshes(asset.Value, asset.Metadata.Path);
             var previous = entry.Meshes;
 
             entry.Meshes = replacement;
@@ -62,7 +65,9 @@ public sealed class MeshLibrary : IDisposable
         }
     }
 
-    private Mesh[][] CreateMeshes(ModelAsset asset)
+    private Mesh[][] CreateMeshes(
+        ModelAsset asset,
+        string path)
     {
         var result = new Mesh[asset.Meshes.Count][];
         var created = new List<Mesh>();
@@ -87,11 +92,19 @@ public sealed class MeshLibrary : IDisposable
                         PackVertices(primitive.Vertices);
                     var indices = primitive.Indices.ToArray();
 
+                    CalculateBounds(
+                        primitive.Vertices,
+                        out var boundsMin,
+                        out var boundsMax);
+
                     var mesh = new Mesh(
                         _device,
                         vertices,
                         indices,
                         8,
+                        boundsMin,
+                        boundsMax,
+                        $"{path} / Mesh {meshIndex} / Primitive {primitiveIndex}",
                         new VertexAttribute(0, 3, 0),
                         new VertexAttribute(1, 3, 3),
                         new VertexAttribute(2, 2, 6));
@@ -135,6 +148,26 @@ public sealed class MeshLibrary : IDisposable
         }
 
         return result;
+    }
+
+    private static void CalculateBounds(
+        IReadOnlyList<ModelVertex> vertices,
+        out System.Numerics.Vector3 min,
+        out System.Numerics.Vector3 max)
+    {
+        if (vertices.Count == 0)
+            throw new InvalidOperationException(
+                "Mesh primitive has no vertices.");
+
+        min = new System.Numerics.Vector3(float.MaxValue);
+        max = new System.Numerics.Vector3(float.MinValue);
+
+        for (var index = 0; index < vertices.Count; index++)
+        {
+            var position = vertices[index].Position;
+            min = System.Numerics.Vector3.Min(min, position);
+            max = System.Numerics.Vector3.Max(max, position);
+        }
     }
 
     private static IReadOnlyList<Mesh> GetMesh(

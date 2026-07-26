@@ -1,4 +1,5 @@
 using Silk.NET.OpenGL;
+using System.Numerics;
 
 namespace Vecxy.Rendering;
 
@@ -10,13 +11,41 @@ public sealed class Mesh : IDisposable
     private uint _indexBuffer;
     private bool _disposed;
 
+    public string Name { get; }
     public uint IndexCount { get; }
+    public Vector3 BoundsMin { get; }
+    public Vector3 BoundsMax { get; }
+    public Vector3 BoundsSize => BoundsMax - BoundsMin;
+    public Vector3 BoundsCenter => (BoundsMin + BoundsMax) * 0.5f;
 
     internal Mesh(
         GraphicsDevice device,
         ReadOnlySpan<float> vertices,
         ReadOnlySpan<uint> indices,
         int stride,
+        Vector3 boundsMin,
+        Vector3 boundsMax,
+        params VertexAttribute[] attributes)
+        : this(
+            device,
+            vertices,
+            indices,
+            stride,
+            boundsMin,
+            boundsMax,
+            null,
+            attributes)
+    {
+    }
+
+    internal Mesh(
+        GraphicsDevice device,
+        ReadOnlySpan<float> vertices,
+        ReadOnlySpan<uint> indices,
+        int stride,
+        Vector3 boundsMin,
+        Vector3 boundsMax,
+        string? name,
         params VertexAttribute[] attributes)
     {
         ArgumentNullException.ThrowIfNull(device);
@@ -40,7 +69,10 @@ public sealed class Mesh : IDisposable
                 nameof(attributes));
 
         _device = device;
+        Name = string.IsNullOrWhiteSpace(name) ? "Mesh" : name;
         IndexCount = checked((uint)indices.Length);
+        BoundsMin = boundsMin;
+        BoundsMax = boundsMax;
 
         CreateBuffers(vertices, indices, stride, attributes);
     }

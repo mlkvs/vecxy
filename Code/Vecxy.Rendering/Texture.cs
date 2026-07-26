@@ -10,24 +10,37 @@ public sealed class Texture : IDisposable
     private bool _disposed;
 
     internal unsafe Texture(GraphicsDevice device, TextureAsset asset)
+        : this(
+            device,
+            asset.Width,
+            asset.Height,
+            asset.Pixels)
+    {
+    }
+
+    internal unsafe Texture(
+        GraphicsDevice device,
+        int width,
+        int height,
+        ReadOnlySpan<byte> pixels)
     {
         _device = device;
         var gl = device.GL;
         _handle = gl.GenTexture();
         gl.BindTexture(TextureTarget.Texture2D, _handle);
 
-        fixed (byte* pixels = asset.Pixels)
+        fixed (byte* pixelsPointer = pixels)
         {
             gl.TexImage2D(
                 TextureTarget.Texture2D,
                 0,
                 InternalFormat.Rgba8,
-                (uint)asset.Width,
-                (uint)asset.Height,
+                (uint)width,
+                (uint)height,
                 0,
                 PixelFormat.Rgba,
                 PixelType.UnsignedByte,
-                pixels);
+                pixelsPointer);
         }
 
         gl.TexParameter(
