@@ -11,6 +11,7 @@ namespace Vecxy.Rendering;
 public interface IRenderer
 {
     RenderingStatistics Statistics { get; }
+    bool Wireframe { get; set; }
 
     GameView CreateGameView(
         IRenderTarget? target = null);
@@ -18,33 +19,59 @@ public interface IRenderer
     void DestroyGameView(GameView view);
 
     Mesh CreateQuad();
+}
 
-    SceneObject SpawnModel(
+public interface ISceneInstantiator
+{
+    SceneObject InstantiateModel(
         Vecxy.Scene.Scene scene,
-        AssetRef<ModelAsset> model,
-        AssetRef<MaterialAsset> material,
-        string? name = null);
+        Model model,
+        string? name = null,
+        Material? fallbackMaterial = null);
+}
+
+public interface IMeshResolver
+{
+    IReadOnlyList<Mesh> GetMeshes(Model model, int meshIndex);
+}
+
+public interface IRenderOverlayStage
+{
+    void RegisterOverlay(Action draw);
+    void UnregisterOverlay(Action draw);
 }
 
 public sealed class RenderingModule(
+    IAssetsManager assets,
     GraphicsDevice device,
     BackbufferRenderTarget backbuffer,
+    ShaderLibrary shaders,
     MaterialLibrary materials,
     MeshLibrary meshes,
     RenderingStatistics statistics,
-    ImGuiOverlay overlay,
     ISceneManager scenes)
     :
         IModule,
         IModule.IUpdatable,
         IModule.IRenderable,
-        IRenderer
+        IRenderer,
+        ISceneInstantiator,
+        IMeshResolver,
+        IRenderOverlayStage
 {
+    private const int MaxPointLights = 8;
+    private const int MaxSpotLights = 8;
+
     public sealed class Definition :
         AModuleDefinition<RenderingModule>
     {
         protected override IReadOnlyList<Type> Exports =>
-            [typeof(IRenderer)];
+            [
+                typeof(IRenderer),
+                typeof(ISceneInstantiator),
+                typeof(IMeshResolver),
+                typeof(IRenderOverlayStage)
+            ];
 
         protected override void RegisterModule(
             ContainerBuilder builder)
@@ -95,22 +122,40 @@ public sealed class RenderingModule(
                 .AsSelf()
                 .SingleInstance();
 
-            builder
-                .RegisterType<ImGuiOverlay>()
-                .AsSelf()
-                .SingleInstance();
         }
     }
 
+    private readonly List<Action> _overlayCallbacks = [];
     private readonly List<GameView> _views = [];
+    private AssetRef<ShaderAsset>? _litShader;
+    private AssetRef<ShaderAsset>? _skyboxShader;
+    private AssetRef<ShaderAsset>? _copyPostShader;
+    private SceneRenderTarget? _sceneTarget;
+    private SceneRenderTarget? _postProcessTargetA;
+    private SceneRenderTarget? _postProcessTargetB;
+    private Mesh? _fullscreenQuad;
+    private Mesh? _skyboxCube;
+    private SkyboxRuntime? _skybox;
+    private float _time;
 
     public RenderingStatistics Statistics => statistics;
+    public bool Wireframe { get; set; }
 
     public void OnInitialize()
     {
+        assets.RegisterImporter<Model>(new ModelImporter());
+        assets.RegisterImporter<Material>(new MaterialImporter());
+        _litShader = assets.Load<ShaderAsset>("Shaders/Lit.glsl");
+        _skyboxShader = assets.Load<ShaderAsset>("Shaders/Skybox.glsl");
+        _copyPostShader = assets.Load<ShaderAsset>("Shaders/PostProcessing/Copy.glsl");
+        _sceneTarget = new SceneRenderTarget(device);
+        _postProcessTargetA = new SceneRenderTarget(device);
+        _postProcessTargetB = new SceneRenderTarget(device);
+        _fullscreenQuad = CreateQuad();
+        _skyboxCube = CreateSkyboxCube();
+        _skybox = new SkyboxRuntime();
         device.GL.Enable(EnableCap.DepthTest);
         device.GL.DepthFunc(DepthFunction.Less);
-        overlay.Initialize();
     }
 
     public void OnUpdate(float deltaTime)
@@ -122,11 +167,15 @@ public sealed class RenderingModule(
         statistics.BeginFrame(
             deltaTime,
             activeViews);
-        overlay.BeginFrame(deltaTime);
+        _time += deltaTime;
     }
 
     public void OnRender()
     {
+        device.GL.PolygonMode(
+            TriangleFace.FrontAndBack,
+            Wireframe ? PolygonMode.Line : PolygonMode.Fill);
+
         var presentedTargets = new HashSet<IRenderTarget>();
 
         RenderSubmittedViews(presentedTargets);
@@ -136,7 +185,10 @@ public sealed class RenderingModule(
 
         backbuffer.Bind(device);
         device.GL.Disable(EnableCap.DepthTest);
-        overlay.Render(statistics);
+
+        foreach (var draw in _overlayCallbacks.ToArray())
+            draw();
+
         presentedTargets.Add(backbuffer);
 
         foreach (var target in presentedTargets)
@@ -158,6 +210,20 @@ public sealed class RenderingModule(
         view.Clear();
     }
 
+    public void RegisterOverlay(Action draw)
+    {
+        ArgumentNullException.ThrowIfNull(draw);
+
+        if (!_overlayCallbacks.Contains(draw))
+            _overlayCallbacks.Add(draw);
+    }
+
+    public void UnregisterOverlay(Action draw)
+    {
+        ArgumentNullException.ThrowIfNull(draw);
+        _overlayCallbacks.Remove(draw);
+    }
+
     public Mesh CreateQuad()
     {
         ReadOnlySpan<float> vertices =
@@ -176,47 +242,68 @@ public sealed class RenderingModule(
             vertices,
             indices,
             4,
+            new Vector3(-0.5f, -0.5f, 0.0f),
+            new Vector3(0.5f, 0.5f, 0.0f),
+            "Fullscreen Quad",
             new VertexAttribute(0, 2, 0),
             new VertexAttribute(1, 2, 2));
     }
 
-    public SceneObject SpawnModel(
+    private Mesh CreateSkyboxCube()
+    {
+        ReadOnlySpan<float> vertices =
+        [
+            -1.0f,  1.0f, -1.0f,
+            -1.0f, -1.0f, -1.0f,
+             1.0f, -1.0f, -1.0f,
+             1.0f,  1.0f, -1.0f,
+            -1.0f,  1.0f,  1.0f,
+            -1.0f, -1.0f,  1.0f,
+             1.0f, -1.0f,  1.0f,
+             1.0f,  1.0f,  1.0f
+        ];
+
+        ReadOnlySpan<uint> indices =
+        [
+            0, 1, 2, 2, 3, 0,
+            3, 2, 6, 6, 7, 3,
+            7, 6, 5, 5, 4, 7,
+            4, 5, 1, 1, 0, 4,
+            4, 0, 3, 3, 7, 4,
+            1, 5, 6, 6, 2, 1
+        ];
+
+        return new Mesh(
+            device,
+            vertices,
+            indices,
+            3,
+            new Vector3(-1.0f),
+            new Vector3(1.0f),
+            "Skybox Cube",
+            new VertexAttribute(0, 3, 0));
+    }
+
+    public SceneObject InstantiateModel(
         Vecxy.Scene.Scene scene,
-        AssetRef<ModelAsset> model,
-        AssetRef<MaterialAsset> material,
-        string? name = null)
+        Model model,
+        string? name = null,
+        Material? fallbackMaterial = null)
     {
         ArgumentNullException.ThrowIfNull(scene);
         ArgumentNullException.ThrowIfNull(model);
-        ArgumentNullException.ThrowIfNull(material);
-
-        if (model.HasError)
-        {
-            throw new InvalidOperationException(
-                $"Cannot spawn failed model '{model.Metadata.Path}'.",
-                model.Error);
-        }
-
-        var asset = model.Value;
         var rootName = string.IsNullOrWhiteSpace(name)
             ? Path.GetFileNameWithoutExtension(
-                model.Metadata.Path)
+                model.Source.Metadata.Path)
             : name;
         var root = scene.CreateObject(rootName);
 
         try
         {
-            foreach (var rootNode in asset.RootNodes)
-            {
-                SpawnNode(
-                    scene,
-                    root,
-                    model,
-                    material,
-                    asset,
-                    rootNode);
-            }
-
+            BuildModelHierarchy(
+                root,
+                model,
+                fallbackMaterial);
             return root;
         }
         catch
@@ -226,15 +313,39 @@ public sealed class RenderingModule(
         }
     }
 
-    private static void SpawnNode(
+    public IReadOnlyList<Mesh> GetMeshes(Model model, int meshIndex)
+    {
+        ArgumentNullException.ThrowIfNull(model);
+        return meshes.Get(model, meshIndex);
+    }
+
+    internal void BuildModelHierarchy(
+        SceneObject root,
+        Model model,
+        Material? fallbackMaterial)
+    {
+        ArgumentNullException.ThrowIfNull(root);
+        ArgumentNullException.ThrowIfNull(model);
+
+        foreach (var rootNode in model.RootNodes)
+        {
+            SpawnNode(
+                root.Scene,
+                root,
+                model,
+                fallbackMaterial,
+                rootNode);
+        }
+    }
+
+    private void SpawnNode(
         Vecxy.Scene.Scene scene,
         SceneObject parent,
-        AssetRef<ModelAsset> model,
-        AssetRef<MaterialAsset> material,
-        ModelAsset asset,
+        Model model,
+        Material? fallbackMaterial,
         int nodeIndex)
     {
-        var node = asset.Nodes[nodeIndex];
+        var node = model.Nodes[nodeIndex];
         var sceneObject = scene.CreateObject(node.Name);
         sceneObject.SetParent(
             parent,
@@ -244,12 +355,75 @@ public sealed class RenderingModule(
 
         if (node.MeshIndex is { } meshIndex)
         {
-            var renderer =
-                sceneObject.AddComponent<MeshRenderer>();
-            renderer.SetMesh(
-                model,
-                meshIndex,
-                material);
+            var primitiveMeshes =
+                meshes.Get(model, meshIndex);
+
+            if (primitiveMeshes.Count == 1)
+            {
+                var renderer =
+                    sceneObject.AddComponent<MeshRenderer>();
+                renderer.SetMesh(
+                    primitiveMeshes[0],
+                    ResolveMaterial(
+                        model,
+                        meshIndex,
+                        0,
+                        fallbackMaterial));
+            }
+            else
+            {
+                for (var primitiveIndex = 0;
+                     primitiveIndex < primitiveMeshes.Count;
+                     primitiveIndex++)
+                {
+                    var primitiveObject =
+                        scene.CreateObject(
+                            $"{node.Name} Primitive {primitiveIndex}");
+                    primitiveObject.SetParent(
+                        sceneObject,
+                        worldPositionStays: false);
+
+                    var renderer =
+                        primitiveObject.AddComponent<MeshRenderer>();
+                    renderer.SetMesh(
+                        primitiveMeshes[primitiveIndex],
+                        ResolveMaterial(
+                            model,
+                            meshIndex,
+                            primitiveIndex,
+                            fallbackMaterial));
+                }
+            }
+        }
+
+        if (node.LightIndex is { } lightIndex)
+        {
+            var light = model.Lights[lightIndex];
+
+            switch (light.Kind)
+            {
+                case EModelLightKind.Point:
+                {
+                    var pointLight =
+                        sceneObject.AddComponent<PointLight>();
+                    pointLight.Color = light.Color;
+                    pointLight.Intensity = light.Intensity;
+                    pointLight.Range = light.Range;
+                    break;
+                }
+
+                case EModelLightKind.Spot:
+                {
+                    var spotLight =
+                        sceneObject.AddComponent<SpotLight>();
+                    spotLight.Color = light.Color;
+                    spotLight.Intensity = light.Intensity;
+                    spotLight.Range = light.Range;
+                    spotLight.InnerConeAngle = light.InnerConeAngle;
+                    spotLight.OuterConeAngle = light.OuterConeAngle;
+                    break;
+                }
+            }
         }
 
         foreach (var childIndex in node.Children)
@@ -258,10 +432,83 @@ public sealed class RenderingModule(
                 scene,
                 sceneObject,
                 model,
-                material,
-                asset,
+                fallbackMaterial,
                 childIndex);
         }
+    }
+
+    private Material ResolveMaterial(
+        Model model,
+        int meshIndex,
+        int primitiveIndex,
+        Material? fallbackMaterial)
+    {
+        if (_litShader is null)
+            return CloneFallback(fallbackMaterial) ?? CreateDefaultMaterial(model);
+
+        if (meshIndex < 0 || meshIndex >= model.Meshes.Count)
+            return CloneFallback(fallbackMaterial) ?? CreateDefaultMaterial(model);
+
+        var primitives = model.Meshes[meshIndex].Primitives;
+        if (primitiveIndex < 0 || primitiveIndex >= primitives.Count)
+            return CloneFallback(fallbackMaterial) ?? CreateDefaultMaterial(model);
+
+        var materialIndex = primitives[primitiveIndex].MaterialIndex;
+        if (materialIndex is null ||
+            materialIndex < 0 ||
+            materialIndex >= model.Materials.Count)
+        {
+            return CloneFallback(fallbackMaterial) ?? CreateDefaultMaterial(model);
+        }
+
+        var source = model.Materials[materialIndex.Value];
+        var parameters =
+            new Dictionary<string, Vecxy.Assets.MaterialParameter>(
+            StringComparer.Ordinal)
+        {
+            ["uColor"] = new VectorMaterialParameter(source.BaseColor),
+            ["uTint"] = new VectorMaterialParameter(Vector4.One)
+        };
+
+        if (source.BaseColorTexture is not null)
+        {
+            parameters["uTexture"] =
+                new EmbeddedTextureMaterialParameter(
+                    source.BaseColorTexture);
+        }
+
+        return new Material(
+            _litShader,
+            parameters,
+            $"{model.Source.Metadata.Path}::{source.Name}",
+            source.BaseColor.W < 0.999f
+                ? EMaterialSurface.Transparent
+                : EMaterialSurface.Opaque);
+    }
+
+    private Material CreateDefaultMaterial(Model model)
+    {
+        if (_litShader is null)
+            throw new InvalidOperationException(
+                "Default material cannot be created because Lit shader is unavailable.");
+
+        var parameters =
+            new Dictionary<string, Vecxy.Assets.MaterialParameter>(
+                StringComparer.Ordinal)
+            {
+                ["uColor"] = new VectorMaterialParameter(Vector4.One),
+                ["uTint"] = new VectorMaterialParameter(Vector4.One)
+            };
+
+        return new Material(
+            _litShader,
+            parameters,
+            $"{model.Source.Metadata.Path}::Default");
+    }
+
+    private static Material? CloneFallback(Material? material)
+    {
+        return material?.Clone();
     }
 
     private void RenderSubmittedViews(
@@ -293,10 +540,8 @@ public sealed class RenderingModule(
                          .Where(item => item.Enabled)
                          .OrderBy(item => item.Phase))
             {
-                var material =
-                    materials.Get(item.Material);
                 var shader =
-                    material.Bind(item.Material);
+                    materials.Bind(item.Material);
                 shader.Set(
                     "uTransform",
                     item.Transform * viewTransform);
@@ -316,7 +561,9 @@ public sealed class RenderingModule(
         if (scene is null || camera is null)
             return false;
 
-        backbuffer.Bind(device);
+        _sceneTarget ??= new SceneRenderTarget(device);
+        _sceneTarget.EnsureSize(backbuffer.Width, backbuffer.Height);
+        _sceneTarget.Bind(device);
         device.GL.Enable(EnableCap.DepthTest);
         device.GL.DepthMask(true);
         device.GL.ClearColor(
@@ -328,12 +575,15 @@ public sealed class RenderingModule(
             ClearBufferMask.ColorBufferBit |
             ClearBufferMask.DepthBufferBit);
 
+        DrawSkybox(camera, scene.Lighting.Skybox);
+
         var aspectRatio =
             Math.Max(1, backbuffer.Width) /
             (float)Math.Max(1, backbuffer.Height);
         var viewProjection =
             camera.ViewMatrix *
             camera.GetProjectionMatrix(aspectRatio);
+        var lighting = CollectLighting(scene);
 
         var renderers = scene.Objects
             .Where(sceneObject => sceneObject.IsActive)
@@ -345,50 +595,430 @@ public sealed class RenderingModule(
                     IsActive: true,
                     IsConfigured: true
                 })
-            .OrderBy(renderer => renderer!.Phase);
+            .Select(renderer => renderer!)
+            .ToArray();
 
-        foreach (var renderer in renderers)
+        foreach (var renderer in renderers
+                     .Where(renderer => GetEffectiveRenderPhase(renderer) != ERenderPhase.Transparent)
+                     .OrderBy(GetEffectiveRenderPhase))
         {
-            Draw(renderer!, viewProjection);
+            Draw(renderer, camera, viewProjection, lighting);
         }
+
+        foreach (var renderer in renderers
+                     .Where(renderer => GetEffectiveRenderPhase(renderer) == ERenderPhase.Transparent)
+                     .OrderByDescending(renderer =>
+                         Vector3.DistanceSquared(
+                             renderer.Transform.WorldPosition,
+                             camera.Transform.WorldPosition)))
+        {
+            Draw(renderer, camera, viewProjection, lighting);
+        }
+
+        PresentScene(camera);
 
         return true;
     }
 
-    private void Draw(
-        MeshRenderer renderer,
-        Matrix4x4 viewProjection)
+    private void DrawSkybox(
+        Camera camera,
+        SceneSkyboxSettings settings)
     {
-        if (!renderer.Model.IsLoaded)
+        if (!settings.Enabled ||
+            !settings.HasAllFaces ||
+            _skyboxCube is null ||
+            _skyboxShader is null ||
+            _skyboxShader.HasError)
+        {
+            return;
+        }
+
+        var cubemap = _skybox?.Resolve(
+            assets,
+            device,
+            settings);
+
+        if (cubemap is null)
             return;
 
+        var shader = shaders.Get(_skyboxShader);
+        var view = camera.ViewMatrix;
+        view.M41 = 0.0f;
+        view.M42 = 0.0f;
+        view.M43 = 0.0f;
+
+        var aspectRatio =
+            Math.Max(1, backbuffer.Width) /
+            (float)Math.Max(1, backbuffer.Height);
+        var viewProjection =
+            view *
+            camera.GetProjectionMatrix(aspectRatio);
+
+        device.GL.DepthMask(false);
+        device.GL.DepthFunc(DepthFunction.Lequal);
+
+        shader.Bind();
+        cubemap.Bind(0);
+        shader.Set("uSkybox", 0);
+        shader.Set("uSkyboxRotation", CreateSkyboxRotation(settings.Rotation));
+        shader.Set("uViewProjection", viewProjection);
+        shader.Set("uSkyboxTint", settings.Tint);
+        shader.Set("uSkyboxExposure", settings.Exposure);
+        _skyboxCube.Draw();
+        statistics.RecordDraw();
+
+        device.GL.DepthFunc(DepthFunction.Less);
+        device.GL.DepthMask(true);
+    }
+
+    private static Matrix4x4 CreateSkyboxRotation(Vector3 rotationDegrees)
+    {
+        const float degToRad = MathF.PI / 180.0f;
+        return Matrix4x4.CreateFromYawPitchRoll(
+            rotationDegrees.Y * degToRad,
+            rotationDegrees.X * degToRad,
+            rotationDegrees.Z * degToRad);
+    }
+
+    private void PresentScene(Camera camera)
+    {
+        if (_sceneTarget is null ||
+            _postProcessTargetA is null ||
+            _postProcessTargetB is null ||
+            _fullscreenQuad is null)
+        {
+            return;
+        }
+
+        var effects = GetActivePostProcessEffects(camera);
+        if (effects.Length == 0)
+        {
+            DrawPostProcessPass(
+                ResolveCopyPostProcessShader(),
+                _sceneTarget,
+                backbuffer,
+                camera,
+                null);
+            return;
+        }
+
+        _postProcessTargetA.EnsureSize(backbuffer.Width, backbuffer.Height);
+        _postProcessTargetB.EnsureSize(backbuffer.Width, backbuffer.Height);
+
+        SceneRenderTarget input = _sceneTarget;
+        SceneRenderTarget output = _postProcessTargetA;
+
+        for (var index = 0; index < effects.Length; index++)
+        {
+            var effect = effects[index];
+            var shader = shaders.Get(effect.GetShaderAsset(assets));
+            var isLast = index == effects.Length - 1;
+
+            if (isLast)
+            {
+                DrawPostProcessPass(
+                    shader,
+                    input,
+                    backbuffer,
+                    camera,
+                    effect);
+                break;
+            }
+
+            DrawPostProcessPass(
+                shader,
+                input,
+                output,
+                camera,
+                effect);
+
+            if (ReferenceEquals(output, _postProcessTargetA))
+            {
+                input = _postProcessTargetA;
+                output = _postProcessTargetB;
+            }
+            else
+            {
+                input = _postProcessTargetB;
+                output = _postProcessTargetA;
+            }
+        }
+    }
+
+    private Shader ResolveCopyPostProcessShader()
+    {
+        return _copyPostShader is { HasError: false }
+            ? shaders.Get(_copyPostShader)
+            : shaders.GetFallback();
+    }
+
+    private void DrawPostProcessPass(
+        Shader shader,
+        SceneRenderTarget input,
+        IRenderTarget output,
+        Camera camera,
+        APostProcessEffect? effect)
+    {
+        output.Bind(device);
+        device.GL.Disable(EnableCap.DepthTest);
+        device.GL.DepthMask(false);
+        device.GL.ClearColor(
+            camera.ClearColor.X,
+            camera.ClearColor.Y,
+            camera.ClearColor.Z,
+            camera.ClearColor.W);
+        device.GL.Clear(ClearBufferMask.ColorBufferBit);
+
+        shader.Bind();
+        input.BindColorTexture(0);
+        shader.Set("uSceneTexture", 0);
+
+        var context = new PostProcessContext(
+            new Vector2(backbuffer.Width, backbuffer.Height),
+            _time,
+            camera);
+
+        shader.Set("uResolution", context.Resolution);
+        shader.Set("uTime", context.Time);
+
+        effect?.Apply(shader, context);
+
+        shader.Set(
+            "uTransform",
+            Matrix4x4.CreateScale(2.0f, 2.0f, 1.0f));
+        _fullscreenQuad!.Draw();
+        statistics.RecordDraw();
+        device.GL.DepthMask(true);
+    }
+
+    private APostProcessEffect[] GetActivePostProcessEffects(
+        Camera camera)
+    {
+        if (!camera.UsePostProcessing)
+            return [];
+
+        var postProcessing = FindActivePostProcessing();
+        if (postProcessing is null)
+            return [];
+
+        return postProcessing.EnumerateEffects()
+            .Where(effect => effect.Enabled)
+            .OrderBy(effect => effect.Order)
+            .ToArray();
+    }
+
+    private void Draw(
+        MeshRenderer renderer,
+        Camera camera,
+        Matrix4x4 viewProjection,
+        SceneLighting lighting)
+    {
         try
         {
             var modelTransform =
                 renderer.Transform.WorldMatrix;
-            var material =
-                materials.Get(renderer.Material);
+            ApplyMaterialState(renderer.Material);
             var shader =
-                material.Bind(renderer.Material);
+                materials.Bind(renderer.Material);
 
+            ApplyLighting(shader, camera, lighting);
             shader.Set("uModel", modelTransform);
             shader.Set(
                 "uTransform",
                 modelTransform * viewProjection);
 
-            foreach (var mesh in meshes.Get(
-                         renderer.Model,
-                         renderer.MeshIndex))
-            {
-                mesh.Draw();
-                statistics.RecordDraw();
-            }
+            renderer.Mesh.Draw();
+            statistics.RecordDraw();
         }
         catch (Exception exception)
         {
             Logger.Error(
                 exception,
                 $"Could not render '{renderer.SceneObject?.Name ?? "destroyed object"}'.");
+        }
+    }
+
+    private void ApplyMaterialState(Material material)
+    {
+        switch (material.Surface)
+        {
+            case EMaterialSurface.Transparent:
+                device.GL.Enable(EnableCap.Blend);
+                device.GL.BlendFunc(
+                    BlendingFactor.SrcAlpha,
+                    BlendingFactor.OneMinusSrcAlpha);
+                device.GL.DepthMask(false);
+                break;
+
+            case EMaterialSurface.Cutout:
+            case EMaterialSurface.Opaque:
+            default:
+                device.GL.Disable(EnableCap.Blend);
+                device.GL.DepthMask(true);
+                break;
+        }
+    }
+
+    private static ERenderPhase GetEffectiveRenderPhase(MeshRenderer renderer)
+    {
+        return renderer.Material.Surface == EMaterialSurface.Transparent
+            ? ERenderPhase.Transparent
+            : renderer.Phase;
+    }
+
+    private static SceneLighting CollectLighting(
+        Vecxy.Scene.Scene scene)
+    {
+        var pointLights = new List<PointLightData>(MaxPointLights);
+        var spotLights = new List<SpotLightData>(MaxSpotLights);
+        FogData? fog = scene.Lighting.Fog.Enabled
+            ? CreateFogData(scene.Lighting.Fog)
+            : null;
+
+        foreach (var sceneObject in scene.Objects)
+        {
+            if (!sceneObject.IsActive)
+                continue;
+
+            if (pointLights.Count < MaxPointLights &&
+                sceneObject.GetComponent<PointLight>() is
+                { IsActive: true } pointLight)
+            {
+                pointLights.Add(
+                    new PointLightData(
+                        pointLight.Transform.WorldPosition,
+                        pointLight.Color,
+                        pointLight.Intensity,
+                        pointLight.Range));
+            }
+
+            if (spotLights.Count < MaxSpotLights &&
+                sceneObject.GetComponent<SpotLight>() is
+                { IsActive: true } spotLight)
+            {
+                spotLights.Add(
+                    new SpotLightData(
+                        spotLight.Transform.WorldPosition,
+                        Vector3.Normalize(spotLight.Transform.Forward),
+                        spotLight.Color,
+                        spotLight.Intensity,
+                        spotLight.Range,
+                        MathF.Cos(spotLight.InnerConeAngle),
+                        MathF.Cos(spotLight.OuterConeAngle)));
+            }
+        }
+
+        return new SceneLighting(
+            pointLights.ToArray(),
+            spotLights.ToArray(),
+            fog);
+    }
+
+    private static FogData CreateFogData(SceneFogSettings fog)
+    {
+        return new FogData(
+            fog.Mode,
+            fog.Color,
+            fog.StartDistance,
+            fog.EndDistance,
+            fog.Density,
+            fog.HeightEnabled,
+            fog.Height,
+            fog.HeightFalloff,
+            fog.VolumetricStrength);
+    }
+
+    private static void ApplyLighting(
+        Shader shader,
+        Camera camera,
+        SceneLighting lighting)
+    {
+        var ambient =
+            lighting.PointLights.Length == 0 &&
+            lighting.SpotLights.Length == 0
+                ? new Vector3(0.18f)
+                : new Vector3(0.015f);
+
+        shader.Set(
+            "uCameraPosition",
+            camera.Transform.WorldPosition);
+        shader.Set("uAmbientColor", ambient);
+        shader.Set("uExposure", 0.0025f);
+
+        if (lighting.Fog is { } fog)
+        {
+            shader.Set("uFogEnabled", 1);
+            shader.Set("uFogMode", fog.Mode == EFogMode.Linear ? 0 : 1);
+            shader.Set("uFogColor", fog.Color);
+            shader.Set("uFogStart", fog.StartDistance);
+            shader.Set("uFogEnd", fog.EndDistance);
+            shader.Set("uFogDensity", fog.Density);
+            shader.Set("uHeightFogEnabled", fog.HeightFogEnabled ? 1 : 0);
+            shader.Set("uFogHeight", fog.Height);
+            shader.Set("uFogHeightFalloff", fog.HeightFalloff);
+            shader.Set("uFogVolumetricStrength", fog.VolumetricStrength);
+        }
+        else
+        {
+            shader.Set("uFogEnabled", 0);
+            shader.Set("uFogMode", 0);
+            shader.Set("uFogColor", Vector3.Zero);
+            shader.Set("uFogStart", 0.0f);
+            shader.Set("uFogEnd", 1.0f);
+            shader.Set("uFogDensity", 0.0f);
+            shader.Set("uHeightFogEnabled", 0);
+            shader.Set("uFogHeight", 0.0f);
+            shader.Set("uFogHeightFalloff", 0.0f);
+            shader.Set("uFogVolumetricStrength", 0.0f);
+        }
+
+        shader.Set(
+            "uPointLightCount",
+            lighting.PointLights.Length);
+        for (var index = 0; index < lighting.PointLights.Length; index++)
+        {
+            var light = lighting.PointLights[index];
+            shader.Set(
+                $"uPointLights[{index}].position",
+                light.Position);
+            shader.Set(
+                $"uPointLights[{index}].color",
+                light.Color);
+            shader.Set(
+                $"uPointLights[{index}].intensity",
+                light.Intensity);
+            shader.Set(
+                $"uPointLights[{index}].range",
+                light.Range);
+        }
+
+        shader.Set(
+            "uSpotLightCount",
+            lighting.SpotLights.Length);
+        for (var index = 0; index < lighting.SpotLights.Length; index++)
+        {
+            var light = lighting.SpotLights[index];
+            shader.Set(
+                $"uSpotLights[{index}].position",
+                light.Position);
+            shader.Set(
+                $"uSpotLights[{index}].direction",
+                light.Direction);
+            shader.Set(
+                $"uSpotLights[{index}].color",
+                light.Color);
+            shader.Set(
+                $"uSpotLights[{index}].intensity",
+                light.Intensity);
+            shader.Set(
+                $"uSpotLights[{index}].range",
+                light.Range);
+            shader.Set(
+                $"uSpotLights[{index}].innerConeCos",
+                light.InnerConeCos);
+            shader.Set(
+                $"uSpotLights[{index}].outerConeCos",
+                light.OuterConeCos);
         }
     }
 
@@ -409,17 +1039,306 @@ public sealed class RenderingModule(
             .FirstOrDefault();
     }
 
+    private PostProcessing? FindActivePostProcessing()
+    {
+        var scene = scenes.ActiveScene;
+        if (scene is null)
+            return null;
+
+        return scene.Objects
+            .Where(sceneObject => sceneObject.IsActive)
+            .Select(sceneObject => sceneObject.GetComponent<PostProcessing>())
+            .FirstOrDefault(component => component is { IsActive: true });
+    }
+
     public void OnShutdown()
     {
         foreach (var view in _views)
             view.Clear();
 
         _views.Clear();
+        _overlayCallbacks.Clear();
+        assets.UnregisterImporter<Model>();
+        assets.UnregisterImporter<Material>();
+        _litShader?.Dispose();
+        _litShader = null;
+        _skyboxShader?.Dispose();
+        _skyboxShader = null;
+        _copyPostShader?.Dispose();
+        _copyPostShader = null;
+        _sceneTarget?.Dispose();
+        _sceneTarget = null;
+        _postProcessTargetA?.Dispose();
+        _postProcessTargetA = null;
+        _postProcessTargetB?.Dispose();
+        _postProcessTargetB = null;
+        _fullscreenQuad?.Dispose();
+        _fullscreenQuad = null;
+        _skyboxCube?.Dispose();
+        _skyboxCube = null;
+        _skybox?.Dispose();
+        _skybox = null;
         meshes.Dispose();
         materials.Clear();
     }
 
     public void Dispose()
     {
+    }
+
+    private readonly record struct SceneLighting(
+        PointLightData[] PointLights,
+        SpotLightData[] SpotLights,
+        FogData? Fog);
+
+    private readonly record struct PointLightData(
+        Vector3 Position,
+        Vector3 Color,
+        float Intensity,
+        float Range);
+
+    private readonly record struct SpotLightData(
+        Vector3 Position,
+        Vector3 Direction,
+        Vector3 Color,
+        float Intensity,
+        float Range,
+        float InnerConeCos,
+        float OuterConeCos);
+
+    private readonly record struct FogData(
+        EFogMode Mode,
+        Vector3 Color,
+        float StartDistance,
+        float EndDistance,
+        float Density,
+        bool HeightFogEnabled,
+        float Height,
+        float HeightFalloff,
+        float VolumetricStrength);
+
+    private sealed class SkyboxRuntime : IDisposable
+    {
+        private string? _positiveX;
+        private string? _negativeX;
+        private string? _positiveY;
+        private string? _negativeY;
+        private string? _positiveZ;
+        private string? _negativeZ;
+        private AssetRef<TextureAsset>? _px;
+        private AssetRef<TextureAsset>? _nx;
+        private AssetRef<TextureAsset>? _py;
+        private AssetRef<TextureAsset>? _ny;
+        private AssetRef<TextureAsset>? _pz;
+        private AssetRef<TextureAsset>? _nz;
+        private CubemapTexture? _cubemap;
+        private int _pxVersion;
+        private int _nxVersion;
+        private int _pyVersion;
+        private int _nyVersion;
+        private int _pzVersion;
+        private int _nzVersion;
+
+        public CubemapTexture? Resolve(
+            IAssetsManager assets,
+            GraphicsDevice device,
+            SceneSkyboxSettings settings)
+        {
+            ArgumentNullException.ThrowIfNull(assets);
+            ArgumentNullException.ThrowIfNull(device);
+            ArgumentNullException.ThrowIfNull(settings);
+
+            if (!Matches(settings))
+                ReloadFromPaths(assets, device, settings);
+            else if (NeedsReload())
+                ReloadFromExisting(device);
+
+            return _cubemap;
+        }
+
+        public void Dispose()
+        {
+            _cubemap?.Dispose();
+            _cubemap = null;
+            DisposeRefs();
+        }
+
+        private bool Matches(SceneSkyboxSettings settings)
+        {
+            return string.Equals(_positiveX, settings.PositiveX, StringComparison.Ordinal) &&
+                   string.Equals(_negativeX, settings.NegativeX, StringComparison.Ordinal) &&
+                   string.Equals(_positiveY, settings.PositiveY, StringComparison.Ordinal) &&
+                   string.Equals(_negativeY, settings.NegativeY, StringComparison.Ordinal) &&
+                   string.Equals(_positiveZ, settings.PositiveZ, StringComparison.Ordinal) &&
+                   string.Equals(_negativeZ, settings.NegativeZ, StringComparison.Ordinal);
+        }
+
+        private bool NeedsReload()
+        {
+            return _px is not null &&
+                   _nx is not null &&
+                   _py is not null &&
+                   _ny is not null &&
+                   _pz is not null &&
+                   _nz is not null &&
+                   (_pxVersion != _px.Version ||
+                    _nxVersion != _nx.Version ||
+                    _pyVersion != _py.Version ||
+                    _nyVersion != _ny.Version ||
+                    _pzVersion != _pz.Version ||
+                    _nzVersion != _nz.Version);
+        }
+
+        private void ReloadFromPaths(
+            IAssetsManager assets,
+            GraphicsDevice device,
+            SceneSkyboxSettings settings)
+        {
+            using var px = assets.Load<TextureAsset>(settings.PositiveX);
+            using var nx = assets.Load<TextureAsset>(settings.NegativeX);
+            using var py = assets.Load<TextureAsset>(settings.PositiveY);
+            using var ny = assets.Load<TextureAsset>(settings.NegativeY);
+            using var pz = assets.Load<TextureAsset>(settings.PositiveZ);
+            using var nz = assets.Load<TextureAsset>(settings.NegativeZ);
+
+            try
+            {
+                var cubemap = CreateCubemap(device, px, nx, py, ny, pz, nz);
+                var oldCubemap = _cubemap;
+                _cubemap = cubemap;
+                oldCubemap?.Dispose();
+
+                DisposeRefs();
+                _px = px.Acquire();
+                _nx = nx.Acquire();
+                _py = py.Acquire();
+                _ny = ny.Acquire();
+                _pz = pz.Acquire();
+                _nz = nz.Acquire();
+                CaptureVersions();
+
+                _positiveX = settings.PositiveX;
+                _negativeX = settings.NegativeX;
+                _positiveY = settings.PositiveY;
+                _negativeY = settings.NegativeY;
+                _positiveZ = settings.PositiveZ;
+                _negativeZ = settings.NegativeZ;
+            }
+            catch (Exception exception)
+            {
+                DisposeRefs();
+                _px = px.Acquire();
+                _nx = nx.Acquire();
+                _py = py.Acquire();
+                _ny = ny.Acquire();
+                _pz = pz.Acquire();
+                _nz = nz.Acquire();
+                CaptureVersions();
+
+                _positiveX = settings.PositiveX;
+                _negativeX = settings.NegativeX;
+                _positiveY = settings.PositiveY;
+                _negativeY = settings.NegativeY;
+                _positiveZ = settings.PositiveZ;
+                _negativeZ = settings.NegativeZ;
+                Logger.Error(exception, "Skybox reload failed, keeping previous cubemap.");
+            }
+        }
+
+        private void ReloadFromExisting(GraphicsDevice device)
+        {
+            if (_px is null ||
+                _nx is null ||
+                _py is null ||
+                _ny is null ||
+                _pz is null ||
+                _nz is null)
+            {
+                return;
+            }
+
+            try
+            {
+                var cubemap = CreateCubemap(device, _px, _nx, _py, _ny, _pz, _nz);
+                var oldCubemap = _cubemap;
+                _cubemap = cubemap;
+                oldCubemap?.Dispose();
+            }
+            catch (Exception exception)
+            {
+                Logger.Error(exception, "Skybox texture update failed, keeping previous cubemap.");
+            }
+            finally
+            {
+                CaptureVersions();
+            }
+        }
+
+        private CubemapTexture CreateCubemap(
+            GraphicsDevice device,
+            AssetRef<TextureAsset> px,
+            AssetRef<TextureAsset> nx,
+            AssetRef<TextureAsset> py,
+            AssetRef<TextureAsset> ny,
+            AssetRef<TextureAsset> pz,
+            AssetRef<TextureAsset> nz)
+        {
+            ThrowIfInvalid(px);
+            ThrowIfInvalid(nx);
+            ThrowIfInvalid(py);
+            ThrowIfInvalid(ny);
+            ThrowIfInvalid(pz);
+            ThrowIfInvalid(nz);
+
+            return new CubemapTexture(
+                device,
+                px.Value,
+                nx.Value,
+                py.Value,
+                ny.Value,
+                pz.Value,
+                nz.Value);
+        }
+
+        private void CaptureVersions()
+        {
+            _pxVersion = _px?.Version ?? 0;
+            _nxVersion = _nx?.Version ?? 0;
+            _pyVersion = _py?.Version ?? 0;
+            _nyVersion = _ny?.Version ?? 0;
+            _pzVersion = _pz?.Version ?? 0;
+            _nzVersion = _nz?.Version ?? 0;
+        }
+
+        private void DisposeRefs()
+        {
+            _px?.Dispose();
+            _nx?.Dispose();
+            _py?.Dispose();
+            _ny?.Dispose();
+            _pz?.Dispose();
+            _nz?.Dispose();
+            _px = null;
+            _nx = null;
+            _py = null;
+            _ny = null;
+            _pz = null;
+            _nz = null;
+            _pxVersion = 0;
+            _nxVersion = 0;
+            _pyVersion = 0;
+            _nyVersion = 0;
+            _pzVersion = 0;
+            _nzVersion = 0;
+        }
+
+        private static void ThrowIfInvalid(AssetRef<TextureAsset> asset)
+        {
+            if (!asset.HasError)
+                return;
+
+            throw asset.Error ?? asset.LastError ?? new InvalidOperationException(
+                $"Skybox texture '{asset.Metadata.Path}' is invalid.");
+        }
     }
 }
