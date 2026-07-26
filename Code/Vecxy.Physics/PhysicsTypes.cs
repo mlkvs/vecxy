@@ -13,7 +13,7 @@ public enum EPhysicsMotionType : byte
 public readonly record struct PhysicsRaycastHit(
     SceneObject SceneObject,
     Collider Collider,
-    RigidBody Body,
+    RigidBody? Body,
     Vector3 Point,
     Vector3 Normal,
     float Distance);
