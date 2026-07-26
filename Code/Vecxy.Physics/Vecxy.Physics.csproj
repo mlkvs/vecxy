@@ -1,0 +1,11 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <PackageReference Include="Jitter2" Version="2.8.8" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Vecxy.Diagnostics\Vecxy.Diagnostics.csproj" />
+    <ProjectReference Include="..\Vecxy.Kernel\Vecxy.Kernel.csproj" />
+    <ProjectReference Include="..\Vecxy.Scene\Vecxy.Scene.csproj" />
+  </ItemGroup>
+</Project>
