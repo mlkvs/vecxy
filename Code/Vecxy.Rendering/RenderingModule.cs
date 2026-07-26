@@ -12,11 +12,13 @@ public interface IRenderer
 {
     RenderingStatistics Statistics { get; }
     bool Wireframe { get; set; }
+    nint SceneTextureId { get; }
 
     GameView CreateGameView(
         IRenderTarget? target = null);
 
     void DestroyGameView(GameView view);
+    void SetSceneViewportSize(int width, int height);
 
     Mesh CreateQuad();
 }
@@ -133,13 +135,20 @@ public sealed class RenderingModule(
     private SceneRenderTarget? _sceneTarget;
     private SceneRenderTarget? _postProcessTargetA;
     private SceneRenderTarget? _postProcessTargetB;
+    private SceneRenderTarget? _presentedSceneTarget;
     private Mesh? _fullscreenQuad;
     private Mesh? _skyboxCube;
     private SkyboxRuntime? _skybox;
     private float _time;
+    private int _sceneViewportWidth;
+    private int _sceneViewportHeight;
 
     public RenderingStatistics Statistics => statistics;
     public bool Wireframe { get; set; }
+    public nint SceneTextureId =>
+        _presentedSceneTarget is null
+            ? 0
+            : (nint)_presentedSceneTarget.ColorTextureHandle;
 
     public void OnInitialize()
     {
@@ -208,6 +217,12 @@ public sealed class RenderingModule(
         ArgumentNullException.ThrowIfNull(view);
         _views.Remove(view);
         view.Clear();
+    }
+
+    public void SetSceneViewportSize(int width, int height)
+    {
+        _sceneViewportWidth = Math.Max(0, width);
+        _sceneViewportHeight = Math.Max(0, height);
     }
 
     public void RegisterOverlay(Action draw)
@@ -561,8 +576,17 @@ public sealed class RenderingModule(
         if (scene is null || camera is null)
             return false;
 
+        var renderWidth =
+            _sceneViewportWidth > 0
+                ? _sceneViewportWidth
+                : backbuffer.Width;
+        var renderHeight =
+            _sceneViewportHeight > 0
+                ? _sceneViewportHeight
+                : backbuffer.Height;
+
         _sceneTarget ??= new SceneRenderTarget(device);
-        _sceneTarget.EnsureSize(backbuffer.Width, backbuffer.Height);
+        _sceneTarget.EnsureSize(renderWidth, renderHeight);
         _sceneTarget.Bind(device);
         device.GL.Enable(EnableCap.DepthTest);
         device.GL.DepthMask(true);
@@ -578,8 +602,8 @@ public sealed class RenderingModule(
         DrawSkybox(camera, scene.Lighting.Skybox);
 
         var aspectRatio =
-            Math.Max(1, backbuffer.Width) /
-            (float)Math.Max(1, backbuffer.Height);
+            Math.Max(1, renderWidth) /
+            (float)Math.Max(1, renderHeight);
         var viewProjection =
             camera.ViewMatrix *
             camera.GetProjectionMatrix(aspectRatio);
@@ -615,7 +639,11 @@ public sealed class RenderingModule(
             Draw(renderer, camera, viewProjection, lighting);
         }
 
-        PresentScene(camera);
+        PresentScene(
+            camera,
+            renderWidth,
+            renderHeight,
+            _sceneViewportWidth > 0 && _sceneViewportHeight > 0);
 
         return true;
     }
@@ -648,8 +676,8 @@ public sealed class RenderingModule(
         view.M43 = 0.0f;
 
         var aspectRatio =
-            Math.Max(1, backbuffer.Width) /
-            (float)Math.Max(1, backbuffer.Height);
+            Math.Max(1, _sceneTarget?.Width ?? backbuffer.Width) /
+            (float)Math.Max(1, _sceneTarget?.Height ?? backbuffer.Height);
         var viewProjection =
             view *
             camera.GetProjectionMatrix(aspectRatio);
@@ -680,7 +708,11 @@ public sealed class RenderingModule(
             rotationDegrees.Z * degToRad);
     }
 
-    private void PresentScene(Camera camera)
+    private void PresentScene(
+        Camera camera,
+        int renderWidth,
+        int renderHeight,
+        bool renderToSceneViewport)
     {
         if (_sceneTarget is null ||
             _postProcessTargetA is null ||
@@ -691,6 +723,57 @@ public sealed class RenderingModule(
         }
 
         var effects = GetActivePostProcessEffects(camera);
+        _presentedSceneTarget = null;
+
+        if (renderToSceneViewport)
+        {
+            if (effects.Length == 0)
+            {
+                _presentedSceneTarget = _sceneTarget;
+                return;
+            }
+
+            _postProcessTargetA.EnsureSize(renderWidth, renderHeight);
+            _postProcessTargetB.EnsureSize(renderWidth, renderHeight);
+
+            SceneRenderTarget input = _sceneTarget;
+            SceneRenderTarget output = _postProcessTargetA;
+
+            for (var index = 0; index < effects.Length; index++)
+            {
+                var effect = effects[index];
+                var shader = shaders.Get(effect.GetShaderAsset(assets));
+                var isLast = index == effects.Length - 1;
+
+                DrawPostProcessPass(
+                    shader,
+                    input,
+                    output,
+                    camera,
+                    effect,
+                    new Vector2(renderWidth, renderHeight));
+
+                if (isLast)
+                {
+                    _presentedSceneTarget = output;
+                    break;
+                }
+
+                if (ReferenceEquals(output, _postProcessTargetA))
+                {
+                    input = _postProcessTargetA;
+                    output = _postProcessTargetB;
+                }
+                else
+                {
+                    input = _postProcessTargetB;
+                    output = _postProcessTargetA;
+                }
+            }
+
+            return;
+        }
+
         if (effects.Length == 0)
         {
             DrawPostProcessPass(
@@ -698,15 +781,16 @@ public sealed class RenderingModule(
                 _sceneTarget,
                 backbuffer,
                 camera,
-                null);
+                null,
+                new Vector2(renderWidth, renderHeight));
             return;
         }
 
-        _postProcessTargetA.EnsureSize(backbuffer.Width, backbuffer.Height);
-        _postProcessTargetB.EnsureSize(backbuffer.Width, backbuffer.Height);
+        _postProcessTargetA.EnsureSize(renderWidth, renderHeight);
+        _postProcessTargetB.EnsureSize(renderWidth, renderHeight);
 
-        SceneRenderTarget input = _sceneTarget;
-        SceneRenderTarget output = _postProcessTargetA;
+        SceneRenderTarget backbufferInput = _sceneTarget;
+        SceneRenderTarget backbufferOutput = _postProcessTargetA;
 
         for (var index = 0; index < effects.Length; index++)
         {
@@ -718,29 +802,31 @@ public sealed class RenderingModule(
             {
                 DrawPostProcessPass(
                     shader,
-                    input,
+                    backbufferInput,
                     backbuffer,
                     camera,
-                    effect);
+                    effect,
+                    new Vector2(renderWidth, renderHeight));
                 break;
             }
 
             DrawPostProcessPass(
                 shader,
-                input,
-                output,
+                backbufferInput,
+                backbufferOutput,
                 camera,
-                effect);
+                effect,
+                new Vector2(renderWidth, renderHeight));
 
-            if (ReferenceEquals(output, _postProcessTargetA))
+            if (ReferenceEquals(backbufferOutput, _postProcessTargetA))
             {
-                input = _postProcessTargetA;
-                output = _postProcessTargetB;
+                backbufferInput = _postProcessTargetA;
+                backbufferOutput = _postProcessTargetB;
             }
             else
             {
-                input = _postProcessTargetB;
-                output = _postProcessTargetA;
+                backbufferInput = _postProcessTargetB;
+                backbufferOutput = _postProcessTargetA;
             }
         }
     }
@@ -757,7 +843,8 @@ public sealed class RenderingModule(
         SceneRenderTarget input,
         IRenderTarget output,
         Camera camera,
-        APostProcessEffect? effect)
+        APostProcessEffect? effect,
+        Vector2 resolution)
     {
         output.Bind(device);
         device.GL.Disable(EnableCap.DepthTest);
@@ -774,7 +861,7 @@ public sealed class RenderingModule(
         shader.Set("uSceneTexture", 0);
 
         var context = new PostProcessContext(
-            new Vector2(backbuffer.Width, backbuffer.Height),
+            resolution,
             _time,
             camera);
 

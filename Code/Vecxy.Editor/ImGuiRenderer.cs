@@ -49,6 +49,9 @@ public sealed class ImGuiRenderer(
             native,
             input);
 
+        var io = ImGui.GetIO();
+        io.ConfigFlags |= ImGuiConfigFlags.DockingEnable;
+
         _lastWidth = Math.Max(1, window.Width);
         _lastHeight = Math.Max(1, window.Height);
     }

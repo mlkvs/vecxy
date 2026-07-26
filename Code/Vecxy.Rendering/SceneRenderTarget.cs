@@ -12,6 +12,7 @@ internal sealed class SceneRenderTarget : IRenderTarget, IDisposable
 
     public int Width { get; private set; }
     public int Height { get; private set; }
+    public uint ColorTextureHandle => _colorTexture;
 
     public SceneRenderTarget(GraphicsDevice device)
     {

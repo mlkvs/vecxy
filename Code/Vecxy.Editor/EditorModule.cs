@@ -56,24 +56,23 @@ public sealed class EditorModule(
     private readonly List<Action> _pendingEditorActions = [];
     private bool _initialized;
     private bool _overlayVisible;
-    private bool _layoutResetPending;
-    private int _layoutResetFramesRemaining;
+    private bool _dockLayoutDirty;
     private int _lastWindowWidth;
     private int _lastWindowHeight;
-    private float _customWindowsBaseX = 16.0f;
-    private float _customWindowsBaseY = 16.0f;
-    private float _customWindowsMaxY = 16.0f;
     private SceneObject? _selectedSceneObject;
     private Vecxy.Scene.Scene? _selectedScene;
     private IConfigRef? _selectedConfig;
     private int _selectedConfigVersion = -1;
     private object? _selectedConfigValue;
     private bool _showStatisticsWindow;
+    private bool _showGameViewWindow;
     private bool _showHierarchyWindow;
     private bool _showInspectorWindow;
     private bool _showConfigsWindow;
     private bool _showRenderSettingsWindow;
     private bool _gizmosEnabled = true;
+    private bool _gameViewHovered;
+    private int _selectedGameViewPreset = 1;
     private string _componentSearch = string.Empty;
     private readonly Dictionary<string, AssetRef<Model>> _editorModelRefs =
         new(StringComparer.Ordinal);
@@ -81,6 +80,16 @@ public sealed class EditorModule(
     private static readonly string[] MaterialExtensions = [".material"];
     private static readonly string[] TextureExtensions =
         [".png", ".jpg", ".jpeg", ".bmp", ".tga", ".gif", ".webp"];
+    private static readonly GameViewPreset[] GameViewPresets =
+    [
+        new("FreeAspect", 0, 0),
+        new("1920x1080", 1920, 1080),
+        new("1600x900", 1600, 900),
+        new("1280x720", 1280, 720),
+        new("1024x768", 1024, 768),
+        new("800x600", 800, 600),
+        new("375x812", 375, 812)
+    ];
 
     public EGizmoDisplayMode GizmoDisplayMode
     {
@@ -93,13 +102,22 @@ public sealed class EditorModule(
         if (_initialized)
             return;
 
+        _showStatisticsWindow = false;
+        _showGameViewWindow = true;
+        _showHierarchyWindow = true;
+        _showInspectorWindow = true;
+        _showConfigsWindow = true;
+        _showRenderSettingsWindow = false;
+        RequestLayoutReset();
         imgui.Initialize();
         gizmos.Initialize();
         window.Resized += OnWindowResized;
         window.KeyChanged += OnKeyChanged;
+        window.MouseButtonChanged += OnMouseButtonChanged;
         _lastWindowWidth = Math.Max(1, window.Width);
         _lastWindowHeight = Math.Max(1, window.Height);
         overlays.RegisterOverlay(RenderOverlay);
+        window.SetCursorCaptured(true);
         _initialized = true;
     }
 
@@ -114,13 +132,14 @@ public sealed class EditorModule(
         if (currentWidth != _lastWindowWidth ||
             currentHeight != _lastWindowHeight)
         {
-            RequestLayoutReset();
             _lastWindowWidth = currentWidth;
             _lastWindowHeight = currentHeight;
         }
 
         if (_overlayVisible)
             imgui.BeginFrame(deltaTime);
+        else
+            renderer.SetSceneViewportSize(0, 0);
     }
 
     public void OnShutdown()
@@ -130,12 +149,14 @@ public sealed class EditorModule(
 
         window.Resized -= OnWindowResized;
         window.KeyChanged -= OnKeyChanged;
+        window.MouseButtonChanged -= OnMouseButtonChanged;
         overlays.UnregisterOverlay(RenderOverlay);
         _windowCallbacks.Clear();
         _gizmoCallbacks.Clear();
         foreach (var model in _editorModelRefs.Values)
             model.Dispose();
         _editorModelRefs.Clear();
+        window.SetCursorCaptured(false);
         _initialized = false;
     }
 
@@ -183,7 +204,6 @@ public sealed class EditorModule(
 
     private void OnWindowResized(int _, int __)
     {
-        RequestLayoutReset();
     }
 
     private void OnKeyChanged(IWindow.KeyEvent keyEvent)
@@ -192,23 +212,42 @@ public sealed class EditorModule(
             return;
 
         if (keyEvent.Key == (int)EKeyboardKey.F12)
+        {
             _overlayVisible = !_overlayVisible;
+            window.SetCursorCaptured(!_overlayVisible);
+            return;
+        }
+
+        if (keyEvent.Key == (int)EKeyboardKey.Escape &&
+            window.IsCursorCaptured)
+        {
+            window.SetCursorCaptured(false);
+        }
+    }
+
+    private void OnMouseButtonChanged(IWindow.MouseButtonEvent buttonEvent)
+    {
+        if (!buttonEvent.IsPressed ||
+            buttonEvent.Button != (int)EMouseButton.Left ||
+            window.IsCursorCaptured)
+        {
+            return;
+        }
+
+        if (!_overlayVisible)
+        {
+            window.SetCursorCaptured(true);
+            return;
+        }
+
+        var io = ImGui.GetIO();
+        if (_gameViewHovered || !io.WantCaptureMouse)
+            window.SetCursorCaptured(true);
     }
 
     private void RequestLayoutReset()
     {
-        _layoutResetPending = true;
-        _layoutResetFramesRemaining = 8;
-    }
-
-    private void RestoreWindowLayout()
-    {
-        var viewportWidth = Math.Max(1, window.Width);
-        var viewportHeight = Math.Max(1, window.Height);
-
-        _customWindowsBaseX = MathF.Max(16.0f, viewportWidth - 420.0f);
-        _customWindowsBaseY = 48.0f;
-        _customWindowsMaxY = MathF.Max(48.0f, viewportHeight - 120.0f);
+        _dockLayoutDirty = true;
     }
 
     private void RenderOverlay()
@@ -216,15 +255,15 @@ public sealed class EditorModule(
         if (!_overlayVisible)
             return;
 
-        if (_layoutResetPending)
-        {
-            RestoreWindowLayout();
-        }
-
-        DrawMenuBar();
+        DrawDockspace();
 
         if (_showStatisticsWindow)
             DrawStatisticsWindow();
+
+        if (_showGameViewWindow)
+            DrawGameViewWindow();
+        else
+            renderer.SetSceneViewportSize(0, 0);
 
         if (_showHierarchyWindow)
             DrawHierarchyWindow();
@@ -238,34 +277,12 @@ public sealed class EditorModule(
         if (_showRenderSettingsWindow)
             DrawRenderSettingsWindow();
 
-        var customY = _customWindowsBaseY;
         foreach (var entry in _windowCallbacks.ToArray())
         {
             if (!entry.Visible)
                 continue;
 
-            if (_layoutResetPending)
-            {
-                ImGui.SetNextWindowPos(
-                    new Vector2(_customWindowsBaseX, customY),
-                    ImGuiCond.Always);
-
-                customY += 140.0f;
-                if (customY > _customWindowsMaxY)
-                    customY = _customWindowsBaseY;
-            }
-
             entry.Draw();
-        }
-
-        if (_layoutResetFramesRemaining > 0)
-        {
-            _layoutResetFramesRemaining--;
-            _layoutResetPending = _layoutResetFramesRemaining > 0;
-        }
-        else
-        {
-            _layoutResetPending = false;
         }
 
         DrawGizmos();
@@ -273,43 +290,122 @@ public sealed class EditorModule(
         FlushPendingEditorActions();
     }
 
-    private void DrawMenuBar()
+    private void DrawDockspace()
     {
-        if (!ImGui.BeginMainMenuBar())
-            return;
+        var viewport = ImGui.GetMainViewport();
+        ImGui.SetNextWindowPos(viewport.WorkPos);
+        ImGui.SetNextWindowSize(viewport.WorkSize);
+        ImGui.SetNextWindowViewport(viewport.ID);
+        ImGui.PushStyleVar(ImGuiStyleVar.WindowRounding, 0.0f);
+        ImGui.PushStyleVar(ImGuiStyleVar.WindowBorderSize, 0.0f);
+        ImGui.PushStyleVar(ImGuiStyleVar.WindowPadding, Vector2.Zero);
 
-        if (ImGui.BeginMenu("Windows"))
+        const ImGuiWindowFlags flags =
+            ImGuiWindowFlags.NoTitleBar |
+            ImGuiWindowFlags.NoCollapse |
+            ImGuiWindowFlags.NoResize |
+            ImGuiWindowFlags.NoMove |
+            ImGuiWindowFlags.NoBringToFrontOnFocus |
+            ImGuiWindowFlags.NoNavFocus |
+            ImGuiWindowFlags.NoDocking |
+            ImGuiWindowFlags.NoBackground |
+            ImGuiWindowFlags.MenuBar;
+
+        var open = true;
+        if (!ImGui.Begin("EditorDockspace", ref open, flags))
         {
-            ImGui.MenuItem("Statistics", string.Empty, ref _showStatisticsWindow);
-            ImGui.MenuItem("Hierarchy", string.Empty, ref _showHierarchyWindow);
-            ImGui.MenuItem("Inspector", string.Empty, ref _showInspectorWindow);
-            ImGui.MenuItem("Configs", string.Empty, ref _showConfigsWindow);
-            ImGui.MenuItem("Render Settings", string.Empty, ref _showRenderSettingsWindow);
-            ImGui.Separator();
-
-            foreach (var entry in _windowCallbacks)
-            {
-                var visible = entry.Visible;
-                if (ImGui.MenuItem(entry.Name, string.Empty, visible))
-                    entry.Visible = !visible;
-            }
-
-            ImGui.EndMenu();
+            ImGui.End();
+            ImGui.PopStyleVar(3);
+            return;
         }
 
-        ImGui.EndMainMenuBar();
+        var dockspaceId = ImGui.GetID("EditorDockspaceRoot");
+        ImGui.DockSpace(
+            dockspaceId,
+            Vector2.Zero,
+            ImGuiDockNodeFlags.PassthruCentralNode);
+
+        if (_dockLayoutDirty)
+        {
+            BuildDefaultDockLayout(dockspaceId, viewport.WorkSize);
+            _dockLayoutDirty = false;
+        }
+
+        if (ImGui.BeginMenuBar())
+        {
+            if (ImGui.BeginMenu("Windows"))
+            {
+                ImGui.MenuItem("Statistics", string.Empty, ref _showStatisticsWindow);
+                ImGui.MenuItem("GameView", string.Empty, ref _showGameViewWindow);
+                ImGui.MenuItem("Hierarchy", string.Empty, ref _showHierarchyWindow);
+                ImGui.MenuItem("Inspector", string.Empty, ref _showInspectorWindow);
+                ImGui.MenuItem("Configs", string.Empty, ref _showConfigsWindow);
+                ImGui.MenuItem("Render Settings", string.Empty, ref _showRenderSettingsWindow);
+                ImGui.Separator();
+
+                foreach (var entry in _windowCallbacks)
+                {
+                    var visible = entry.Visible;
+                    if (ImGui.MenuItem(entry.Name, string.Empty, visible))
+                        entry.Visible = !visible;
+                }
+
+                ImGui.EndMenu();
+            }
+
+            ImGui.EndMenuBar();
+        }
+
+        ImGui.End();
+        ImGui.PopStyleVar(3);
+    }
+
+    private void BuildDefaultDockLayout(
+        uint dockspaceId,
+        Vector2 viewportSize)
+    {
+        unsafe
+        {
+            ImGuiDockBuilderNative.RemoveNode(dockspaceId);
+            ImGuiDockBuilderNative.AddNode(
+                dockspaceId,
+                ImGuiDockNodeFlags.PassthruCentralNode);
+            ImGuiDockBuilderNative.SetNodeSize(dockspaceId, viewportSize);
+
+            var root = dockspaceId;
+            uint left;
+            uint main;
+            ImGuiDockBuilderNative.SplitNode(root, ImGuiDir.Left, 0.19f, &left, &main);
+
+            uint right;
+            uint center;
+            ImGuiDockBuilderNative.SplitNode(main, ImGuiDir.Right, 0.28f, &right, &center);
+
+            uint bottom;
+            uint centerTop;
+            ImGuiDockBuilderNative.SplitNode(center, ImGuiDir.Down, 0.20f, &bottom, &centerTop);
+
+            uint top;
+            uint game;
+            ImGuiDockBuilderNative.SplitNode(centerTop, ImGuiDir.Up, 0.12f, &top, &game);
+
+            uint renderSettings;
+            uint hierarchy;
+            ImGuiDockBuilderNative.SplitNode(left, ImGuiDir.Up, 0.20f, &renderSettings, &hierarchy);
+
+            ImGuiDockBuilderNative.DockWindow("GameView", game);
+            ImGuiDockBuilderNative.DockWindow("Hierarchy", hierarchy);
+            ImGuiDockBuilderNative.DockWindow("Inspector", right);
+            ImGuiDockBuilderNative.DockWindow("Configs", bottom);
+            ImGuiDockBuilderNative.DockWindow("Rendering Statistics", top);
+            ImGuiDockBuilderNative.DockWindow("Render Settings", renderSettings);
+            ImGuiDockBuilderNative.Finish(dockspaceId);
+        }
     }
 
     private void DrawStatisticsWindow()
     {
         var statistics = renderer.Statistics;
-
-        if (_layoutResetPending)
-        {
-            ImGui.SetNextWindowPos(
-                new Vector2(16.0f, 16.0f),
-                ImGuiCond.Always);
-        }
 
         ImGui.SetNextWindowBgAlpha(0.9f);
         if (!ImGui.Begin("Rendering Statistics", ref _showStatisticsWindow, ImGuiWindowFlags.NoCollapse))
@@ -327,15 +423,90 @@ public sealed class EditorModule(
         ImGui.End();
     }
 
-    private void DrawHierarchyWindow()
+    private void DrawGameViewWindow()
     {
-        if (_layoutResetPending)
+        _gameViewHovered = false;
+
+        ImGui.PushStyleVar(ImGuiStyleVar.WindowPadding, Vector2.Zero);
+        if (!ImGui.Begin("GameView", ref _showGameViewWindow))
         {
-            ImGui.SetNextWindowPos(
-                new Vector2(16.0f, 140.0f),
-                ImGuiCond.Always);
+            renderer.SetSceneViewportSize(0, 0);
+            ImGui.End();
+            ImGui.PopStyleVar();
+            return;
         }
 
+        if (ImGui.BeginCombo(
+                "##gameview_preset",
+                GameViewPresets[_selectedGameViewPreset].Label))
+        {
+            for (var index = 0; index < GameViewPresets.Length; index++)
+            {
+                var selected = index == _selectedGameViewPreset;
+                if (ImGui.Selectable(GameViewPresets[index].Label, selected))
+                    _selectedGameViewPreset = index;
+
+                if (selected)
+                    ImGui.SetItemDefaultFocus();
+            }
+
+            ImGui.EndCombo();
+        }
+
+        var available = ImGui.GetContentRegionAvail();
+        var viewport = ResolveGameViewViewport(available);
+        renderer.SetSceneViewportSize(
+            Math.Max(1, (int)viewport.Size.X),
+            Math.Max(1, (int)viewport.Size.Y));
+
+        var textureId = renderer.SceneTextureId;
+        if (textureId != 0)
+        {
+            var cursor = ImGui.GetCursorPos();
+            ImGui.SetCursorPos(cursor + viewport.Offset);
+            ImGui.Image(
+                textureId,
+                viewport.Size,
+                new Vector2(0.0f, 1.0f),
+                new Vector2(1.0f, 0.0f));
+            _gameViewHovered = ImGui.IsItemHovered();
+        }
+        else
+        {
+            ImGui.Dummy(available);
+            _gameViewHovered = ImGui.IsItemHovered();
+        }
+
+        ImGui.End();
+        ImGui.PopStyleVar();
+    }
+
+    private GameViewViewport ResolveGameViewViewport(Vector2 available)
+    {
+        var preset = GameViewPresets[
+            Math.Clamp(_selectedGameViewPreset, 0, GameViewPresets.Length - 1)];
+        var fullSize = new Vector2(
+            Math.Max(1.0f, available.X),
+            Math.Max(1.0f, available.Y));
+
+        if (preset.Width <= 0 || preset.Height <= 0)
+            return new GameViewViewport(Vector2.Zero, fullSize);
+
+        var targetAspect = preset.Width / (float)preset.Height;
+        var availableAspect = fullSize.X / Math.Max(1.0f, fullSize.Y);
+        Vector2 size;
+
+        if (availableAspect > targetAspect)
+            size = new Vector2(fullSize.Y * targetAspect, fullSize.Y);
+        else
+            size = new Vector2(fullSize.X, fullSize.X / targetAspect);
+
+        var offset = (fullSize - size) * 0.5f;
+        return new GameViewViewport(offset, size);
+    }
+
+    private void DrawHierarchyWindow()
+    {
         ImGui.SetNextWindowBgAlpha(0.9f);
         if (!ImGui.Begin("Hierarchy", ref _showHierarchyWindow))
         {
@@ -461,13 +632,6 @@ public sealed class EditorModule(
 
     private void DrawInspectorWindow()
     {
-        if (_layoutResetPending)
-        {
-            ImGui.SetNextWindowPos(
-                new Vector2(MathF.Max(16.0f, window.Width - 420.0f), 16.0f),
-                ImGuiCond.Always);
-        }
-
         ImGui.SetNextWindowBgAlpha(0.9f);
         if (!ImGui.Begin("Inspector", ref _showInspectorWindow))
         {
@@ -550,13 +714,6 @@ public sealed class EditorModule(
 
     private void DrawConfigsWindow()
     {
-        if (_layoutResetPending)
-        {
-            ImGui.SetNextWindowPos(
-                new Vector2(16.0f, 420.0f),
-                ImGuiCond.Always);
-        }
-
         ImGui.SetNextWindowBgAlpha(0.9f);
         if (!ImGui.Begin("Configs", ref _showConfigsWindow))
         {
@@ -576,13 +733,6 @@ public sealed class EditorModule(
 
     private void DrawRenderSettingsWindow()
     {
-        if (_layoutResetPending)
-        {
-            ImGui.SetNextWindowPos(
-                new Vector2(16.0f, 540.0f),
-                ImGuiCond.Always);
-        }
-
         ImGui.SetNextWindowBgAlpha(0.9f);
         if (!ImGui.Begin("Render Settings", ref _showRenderSettingsWindow))
         {
@@ -694,17 +844,6 @@ public sealed class EditorModule(
         var open = ImGui.CollapsingHeader(type.Name, ImGuiTreeNodeFlags.DefaultOpen);
         var removable = component is not Transform;
 
-        if (removable)
-        {
-            ImGui.SameLine();
-            if (ImGui.SmallButton("Remove"))
-            {
-                QueueRemoveComponent(sceneObject, component);
-                ImGui.PopID();
-                return false;
-            }
-        }
-
         if (!open)
         {
             ImGui.PopID();
@@ -714,6 +853,18 @@ public sealed class EditorModule(
         var enabled = component.Enabled;
         if (ImGui.Checkbox("Enabled", ref enabled))
             component.Enabled = enabled;
+
+        if (removable)
+        {
+            if (ImGui.Button($"Remove Component##{component.GetHashCode()}"))
+            {
+                QueueRemoveComponent(sceneObject, component);
+                ImGui.PopID();
+                return false;
+            }
+
+            ImGui.Separator();
+        }
 
         if (component is MeshRenderer meshRenderer)
         {
@@ -1893,6 +2044,86 @@ public sealed class EditorModule(
     private readonly record struct MeshOption(
         string Label,
         Mesh Mesh);
+
+    private readonly record struct GameViewPreset(
+        string Label,
+        int Width,
+        int Height);
+
+    private readonly record struct GameViewViewport(
+        Vector2 Offset,
+        Vector2 Size);
+
+    private static class ImGuiDockBuilderNative
+    {
+        [StructLayout(LayoutKind.Sequential)]
+        private struct ImVec2Native
+        {
+            public float X;
+            public float Y;
+
+            public ImVec2Native(Vector2 value)
+            {
+                X = value.X;
+                Y = value.Y;
+            }
+        }
+
+        [DllImport("cimgui", CallingConvention = CallingConvention.Cdecl, EntryPoint = "igDockBuilderRemoveNode")]
+        private static extern void DockBuilderRemoveNode(uint nodeId);
+
+        [DllImport("cimgui", CallingConvention = CallingConvention.Cdecl, EntryPoint = "igDockBuilderAddNode")]
+        private static extern uint DockBuilderAddNode(uint nodeId, ImGuiDockNodeFlags flags);
+
+        [DllImport("cimgui", CallingConvention = CallingConvention.Cdecl, EntryPoint = "igDockBuilderSetNodeSize")]
+        private static extern void DockBuilderSetNodeSize(uint nodeId, ImVec2Native size);
+
+        [DllImport("cimgui", CallingConvention = CallingConvention.Cdecl, EntryPoint = "igDockBuilderSplitNode")]
+        private static extern unsafe uint DockBuilderSplitNode(
+            uint nodeId,
+            ImGuiDir splitDir,
+            float sizeRatioForNodeAtDir,
+            uint* outIdAtDir,
+            uint* outIdAtOppositeDir);
+
+        [DllImport("cimgui", CallingConvention = CallingConvention.Cdecl, EntryPoint = "igDockBuilderDockWindow")]
+        private static extern void DockBuilderDockWindow(
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string windowName,
+            uint nodeId);
+
+        [DllImport("cimgui", CallingConvention = CallingConvention.Cdecl, EntryPoint = "igDockBuilderFinish")]
+        private static extern void DockBuilderFinish(uint nodeId);
+
+        public static void RemoveNode(uint nodeId) =>
+            DockBuilderRemoveNode(nodeId);
+
+        public static uint AddNode(uint nodeId, ImGuiDockNodeFlags flags) =>
+            DockBuilderAddNode(nodeId, flags);
+
+        public static void SetNodeSize(uint nodeId, Vector2 size) =>
+            DockBuilderSetNodeSize(nodeId, new ImVec2Native(size));
+
+        public static unsafe uint SplitNode(
+            uint nodeId,
+            ImGuiDir splitDir,
+            float sizeRatioForNodeAtDir,
+            uint* outIdAtDir,
+            uint* outIdAtOppositeDir) =>
+            DockBuilderSplitNode(
+                nodeId,
+                splitDir,
+                sizeRatioForNodeAtDir,
+                outIdAtDir,
+                outIdAtOppositeDir);
+
+        public static void DockWindow(
+            string windowName,
+            uint nodeId) =>
+            DockBuilderDockWindow(windowName, nodeId);
+
+        public static void Finish(uint nodeId) =>
+            DockBuilderFinish(nodeId);
+    }
 
     private sealed class WindowEntry(
         string name,
