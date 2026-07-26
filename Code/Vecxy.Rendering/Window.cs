@@ -1,4 +1,5 @@
 using Silk.NET.Maths;
+using Silk.NET.Input;
 using Silk.NET.Windowing;
 using IWindow = Vecxy.Kernel.IWindow;
 
@@ -6,16 +7,27 @@ namespace Vecxy.Rendering;
 
 public sealed class Window : IWindow
 {
-    internal Silk.NET.Windowing.IWindow Native => _instance;
+    public Silk.NET.Windowing.IWindow NativeWindow => _instance;
+    public IInputContext InputContext =>
+        _input ?? throw new InvalidOperationException(
+            "Window input is not initialized.");
 
     public int Width => _instance.FramebufferSize.X;
     public int Height => _instance.FramebufferSize.Y;
 
     public bool IsRunning => _initialized && !_instance.IsClosing;
+    public bool IsFullscreen =>
+        _instance.WindowState == WindowState.Fullscreen;
 
     public event Action<int, int>? Resized;
+    public event Action<IWindow.KeyEvent>? KeyChanged;
+    public event Action<IWindow.MouseButtonEvent>? MouseButtonChanged;
+    public event Action<IWindow.MouseMoveEvent>? MouseMoved;
+    public event Action<IWindow.MouseWheelEvent>? MouseWheelChanged;
 
     private readonly Silk.NET.Windowing.IWindow _instance;
+    private IInputContext? _input;
+    private Vector2D<int> _windowedSize;
 
     private bool _initialized;
 
@@ -35,6 +47,7 @@ public sealed class Window : IWindow
         wOptions.ShouldSwapAutomatically = false;
 
         _instance = Silk.NET.Windowing.Window.Create(wOptions);
+        _windowedSize = wOptions.Size;
     }
 
     public void Initialize()
@@ -42,6 +55,21 @@ public sealed class Window : IWindow
         _instance.Initialize();
 
         _instance.Resize += size => Resized?.Invoke(size.X, size.Y);
+        _input = _instance.CreateInput();
+
+        foreach (var keyboard in _input.Keyboards)
+        {
+            keyboard.KeyDown += OnKeyDown;
+            keyboard.KeyUp += OnKeyUp;
+        }
+
+        foreach (var mouse in _input.Mice)
+        {
+            mouse.MouseDown += OnMouseDown;
+            mouse.MouseUp += OnMouseUp;
+            mouse.MouseMove += OnMouseMove;
+            mouse.Scroll += OnMouseScroll;
+        }
 
         _initialized = true;
     }
@@ -52,6 +80,23 @@ public sealed class Window : IWindow
 
     public void MakeCurrent() => _instance.GLContext?.MakeCurrent();
 
+    public void ToggleFullscreen()
+    {
+        if (_instance.WindowState == WindowState.Fullscreen)
+        {
+            _instance.WindowState = WindowState.Normal;
+            _instance.Size = _windowedSize;
+        }
+        else
+        {
+            _windowedSize = _instance.Size;
+            _instance.WindowState = WindowState.Fullscreen;
+        }
+
+        var framebufferSize = _instance.FramebufferSize;
+        Resized?.Invoke(framebufferSize.X, framebufferSize.Y);
+    }
+
     public nint GetProcAddress(string name) =>
         _instance.GLContext?.GetProcAddress(name) ?? 0;
 
@@ -59,10 +104,59 @@ public sealed class Window : IWindow
     {
         try
         {
+            _input?.Dispose();
             _instance.Dispose();
         }
         catch (ObjectDisposedException)
         {
         }
+    }
+
+    private void OnKeyDown(IKeyboard _, Key key, int _2)
+    {
+        KeyChanged?.Invoke(
+            new IWindow.KeyEvent(
+                (int)key,
+                true));
+    }
+
+    private void OnKeyUp(IKeyboard _, Key key, int _2)
+    {
+        KeyChanged?.Invoke(
+            new IWindow.KeyEvent(
+                (int)key,
+                false));
+    }
+
+    private void OnMouseDown(IMouse _, MouseButton button)
+    {
+        MouseButtonChanged?.Invoke(
+            new IWindow.MouseButtonEvent(
+                (int)button,
+                true));
+    }
+
+    private void OnMouseUp(IMouse _, MouseButton button)
+    {
+        MouseButtonChanged?.Invoke(
+            new IWindow.MouseButtonEvent(
+                (int)button,
+                false));
+    }
+
+    private void OnMouseMove(IMouse _, System.Numerics.Vector2 position)
+    {
+        MouseMoved?.Invoke(
+            new IWindow.MouseMoveEvent(
+                position.X,
+                position.Y));
+    }
+
+    private void OnMouseScroll(IMouse _, ScrollWheel wheel)
+    {
+        MouseWheelChanged?.Invoke(
+            new IWindow.MouseWheelEvent(
+                wheel.X,
+                wheel.Y));
     }
 }

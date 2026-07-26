@@ -1,6 +1,4 @@
 using System.Numerics;
-using Vecxy.Assets;
-
 namespace Vecxy.Rendering;
 
 public enum ERenderPhase : byte
@@ -38,13 +36,13 @@ public sealed class GameView
     public RenderItem Submit(
         ERenderPhase phase,
         Mesh mesh,
-        AssetRef<MaterialAsset> material,
+        Material material,
         Matrix4x4 transform)
     {
         ArgumentNullException.ThrowIfNull(mesh);
         ArgumentNullException.ThrowIfNull(material);
 
-        var item = new RenderItem(phase, mesh, material.Acquire(), transform);
+        var item = new RenderItem(phase, mesh, material, transform);
         _items.Add(item);
         return item;
     }
@@ -73,18 +71,16 @@ public sealed class GameView
 
 public sealed class RenderItem
 {
-    private bool _materialReleased;
-
     public ERenderPhase Phase { get; set; }
     public Mesh Mesh { get; }
-    public AssetRef<MaterialAsset> Material { get; }
+    public Material Material { get; }
     public Matrix4x4 Transform { get; set; }
     public bool Enabled { get; set; } = true;
 
     internal RenderItem(
         ERenderPhase phase,
         Mesh mesh,
-        AssetRef<MaterialAsset> material,
+        Material material,
         Matrix4x4 transform)
     {
         Phase = phase;
@@ -95,12 +91,5 @@ public sealed class RenderItem
 
     internal void ReleaseMaterial()
     {
-        if (_materialReleased)
-        {
-            return;
-        }
-
-        _materialReleased = true;
-        Material.Dispose();
     }
 }

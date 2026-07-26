@@ -78,6 +78,8 @@ public sealed class Camera : AComponent
     public Vector4 ClearColor { get; set; } =
         new(0.02f, 0.03f, 0.05f, 1.0f);
 
+    public bool UsePostProcessing { get; set; }
+
     public int Priority { get; set; }
 
     public Matrix4x4 ViewMatrix

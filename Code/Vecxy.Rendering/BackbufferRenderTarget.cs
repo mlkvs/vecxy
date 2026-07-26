@@ -10,6 +10,9 @@ public sealed class BackbufferRenderTarget(IWindow window) : IRenderTarget
     public void Bind(GraphicsDevice device)
     {
         window.MakeCurrent();
+        device.GL.BindFramebuffer(
+            Silk.NET.OpenGL.FramebufferTarget.Framebuffer,
+            0);
         device.GL.Viewport(
             0,
             0,
