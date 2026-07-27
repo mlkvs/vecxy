@@ -50,8 +50,35 @@ public sealed class Window : IWindow
         );
         wOptions.ShouldSwapAutomatically = false;
 
-        _instance = Silk.NET.Windowing.Window.Create(wOptions);
+        _instance = CreateWindow(wOptions, options.MonitorIndex);
         _windowedSize = wOptions.Size;
+    }
+
+    private static Silk.NET.Windowing.IWindow CreateWindow(
+        WindowOptions options,
+        int? monitorIndex)
+    {
+        if (monitorIndex is null)
+            return Silk.NET.Windowing.Window.Create(options);
+
+        var platform =
+            Silk.NET.Windowing.Window.GetWindowPlatform(false) ??
+            throw new InvalidOperationException(
+                "No desktop window platform is available.");
+        var monitors = platform.GetMonitors();
+        var monitor = monitors.FirstOrDefault(
+            candidate => candidate.Index == monitorIndex.Value);
+
+        if (monitor is not null)
+            return monitor.CreateWindow(options);
+
+        var availableIndices = string.Join(
+            ", ",
+            monitors.Select(candidate => candidate.Index));
+        throw new ArgumentOutOfRangeException(
+            nameof(monitorIndex),
+            monitorIndex,
+            $"Monitor index {monitorIndex} was not found. Available monitor indices: {availableIndices}.");
     }
 
     public void Initialize()

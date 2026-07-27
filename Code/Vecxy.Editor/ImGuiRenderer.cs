@@ -2,6 +2,7 @@ using ImGuiNET;
 using Silk.NET.Input;
 using Silk.NET.OpenGL;
 using Silk.NET.OpenGL.Extensions.ImGui;
+using System.Runtime.InteropServices;
 using Vecxy.Kernel;
 using Vecxy.Rendering;
 
@@ -10,14 +11,26 @@ namespace Vecxy.Editor;
 public sealed class ImGuiRenderer(
     IWindow window) : IDisposable
 {
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    private unsafe delegate byte* GetClipboardTextDelegate(nint userData);
+
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    private unsafe delegate void SetClipboardTextDelegate(
+        nint userData,
+        byte* text);
+
     private ImGuiController? _controller;
     private GL? _gl;
+    private IKeyboard? _keyboard;
+    private GetClipboardTextDelegate? _getClipboardText;
+    private SetClipboardTextDelegate? _setClipboardText;
+    private nint _clipboardText;
     private bool _disposed;
     private bool _resetLayoutRequested;
     private int _lastWidth;
     private int _lastHeight;
 
-    public void Initialize()
+    public unsafe void Initialize()
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
 
@@ -42,15 +55,19 @@ public sealed class ImGuiRenderer(
             throw new InvalidOperationException(
                 "Rendering window does not expose a Silk.NET input context.");
 
+        _keyboard = input.Keyboards.FirstOrDefault() ??
+            throw new InvalidOperationException(
+                "ImGui requires at least one keyboard.");
+        _getClipboardText = GetClipboardText;
+        _setClipboardText = SetClipboardText;
+
         window.MakeCurrent();
         _gl = GL.GetApi(window.GetProcAddress);
         _controller = new ImGuiController(
             _gl,
             native,
-            input);
-
-        var io = ImGui.GetIO();
-        io.ConfigFlags |= ImGuiConfigFlags.DockingEnable;
+            input,
+            onConfigureIO: ConfigureImGui);
 
         _lastWidth = Math.Max(1, window.Width);
         _lastHeight = Math.Max(1, window.Height);
@@ -98,6 +115,14 @@ public sealed class ImGuiRenderer(
         _disposed = true;
         _controller?.Dispose();
         _controller = null;
+        _keyboard = null;
+        _getClipboardText = null;
+        _setClipboardText = null;
+        if (_clipboardText != 0)
+        {
+            Marshal.FreeCoTaskMem(_clipboardText);
+            _clipboardText = 0;
+        }
         _gl?.Dispose();
         _gl = null;
     }
@@ -106,6 +131,36 @@ public sealed class ImGuiRenderer(
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         _resetLayoutRequested = true;
+    }
+
+    private void ConfigureImGui()
+    {
+        var io = ImGui.GetIO();
+        io.ConfigFlags |= ImGuiConfigFlags.DockingEnable;
+        io.GetClipboardTextFn = Marshal.GetFunctionPointerForDelegate(
+            _getClipboardText!);
+        io.SetClipboardTextFn = Marshal.GetFunctionPointerForDelegate(
+            _setClipboardText!);
+        io.ClipboardUserData = nint.Zero;
+    }
+
+    private unsafe byte* GetClipboardText(nint _)
+    {
+        if (_clipboardText != 0)
+            Marshal.FreeCoTaskMem(_clipboardText);
+
+        _clipboardText = Marshal.StringToCoTaskMemUTF8(
+            _keyboard?.ClipboardText ?? string.Empty);
+        return (byte*)_clipboardText;
+    }
+
+    private unsafe void SetClipboardText(nint _, byte* text)
+    {
+        if (_keyboard is null)
+            return;
+
+        _keyboard.ClipboardText =
+            Marshal.PtrToStringUTF8((nint)text) ?? string.Empty;
     }
 
     private static TValue? ReadProperty<TValue>(

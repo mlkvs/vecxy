@@ -14,6 +14,14 @@ public sealed class InputModule :
     {
         protected override IReadOnlyList<Type> Exports => [typeof(IInputManager)];
 
+        public override void RegisterGlobal(ContainerBuilder builder)
+        {
+            builder
+                .RegisterType<InputCaptureState>()
+                .As<IInputCaptureState>()
+                .SingleInstance();
+        }
+
         protected override void RegisterModule(ContainerBuilder builder)
         {
             builder
@@ -39,7 +47,9 @@ public sealed class InputModule :
 
     public Vector2 MouseDelta => _snapshot.MouseDelta;
 
-    public InputModule(IWindow window)
+    public InputModule(
+        IWindow window,
+        IInputCaptureState captureState)
     {
         _window = window;
     }

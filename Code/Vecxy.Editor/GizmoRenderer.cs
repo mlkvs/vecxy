@@ -128,12 +128,22 @@ public sealed class GizmoRenderer(
     public unsafe void Render(
         Camera camera,
         int width,
-        int height)
+        int height,
+        int viewportX,
+        int viewportY,
+        int viewportWidth,
+        int viewportHeight)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
 
-        if (!_initialized || _gl is null || _segments.Count == 0)
+        if (!_initialized ||
+            _gl is null ||
+            _segments.Count == 0 ||
+            viewportWidth <= 0 ||
+            viewportHeight <= 0)
+        {
             return;
+        }
 
         var viewProjection =
             camera.ViewMatrix *
@@ -141,12 +151,28 @@ public sealed class GizmoRenderer(
 
         var previousBlend = _gl.IsEnabled(EnableCap.Blend);
         var previousDepthTest = _gl.IsEnabled(EnableCap.DepthTest);
+        var previousScissorTest = _gl.IsEnabled(EnableCap.ScissorTest);
         _gl.GetInteger(GetPName.DepthFunc, out var previousDepthFunc);
         _gl.GetInteger(GetPName.DepthWritemask, out var previousDepthMask);
+        Span<int> previousViewport = stackalloc int[4];
+        Span<int> previousScissorBox = stackalloc int[4];
+        _gl.GetInteger(GetPName.Viewport, previousViewport);
+        _gl.GetInteger(GetPName.ScissorBox, previousScissorBox);
 
         _gl.Enable(EnableCap.Blend);
         _gl.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha);
         _gl.DepthMask(false);
+        _gl.Enable(EnableCap.ScissorTest);
+        _gl.Viewport(
+            viewportX,
+            viewportY,
+            (uint)viewportWidth,
+            (uint)viewportHeight);
+        _gl.Scissor(
+            viewportX,
+            viewportY,
+            (uint)viewportWidth,
+            (uint)viewportHeight);
 
         _gl.UseProgram(_program);
         Span<float> matrixValues =
@@ -201,11 +227,24 @@ public sealed class GizmoRenderer(
         _gl.BindVertexArray(0);
         _gl.UseProgram(0);
         _gl.LineWidth(1.0f);
+        _gl.Viewport(
+            previousViewport[0],
+            previousViewport[1],
+            (uint)previousViewport[2],
+            (uint)previousViewport[3]);
+        _gl.Scissor(
+            previousScissorBox[0],
+            previousScissorBox[1],
+            (uint)previousScissorBox[2],
+            (uint)previousScissorBox[3]);
         _gl.DepthFunc((DepthFunction)previousDepthFunc);
         _gl.DepthMask(previousDepthMask != 0);
 
         if (!previousDepthTest)
             _gl.Disable(EnableCap.DepthTest);
+
+        if (!previousScissorTest)
+            _gl.Disable(EnableCap.ScissorTest);
 
         if (!previousBlend)
             _gl.Disable(EnableCap.Blend);

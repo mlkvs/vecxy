@@ -12,6 +12,7 @@ public interface IRenderer
 {
     RenderingStatistics Statistics { get; }
     bool Wireframe { get; set; }
+    bool ScenePresentationEnabled { get; set; }
     nint SceneTextureId { get; }
 
     GameView CreateGameView(
@@ -145,6 +146,7 @@ public sealed class RenderingModule(
 
     public RenderingStatistics Statistics => statistics;
     public bool Wireframe { get; set; }
+    public bool ScenePresentationEnabled { get; set; } = true;
     public nint SceneTextureId =>
         _presentedSceneTarget is null
             ? 0
@@ -186,14 +188,22 @@ public sealed class RenderingModule(
             Wireframe ? PolygonMode.Line : PolygonMode.Fill);
 
         var presentedTargets = new HashSet<IRenderTarget>();
+        var renderSceneToViewport =
+            _sceneViewportWidth > 0 &&
+            _sceneViewportHeight > 0;
 
         RenderSubmittedViews(presentedTargets);
 
-        if (RenderActiveScene())
+        if (ScenePresentationEnabled && RenderActiveScene())
             presentedTargets.Add(backbuffer);
 
         backbuffer.Bind(device);
         device.GL.Disable(EnableCap.DepthTest);
+        if (renderSceneToViewport || !presentedTargets.Contains(backbuffer))
+        {
+            device.GL.ClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+            device.GL.Clear(ClearBufferMask.ColorBufferBit);
+        }
 
         foreach (var draw in _overlayCallbacks.ToArray())
             draw();

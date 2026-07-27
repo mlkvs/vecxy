@@ -12,7 +12,12 @@ public enum ELogLevel : byte
     Error = 4
 }
 
-public record Log(ELogLevel Level, string Message, string Caller, string Timestamp);
+public sealed record Log(ELogLevel Level, string Message, string Caller, string Timestamp)
+{
+    public DateTimeOffset TimestampValue { get; init; } = DateTimeOffset.Now;
+
+    public string? StackTrace { get; init; }
+}
 
 public static class Logger
 {
@@ -62,8 +67,17 @@ public static class Logger
         var exceptionMessage = string.IsNullOrWhiteSpace(message)
             ? exception.ToString()
             : $"{message}{Environment.NewLine}{exception}";
-
-        Write(ELogLevel.Error, exceptionMessage, caller);
+        var timestamp = DateTimeOffset.Now;
+        var entry = new Log(
+            ELogLevel.Error,
+            exceptionMessage,
+            caller,
+            timestamp.ToString("HH:mm:ss.fff"))
+        {
+            TimestampValue = timestamp,
+            StackTrace = exception.ToString()
+        };
+        WriteCore(entry);
     }
 
     public static void Write(
@@ -78,13 +92,25 @@ public static class Logger
             return;
         }
 
-        var timestamp = DateTimeOffset.Now.ToString("HH:mm:ss.fff");
-        var entry = new Log(level, message, caller, timestamp);
+        var timestamp = DateTimeOffset.Now;
+        var entry = new Log(
+            level,
+            message,
+            caller,
+            timestamp.ToString("HH:mm:ss.fff"))
+        {
+            TimestampValue = timestamp
+        };
+        WriteCore(entry);
+    }
+
+    private static void WriteCore(Log entry)
+    {
         var formattedMessage = Format(entry);
 
         lock (Sync)
         {
-            WriteToConsole(level, formattedMessage);
+            WriteToConsole(entry.Level, formattedMessage);
         }
 
         Publish(entry);
@@ -101,25 +127,27 @@ public static class Logger
 
     private static void WriteToConsole(ELogLevel level, string message)
     {
-        var writer = level >= ELogLevel.Error ? Console.Error : Console.Out;
+        var writer = level >= ELogLevel.Error
+            ? global::System.Console.Error
+            : global::System.Console.Out;
 
-        if (writer == Console.Out && Console.IsOutputRedirected ||
-            writer == Console.Error && Console.IsErrorRedirected)
+        if (writer == global::System.Console.Out && global::System.Console.IsOutputRedirected ||
+            writer == global::System.Console.Error && global::System.Console.IsErrorRedirected)
         {
             writer.WriteLine(message);
             return;
         }
 
-        var previousColor = Console.ForegroundColor;
+        var previousColor = global::System.Console.ForegroundColor;
 
         try
         {
-            Console.ForegroundColor = GetColor(level);
+            global::System.Console.ForegroundColor = GetColor(level);
             writer.WriteLine(message);
         }
         finally
         {
-            Console.ForegroundColor = previousColor;
+            global::System.Console.ForegroundColor = previousColor;
         }
     }
 

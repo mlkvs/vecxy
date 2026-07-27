@@ -5,6 +5,8 @@ using Autofac;
 using ImGuiNET;
 using Vecxy.Assets;
 using Vecxy.Diagnostics;
+using Vecxy.Diagnostics.Console;
+using Vecxy.Input;
 using Vecxy.Kernel;
 using Vecxy.Rendering;
 using Vecxy.Scene;
@@ -19,8 +21,11 @@ public sealed class EditorModule(
     IRenderOverlayStage overlays,
     ISceneManager scenes,
     IConfigProvider configs,
+    IInputManager input,
     ImGuiRenderer imgui,
-    GizmoRenderer gizmos) :
+    GizmoRenderer gizmos,
+    DebugConsolePanel debugConsolePanel,
+    IDebugConsole debugConsole) :
     IModule,
     IModule.IUpdatable,
     IEditorGui,
@@ -48,12 +53,27 @@ public sealed class EditorModule(
                 .RegisterType<GizmoRenderer>()
                 .AsSelf()
                 .SingleInstance();
+
+            builder
+                .RegisterType<DebugConsolePanel>()
+                .AsSelf()
+                .SingleInstance();
+
+            builder
+                .RegisterType<SystemFileDialog>()
+                .As<ISystemFileDialog>()
+                .SingleInstance();
         }
     }
 
     private readonly List<WindowEntry> _windowCallbacks = [];
     private readonly List<Action<IEditorGizmoDrawer>> _gizmoCallbacks = [];
     private readonly List<Action> _pendingEditorActions = [];
+    private AssetRef<InputAsset>? _editorInputAsset;
+    private InputMap? _editorInputMap;
+    private ConfigRef<EditorLayoutConfig>? _editorLayoutRef;
+    private EditorLayoutConfig _editorLayout =
+        EditorLayoutConfig.CreateDefault();
     private bool _initialized;
     private bool _overlayVisible;
     private bool _dockLayoutDirty;
@@ -72,6 +92,13 @@ public sealed class EditorModule(
     private bool _showRenderSettingsWindow;
     private bool _gizmosEnabled = true;
     private bool _gameViewHovered;
+    private bool _gameViewPresetPopupOpen;
+    private bool _focusGameViewRequested;
+    private Vector2 _gameViewScreenPosition;
+    private Vector2 _gameViewScreenSize;
+    private bool _wasConsoleOpen;
+    private bool _consoleOpenBeforeOverlay;
+    private bool _cursorCapturedBeforeConsoleOpen = true;
     private int _selectedGameViewPreset = 1;
     private string _componentSearch = string.Empty;
     private readonly Dictionary<string, AssetRef<Model>> _editorModelRefs =
@@ -102,15 +129,14 @@ public sealed class EditorModule(
         if (_initialized)
             return;
 
-        _showStatisticsWindow = false;
-        _showGameViewWindow = true;
-        _showHierarchyWindow = true;
-        _showInspectorWindow = true;
-        _showConfigsWindow = true;
-        _showRenderSettingsWindow = false;
+        InitializeEditorLayout();
         RequestLayoutReset();
         imgui.Initialize();
         gizmos.Initialize();
+        _editorInputAsset = assets.Load<InputAsset>("Controls.input");
+        _editorInputMap = input.Create(_editorInputAsset, "Engine");
+        _editorInputMap.GetAction("ToggleConsole").Started += OnToggleConsoleStarted;
+        _editorInputMap.Enable();
         window.Resized += OnWindowResized;
         window.KeyChanged += OnKeyChanged;
         window.MouseButtonChanged += OnMouseButtonChanged;
@@ -126,6 +152,15 @@ public sealed class EditorModule(
         if (!_initialized)
             return;
 
+        if (_wasConsoleOpen &&
+            !debugConsole.IsOpen &&
+            !window.IsCursorCaptured)
+        {
+            window.SetCursorCaptured(_overlayVisible ? false : _cursorCapturedBeforeConsoleOpen);
+        }
+
+        _wasConsoleOpen = debugConsole.IsOpen;
+
         var currentWidth = Math.Max(1, window.Width);
         var currentHeight = Math.Max(1, window.Height);
 
@@ -136,7 +171,11 @@ public sealed class EditorModule(
             _lastWindowHeight = currentHeight;
         }
 
-        if (_overlayVisible)
+        renderer.ScenePresentationEnabled =
+            !_overlayVisible ||
+            _showGameViewWindow;
+
+        if (_overlayVisible || debugConsolePanel.ShouldRender)
             imgui.BeginFrame(deltaTime);
         else
             renderer.SetSceneViewportSize(0, 0);
@@ -150,6 +189,21 @@ public sealed class EditorModule(
         window.Resized -= OnWindowResized;
         window.KeyChanged -= OnKeyChanged;
         window.MouseButtonChanged -= OnMouseButtonChanged;
+        if (_editorInputMap is not null)
+        {
+            _editorInputMap.GetAction("ToggleConsole").Started -= OnToggleConsoleStarted;
+            _editorInputMap.Dispose();
+            _editorInputMap = null;
+        }
+
+        _editorInputAsset?.Dispose();
+        _editorInputAsset = null;
+        if (_editorLayoutRef is not null)
+        {
+            _editorLayoutRef.Changed -= OnEditorLayoutChanged;
+            _editorLayoutRef.Dispose();
+            _editorLayoutRef = null;
+        }
         overlays.UnregisterOverlay(RenderOverlay);
         _windowCallbacks.Clear();
         _gizmoCallbacks.Clear();
@@ -213,8 +267,26 @@ public sealed class EditorModule(
 
         if (keyEvent.Key == (int)EKeyboardKey.F12)
         {
-            _overlayVisible = !_overlayVisible;
-            window.SetCursorCaptured(!_overlayVisible);
+            if (_overlayVisible)
+            {
+                _overlayVisible = false;
+                if (_consoleOpenBeforeOverlay)
+                    debugConsole.Open();
+                else
+                    debugConsole.Close();
+            }
+            else
+            {
+                _consoleOpenBeforeOverlay = debugConsole.IsOpen;
+                if (_editorLayout.GetWindow("Debug Console").Visible)
+                    debugConsole.Open();
+                _overlayVisible = true;
+            }
+
+            if (debugConsole.IsOpen)
+                window.SetCursorCaptured(false);
+            else
+                window.SetCursorCaptured(!_overlayVisible);
             return;
         }
 
@@ -223,6 +295,27 @@ public sealed class EditorModule(
         {
             window.SetCursorCaptured(false);
         }
+    }
+
+    private void OnToggleConsoleStarted(InputActionContext _)
+    {
+        if (debugConsole.IsOpen)
+            CloseConsole();
+        else
+            OpenConsole();
+    }
+
+    private void OpenConsole()
+    {
+        _cursorCapturedBeforeConsoleOpen = window.IsCursorCaptured;
+        debugConsole.Open();
+        window.SetCursorCaptured(false);
+    }
+
+    private void CloseConsole()
+    {
+        debugConsole.Close();
+        window.SetCursorCaptured(_overlayVisible ? false : _cursorCapturedBeforeConsoleOpen);
     }
 
     private void OnMouseButtonChanged(IWindow.MouseButtonEvent buttonEvent)
@@ -236,13 +329,35 @@ public sealed class EditorModule(
 
         if (!_overlayVisible)
         {
-            window.SetCursorCaptured(true);
+            if (!debugConsole.IsOpen)
+                window.SetCursorCaptured(true);
             return;
         }
 
-        var io = ImGui.GetIO();
-        if (_gameViewHovered || !io.WantCaptureMouse)
+        if (_gameViewPresetPopupOpen)
+            return;
+
+        if (_gameViewHovered || IsPointerInsideGameView())
+        {
+            _focusGameViewRequested = true;
             window.SetCursorCaptured(true);
+        }
+    }
+
+    private bool IsPointerInsideGameView()
+    {
+        if (_gameViewScreenSize.X <= 0.0f ||
+            _gameViewScreenSize.Y <= 0.0f)
+        {
+            return false;
+        }
+
+        var pointer = input.MousePosition;
+        return
+            pointer.X >= _gameViewScreenPosition.X &&
+            pointer.Y >= _gameViewScreenPosition.Y &&
+            pointer.X < _gameViewScreenPosition.X + _gameViewScreenSize.X &&
+            pointer.Y < _gameViewScreenPosition.Y + _gameViewScreenSize.Y;
     }
 
     private void RequestLayoutReset()
@@ -250,43 +365,109 @@ public sealed class EditorModule(
         _dockLayoutDirty = true;
     }
 
+    private void InitializeEditorLayout()
+    {
+        configs.Register<EditorLayoutConfig>();
+        _editorLayoutRef =
+            configs.LoadConfig<EditorLayoutConfig>(
+                "Configs/EditorLayout.yaml");
+        _editorLayoutRef.Changed += OnEditorLayoutChanged;
+
+        if (_editorLayoutRef.TryGetValue(out var layout) &&
+            layout is not null)
+        {
+            ApplyEditorLayout(layout);
+        }
+        else
+        {
+            ApplyEditorLayout(_editorLayout);
+            if (_editorLayoutRef.LastError is not null)
+            {
+                Logger.Error(
+                    _editorLayoutRef.LastError,
+                    $"Editor layout config is invalid: {_editorLayoutRef.Path}");
+            }
+        }
+    }
+
+    private void OnEditorLayoutChanged(EditorLayoutConfig layout)
+    {
+        ApplyEditorLayout(layout);
+        RequestLayoutReset();
+    }
+
+    private void ApplyEditorLayout(EditorLayoutConfig layout)
+    {
+        _editorLayout = layout;
+        _showStatisticsWindow =
+            layout.GetWindow("Rendering Statistics").Visible;
+        _showGameViewWindow =
+            layout.GetWindow("GameView").Visible;
+        _showHierarchyWindow =
+            layout.GetWindow("Hierarchy").Visible;
+        _showInspectorWindow =
+            layout.GetWindow("Inspector").Visible;
+        _showConfigsWindow =
+            layout.GetWindow("Configs").Visible;
+        _showRenderSettingsWindow =
+            layout.GetWindow("Render Settings").Visible;
+
+        if (_overlayVisible)
+        {
+            if (layout.GetWindow("Debug Console").Visible)
+                debugConsole.Open();
+            else
+                debugConsole.Close();
+        }
+    }
+
     private void RenderOverlay()
     {
-        if (!_overlayVisible)
+        var shouldRenderConsoleOnly = debugConsolePanel.ShouldRender && !_overlayVisible;
+        if (!_overlayVisible && !shouldRenderConsoleOnly)
             return;
 
-        DrawDockspace();
+        if (_overlayVisible)
+            DrawDockspace();
 
-        if (_showStatisticsWindow)
+        if (_overlayVisible && _showStatisticsWindow)
             DrawStatisticsWindow();
 
-        if (_showGameViewWindow)
+        if (_overlayVisible && _showGameViewWindow)
             DrawGameViewWindow();
-        else
+        else if (_overlayVisible)
             renderer.SetSceneViewportSize(0, 0);
 
-        if (_showHierarchyWindow)
+        if (_overlayVisible && _showHierarchyWindow)
             DrawHierarchyWindow();
 
-        if (_showInspectorWindow)
+        if (_overlayVisible && _showInspectorWindow)
             DrawInspectorWindow();
 
-        if (_showConfigsWindow)
+        if (_overlayVisible && _showConfigsWindow)
             DrawConfigsWindow();
 
-        if (_showRenderSettingsWindow)
+        if (_overlayVisible && _showRenderSettingsWindow)
             DrawRenderSettingsWindow();
 
-        foreach (var entry in _windowCallbacks.ToArray())
+        if (_overlayVisible)
         {
-            if (!entry.Visible)
-                continue;
+            foreach (var entry in _windowCallbacks.ToArray())
+            {
+                if (!entry.Visible)
+                    continue;
 
-            entry.Draw();
+                entry.Draw();
+            }
         }
 
-        DrawGizmos();
+        debugConsolePanel.Draw(_overlayVisible);
+
         imgui.Render();
+
+        if (_overlayVisible)
+            DrawGizmos();
+
         FlushPendingEditorActions();
     }
 
@@ -308,7 +489,6 @@ public sealed class EditorModule(
             ImGuiWindowFlags.NoBringToFrontOnFocus |
             ImGuiWindowFlags.NoNavFocus |
             ImGuiWindowFlags.NoDocking |
-            ImGuiWindowFlags.NoBackground |
             ImGuiWindowFlags.MenuBar;
 
         var open = true;
@@ -323,7 +503,7 @@ public sealed class EditorModule(
         ImGui.DockSpace(
             dockspaceId,
             Vector2.Zero,
-            ImGuiDockNodeFlags.PassthruCentralNode);
+            ImGuiDockNodeFlags.None);
 
         if (_dockLayoutDirty)
         {
@@ -341,6 +521,16 @@ public sealed class EditorModule(
                 ImGui.MenuItem("Inspector", string.Empty, ref _showInspectorWindow);
                 ImGui.MenuItem("Configs", string.Empty, ref _showConfigsWindow);
                 ImGui.MenuItem("Render Settings", string.Empty, ref _showRenderSettingsWindow);
+
+                var consoleVisible = debugConsole.IsOpen;
+                if (ImGui.MenuItem("Debug Console", string.Empty, consoleVisible))
+                {
+                    if (consoleVisible)
+                        CloseConsole();
+                    else
+                        OpenConsole();
+                }
+
                 ImGui.Separator();
 
                 foreach (var entry in _windowCallbacks)
@@ -369,36 +559,67 @@ public sealed class EditorModule(
             ImGuiDockBuilderNative.RemoveNode(dockspaceId);
             ImGuiDockBuilderNative.AddNode(
                 dockspaceId,
-                ImGuiDockNodeFlags.PassthruCentralNode);
+                ImGuiDockBuilderNative.DockSpaceNodeFlag);
             ImGuiDockBuilderNative.SetNodeSize(dockspaceId, viewportSize);
 
             var root = dockspaceId;
             uint left;
             uint main;
-            ImGuiDockBuilderNative.SplitNode(root, ImGuiDir.Left, 0.19f, &left, &main);
+            ImGuiDockBuilderNative.SplitNode(
+                root,
+                ImGuiDir.Left,
+                _editorLayout.Splits.LeftWidth,
+                &left,
+                &main);
 
             uint right;
             uint center;
-            ImGuiDockBuilderNative.SplitNode(main, ImGuiDir.Right, 0.28f, &right, &center);
+            ImGuiDockBuilderNative.SplitNode(
+                main,
+                ImGuiDir.Right,
+                _editorLayout.Splits.RightWidth,
+                &right,
+                &center);
 
             uint bottom;
             uint centerTop;
-            ImGuiDockBuilderNative.SplitNode(center, ImGuiDir.Down, 0.20f, &bottom, &centerTop);
+            ImGuiDockBuilderNative.SplitNode(
+                center,
+                ImGuiDir.Down,
+                _editorLayout.Splits.BottomHeight,
+                &bottom,
+                &centerTop);
 
             uint top;
             uint game;
-            ImGuiDockBuilderNative.SplitNode(centerTop, ImGuiDir.Up, 0.12f, &top, &game);
+            ImGuiDockBuilderNative.SplitNode(
+                centerTop,
+                ImGuiDir.Up,
+                _editorLayout.Splits.TopHeight,
+                &top,
+                &game);
 
-            uint renderSettings;
-            uint hierarchy;
-            ImGuiDockBuilderNative.SplitNode(left, ImGuiDir.Up, 0.20f, &renderSettings, &hierarchy);
+            var dockAreas = new Dictionary<string, uint>(StringComparer.Ordinal)
+            {
+                ["left"] = left,
+                ["center"] = game,
+                ["right"] = right,
+                ["bottom"] = bottom,
+                ["top"] = top
+            };
 
-            ImGuiDockBuilderNative.DockWindow("GameView", game);
-            ImGuiDockBuilderNative.DockWindow("Hierarchy", hierarchy);
-            ImGuiDockBuilderNative.DockWindow("Inspector", right);
-            ImGuiDockBuilderNative.DockWindow("Configs", bottom);
-            ImGuiDockBuilderNative.DockWindow("Rendering Statistics", top);
-            ImGuiDockBuilderNative.DockWindow("Render Settings", renderSettings);
+            foreach (var (windowName, windowLayout) in
+                     _editorLayout.Windows
+                         .OrderBy(entry =>
+                             _editorLayout.IsActiveTab(
+                                 entry.Value.Dock,
+                                 entry.Key)))
+            {
+                ImGuiDockBuilderNative.DockWindow(
+                    windowName,
+                    dockAreas[windowLayout.Dock]);
+            }
+
             ImGuiDockBuilderNative.Finish(dockspaceId);
         }
     }
@@ -426,6 +647,15 @@ public sealed class EditorModule(
     private void DrawGameViewWindow()
     {
         _gameViewHovered = false;
+        _gameViewPresetPopupOpen = false;
+        _gameViewScreenPosition = Vector2.Zero;
+        _gameViewScreenSize = Vector2.Zero;
+
+        if (_focusGameViewRequested)
+        {
+            ImGui.SetNextWindowFocus();
+            _focusGameViewRequested = false;
+        }
 
         ImGui.PushStyleVar(ImGuiStyleVar.WindowPadding, Vector2.Zero);
         if (!ImGui.Begin("GameView", ref _showGameViewWindow))
@@ -440,6 +670,7 @@ public sealed class EditorModule(
                 "##gameview_preset",
                 GameViewPresets[_selectedGameViewPreset].Label))
         {
+            _gameViewPresetPopupOpen = true;
             for (var index = 0; index < GameViewPresets.Length; index++)
             {
                 var selected = index == _selectedGameViewPreset;
@@ -470,6 +701,8 @@ public sealed class EditorModule(
                 new Vector2(0.0f, 1.0f),
                 new Vector2(1.0f, 0.0f));
             _gameViewHovered = ImGui.IsItemHovered();
+            _gameViewScreenPosition = ImGui.GetItemRectMin();
+            _gameViewScreenSize = ImGui.GetItemRectSize();
         }
         else
         {
@@ -1871,8 +2104,13 @@ public sealed class EditorModule(
 
     private void DrawGizmos()
     {
-        if (!_gizmosEnabled)
+        if (!_gizmosEnabled ||
+            !_showGameViewWindow ||
+            _gameViewScreenSize.X <= 0.0f ||
+            _gameViewScreenSize.Y <= 0.0f)
+        {
             return;
+        }
 
         var scene = scenes.ActiveScene;
         var camera = FindActiveCamera(scene);
@@ -1915,8 +2153,12 @@ public sealed class EditorModule(
 
         gizmos.Render(
             camera,
-            Math.Max(1, window.Width),
-            Math.Max(1, window.Height));
+            Math.Max(1, (int)_gameViewScreenSize.X),
+            Math.Max(1, (int)_gameViewScreenSize.Y),
+            (int)_gameViewScreenPosition.X,
+            Math.Max(0, window.Height - (int)(_gameViewScreenPosition.Y + _gameViewScreenSize.Y)),
+            Math.Max(1, (int)_gameViewScreenSize.X),
+            Math.Max(1, (int)_gameViewScreenSize.Y));
         gizmos.Clear();
     }
 
@@ -2056,6 +2298,9 @@ public sealed class EditorModule(
 
     private static class ImGuiDockBuilderNative
     {
+        public const ImGuiDockNodeFlags DockSpaceNodeFlag =
+            (ImGuiDockNodeFlags)(1 << 10);
+
         [StructLayout(LayoutKind.Sequential)]
         private struct ImVec2Native
         {
