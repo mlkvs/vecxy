@@ -38,4 +38,4 @@ The engine is actively evolving around a few core ideas:
 
 ## Status
 
-Vecxy is in active development. The focus right now is on strengthening the runtime loop: rendering, scene authoring, lighting, post-processing, physics/gameplay interactions, and embedded editor tools.
+Vecxy is in active development! The focus right now is on strengthening the runtime loop: rendering, scene authoring, lighting, post-processing, physics/gameplay interactions, and embedded editor tools.
