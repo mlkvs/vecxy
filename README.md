@@ -1,7 +1,7 @@
 # Vecxy
 
 ![Vecxy runtime lighting](docs/images/runtime-lighting.png)
-![Vecxy runtime fog](docs/images/runtime-fog.png)
+![Vecxy runtime fog](docs/images/runtime-forest.png)
 ![Vecxy editor overview](docs/images/editor-overview.png)
 
 Vecxy is a C# game engine focused on fast iteration, clear runtime APIs, and a built-in editor workflow that stays close to the game itself.
