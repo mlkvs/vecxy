@@ -19,7 +19,11 @@ public sealed class CapsuleCollider : Collider
                     nameof(value),
                     "Capsule collider radius must be positive.");
 
+            if (Math.Abs(_radius - value) <= float.Epsilon)
+                return;
+
             _radius = value;
+            NotifyChanged();
         }
     }
 
@@ -33,17 +37,28 @@ public sealed class CapsuleCollider : Collider
                     nameof(value),
                     "Capsule collider height cannot be negative.");
 
+            if (Math.Abs(_height - value) <= float.Epsilon)
+                return;
+
             _height = value;
+            NotifyChanged();
         }
     }
 
     public Vector3 Center
     {
         get => _center;
-        set => _center = value;
+        set
+        {
+            if (_center == value)
+                return;
+
+            _center = value;
+            NotifyChanged();
+        }
     }
 
-    protected override void OnGizmos(ISceneGizmoDrawer gizmos)
+    public override void OnGizmos(ISceneGizmoDrawer gizmos)
     {
         var upOffset = Vector3.UnitY * (Height * 0.5f);
         var topLocal = Center + upOffset;

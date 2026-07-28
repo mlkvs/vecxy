@@ -8,6 +8,7 @@ public sealed class Scene
 {
     private readonly List<SceneObject> _objects = [];
     private readonly List<SceneObject> _pendingDestroy = [];
+    private readonly List<ISceneSystem> _systems = [];
 
     private bool _active;
     private bool _updating;
@@ -22,10 +23,35 @@ public sealed class Scene
 
     public IEnumerable<SceneObject> RootObjects =>
         _objects.Where(sceneObject => sceneObject.Parent is null);
+    
+    public IEnumerable<ISceneSystem> Systems => _systems;
 
     public Scene(string name = "Scene")
     {
         Name = name;
+    }
+
+    public void RegisterSystem(ISceneSystem system)
+    {
+        _systems.Add(system);
+    }
+
+    public T? GetSystem<T>() where T : class, ISceneSystem
+    {
+        for (var index = 0; index < _systems.Count; ++index)
+        {
+            if (_systems[index] is T system)
+                return system;
+        }
+
+        return null;
+    }
+
+    public bool TryGetSystem<T>(out T? system)
+        where T : class, ISceneSystem
+    {
+        system = GetSystem<T>();
+        return system is not null;
     }
 
     public SceneObject CreateObject(string name = "SceneObject")
@@ -36,6 +62,11 @@ public sealed class Scene
 
         if (_active)
             sceneObject.Activate();
+
+        foreach (var system in Systems)
+        {
+            system.OnObjectAdded(sceneObject);
+        }
 
         return sceneObject;
     }
@@ -96,6 +127,13 @@ public sealed class Scene
                 if (!sceneObject.IsDestroying)
                     sceneObject.LateUpdate(deltaTime);
             }
+
+            for (int index = 0, count = _systems.Count; index < count; ++index)
+            {
+                var system = _systems[index];
+                
+                system.Update(deltaTime);
+            }
         }
         finally
         {
@@ -134,6 +172,12 @@ public sealed class Scene
             DestroyObjectImmediately(child);
 
         _objects.Remove(sceneObject);
+        
         sceneObject.DestroyImmediately();
+        
+        foreach (var system in Systems)
+        {
+            system.OnObjectRemoved(sceneObject);
+        }
     }
 }

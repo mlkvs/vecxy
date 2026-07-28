@@ -19,13 +19,27 @@ public sealed class RigidBody : AComponent
     public EPhysicsMotionType MotionType
     {
         get => _motionType;
-        set => _motionType = value;
+        set
+        {
+            if (_motionType == value)
+                return;
+
+            _motionType = value;
+            NotifyChanged();
+        }
     }
 
     public bool AffectedByGravity
     {
         get => _affectedByGravity;
-        set => _affectedByGravity = value;
+        set
+        {
+            if (_affectedByGravity == value)
+                return;
+
+            _affectedByGravity = value;
+            NotifyChanged();
+        }
     }
 
     public float Mass
@@ -36,7 +50,11 @@ public sealed class RigidBody : AComponent
             if (value <= 0.0f)
                 throw new ArgumentOutOfRangeException(nameof(value));
 
+            if (Math.Abs(_mass - value) <= float.Epsilon)
+                return;
+
             _mass = value;
+            NotifyChanged();
         }
     }
 
@@ -48,7 +66,11 @@ public sealed class RigidBody : AComponent
             if (value < 0.0f)
                 throw new ArgumentOutOfRangeException(nameof(value));
 
+            if (Math.Abs(_friction - value) <= float.Epsilon)
+                return;
+
             _friction = value;
+            NotifyChanged();
         }
     }
 
@@ -60,14 +82,25 @@ public sealed class RigidBody : AComponent
             if (value < 0.0f || value > 1.0f)
                 throw new ArgumentOutOfRangeException(nameof(value));
 
+            if (Math.Abs(_restitution - value) <= float.Epsilon)
+                return;
+
             _restitution = value;
+            NotifyChanged();
         }
     }
 
     public bool EnableSpeculativeContacts
     {
         get => _enableSpeculativeContacts;
-        set => _enableSpeculativeContacts = value;
+        set
+        {
+            if (_enableSpeculativeContacts == value)
+                return;
+
+            _enableSpeculativeContacts = value;
+            NotifyChanged();
+        }
     }
 
     public Vector3 Velocity

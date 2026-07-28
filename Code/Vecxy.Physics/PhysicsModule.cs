@@ -14,81 +14,128 @@ using JitterRigidBody = Jitter2.Dynamics.RigidBody;
 
 namespace Vecxy.Physics;
 
-public sealed class PhysicsModule(
-    ISceneManager scenes) :
-    IModule,
-    IModule.IUpdatable,
-    IPhysicsSystem
+public sealed class PhysicsSceneSystem : ISceneSystem
 {
-    public sealed class Definition : AModuleDefinition<PhysicsModule>
-    {
-        protected override IReadOnlyList<Type> Exports => [typeof(IPhysicsSystem)];
+    private readonly Dictionary<Scene.Scene, SceneState> _states = [];
+    private Vector3 _gravity = new(0.0f, -9.81f, 0.0f);
 
-        protected override void RegisterModule(ContainerBuilder builder)
+    public Vector3 Gravity
+    {
+        get => _gravity;
+        set
         {
-            builder
-                .RegisterType<PhysicsModule>()
-                .AsSelf()
-                .SingleInstance();
+            _gravity = value;
+
+            foreach (var state in _states.Values)
+                state.World.Gravity = PhysicsShapeFactory.ToJVector(value);
         }
     }
 
-    private readonly Dictionary<SceneObject, PhysicsActor> _actorsBySceneObject = [];
-    private readonly Dictionary<JitterRigidBody, PhysicsActor> _actorsByBody = [];
-    private readonly HashSet<PhysicsPair> _collisionPairs = [];
-    private readonly HashSet<PhysicsPair> _triggerPairs = [];
-    private readonly HashSet<PhysicsPair> _triggerPairsNext = [];
-    private World? _world;
-    private float _accumulator;
-    private bool _initialized;
-    private bool _disposed;
-
-    public Vector3 Gravity { get; set; } = new(0.0f, -9.81f, 0.0f);
-
-    public void OnInitialize()
+    public void OnObjectAdded(SceneObject sceneObject)
     {
-        ObjectDisposedException.ThrowIf(_disposed, this);
-
-        if (_initialized)
+        if (sceneObject.GetComponent<Collider>() is null)
             return;
 
-        _world = new World
-        {
-            Gravity = PhysicsShapeFactory.ToJVector(Gravity),
-            AllowDeactivation = true
-        };
-        _world.SolverIterations = (solver: 6, relaxation: 2);
-        _world.BroadPhaseFilter = new BroadPhaseFilter(this);
-        _initialized = true;
+        GetState(sceneObject.Scene).Candidates.Add(sceneObject);
     }
 
-    public void OnUpdate(float deltaTime)
+    public void OnObjectRemoved(SceneObject sceneObject)
     {
-        ObjectDisposedException.ThrowIf(_disposed, this);
-
-        if (!_initialized || _world is null)
+        if (!TryGetState(sceneObject.Scene, out var state))
             return;
 
-        _world.Gravity = PhysicsShapeFactory.ToJVector(Gravity);
+        state.Candidates.Remove(sceneObject);
+        UnregisterActor(state, sceneObject);
+        CleanupSceneState(state);
+    }
 
-        SyncRegisteredActors();
-        SyncActorsToPhysics();
-
-        const float step = 1.0f / 60.0f;
-        _accumulator = Math.Min(_accumulator + deltaTime, 0.25f);
-
-        while (_accumulator >= step)
+    public void OnComponentAdded(SceneObject sceneObject, AComponent component)
+    {
+        if (component is Collider)
         {
-            _world.Step(step, multiThread: false);
-            _accumulator -= step;
+            var stateTemp = GetState(sceneObject.Scene);
+            stateTemp.Candidates.Add(sceneObject);
+            TryRegisterActor(stateTemp, sceneObject);
+            return;
         }
 
-        SyncPhysicsToActors();
-        DispatchCollisionStay();
-        DispatchTriggers();
+        if (component is RigidBody &&
+            TryGetState(sceneObject.Scene, out var state) &&
+            state.ActorsBySceneObject.TryGetValue(sceneObject, out var actor))
+        {
+            AttachRigidBody(actor, sceneObject.GetComponent<RigidBody>());
+            ApplyActorProperties(actor);
+        }
+    }
+
+    public void OnComponentRemoved(SceneObject sceneObject, AComponent component)
+    {
+        if (!TryGetState(sceneObject.Scene, out var state))
+            return;
+
+        if (component is Collider)
+        {
+            state.Candidates.Remove(sceneObject);
+            UnregisterActor(state, sceneObject);
+            CleanupSceneState(state);
+            return;
+        }
+
+        if (component is RigidBody &&
+            state.ActorsBySceneObject.TryGetValue(sceneObject, out var actor))
+        {
+            AttachRigidBody(actor, sceneObject.GetComponent<RigidBody>());
+            ApplyActorProperties(actor);
+        }
+    }
+
+    public void OnComponentChanged(SceneObject sceneObject, AComponent component)
+    {
+        if (!TryGetState(sceneObject.Scene, out var state))
+            return;
+
+        switch (component)
+        {
+            case Collider:
+                RebuildActor(state, sceneObject);
+                break;
+            case RigidBody:
+                if (state.ActorsBySceneObject.TryGetValue(sceneObject, out var actor))
+                {
+                    AttachRigidBody(actor, sceneObject.GetComponent<RigidBody>());
+                    ApplyActorProperties(actor);
+                }
+                break;
+        }
+    }
+
+    public void Update(float deltaTime)
+    {
+        foreach (var state in _states.Values)
+        {
+            if (!state.Scene.IsActive)
+                continue;
+
+            SyncRegisteredActors(state);
+            SyncActorsToPhysics(state);
+
+            const float step = 1.0f / 60.0f;
+            state.Accumulator = Math.Min(state.Accumulator + deltaTime, 0.25f);
+
+            while (state.Accumulator >= step)
+            {
+                state.World.Step(step, multiThread: false);
+                state.Accumulator -= step;
+            }
+
+            SyncPhysicsToActors(state);
+            DispatchCollisionStay(state);
+            DispatchTriggers(state);
+        }
     }
 
     public bool Raycast(
+        Scene.Scene scene,
         Vector3 origin,
         Vector3 direction,
         float maxDistance,
@@ -97,7 +144,7 @@ public sealed class PhysicsModule(
     {
         hit = default;
 
-        if (_world is null || maxDistance <= 0.0f)
+        if (!TryGetState(scene, out var state) || maxDistance <= 0.0f)
             return false;
 
         var directionLengthSquared = direction.LengthSquared();
@@ -111,7 +158,7 @@ public sealed class PhysicsModule(
         var found = false;
         var nearestDistance = maxDistance;
 
-        foreach (var actor in _actorsBySceneObject.Values)
+        foreach (var actor in state.ActorsBySceneObject.Values)
         {
             if (ReferenceEquals(actor.SceneObject, ignoreSceneObject))
                 continue;
@@ -140,65 +187,81 @@ public sealed class PhysicsModule(
         return found;
     }
 
-    public void OnShutdown()
+    public void Shutdown()
     {
-        if (!_initialized)
-            return;
-
-        foreach (var actor in _actorsBySceneObject.Values.ToArray())
-            UnregisterActor(actor.SceneObject);
-
-        _actorsBySceneObject.Clear();
-        _actorsByBody.Clear();
-        _collisionPairs.Clear();
-        _triggerPairs.Clear();
-        _triggerPairsNext.Clear();
-        _world?.Dispose();
-        _world = null;
-        _accumulator = 0.0f;
-        _initialized = false;
-    }
-
-    public void Dispose()
-    {
-        if (_disposed)
-            return;
-
-        OnShutdown();
-        _disposed = true;
-    }
-
-    private void SyncRegisteredActors()
-    {
-        var activeScene = scenes.ActiveScene;
-        var activeObjects = activeScene is null
-            ? []
-            : activeScene.Objects
-                .Where(sceneObject =>
-                    !sceneObject.IsDestroyed &&
-                    sceneObject.IsActive &&
-                    sceneObject.GetComponent<Collider>() is not null)
-                .ToArray();
-
-        var activeSet = activeObjects.ToHashSet();
-
-        foreach (var sceneObject in _actorsBySceneObject.Keys.ToArray())
+        foreach (var state in _states.Values)
         {
-            if (!activeSet.Contains(sceneObject))
-                UnregisterActor(sceneObject);
+            foreach (var actor in state.ActorsBySceneObject.Values.ToArray())
+                UnregisterActor(state, actor.SceneObject);
+
+            state.Candidates.Clear();
+            state.ActorsBySceneObject.Clear();
+            state.ActorsByBody.Clear();
+            state.CollisionPairs.Clear();
+            state.TriggerPairs.Clear();
+            state.TriggerPairsNext.Clear();
+            state.World.Dispose();
         }
 
-        foreach (var sceneObject in activeObjects)
+        _states.Clear();
+    }
+
+    private SceneState GetState(Scene.Scene scene)
+    {
+        if (_states.TryGetValue(scene, out var state))
+            return state;
+
+        state = new SceneState(scene, this, Gravity);
+        _states.Add(scene, state);
+        return state;
+    }
+
+    private bool TryGetState(Scene.Scene scene, out SceneState state)
+    {
+        return _states.TryGetValue(scene, out state!);
+    }
+
+    private void CleanupSceneState(SceneState state)
+    {
+        if (state.Scene.IsActive ||
+            state.Candidates.Count > 0 ||
+            state.ActorsBySceneObject.Count > 0)
         {
-            if (!_actorsBySceneObject.ContainsKey(sceneObject))
-                RegisterActor(sceneObject);
+            return;
+        }
+
+        _states.Remove(state.Scene);
+        state.World.Dispose();
+    }
+
+    private void SyncRegisteredActors(SceneState state)
+    {
+        foreach (var sceneObject in state.ActorsBySceneObject.Keys.ToArray())
+        {
+            if (!ShouldHaveActor(sceneObject))
+                UnregisterActor(state, sceneObject);
+        }
+
+        foreach (var sceneObject in state.Candidates.ToArray())
+        {
+            if (sceneObject.IsDestroyed)
+            {
+                state.Candidates.Remove(sceneObject);
+                continue;
+            }
+
+            if (!state.ActorsBySceneObject.ContainsKey(sceneObject))
+                TryRegisterActor(state, sceneObject);
         }
     }
 
-    private void RegisterActor(SceneObject sceneObject)
+    private void TryRegisterActor(SceneState state, SceneObject sceneObject)
     {
-        if (_world is null)
+        if (!ShouldHaveActor(sceneObject) ||
+            state.ActorsBySceneObject.ContainsKey(sceneObject))
+        {
             return;
+        }
 
         var collider = sceneObject.GetComponent<Collider>();
         if (collider is null)
@@ -213,14 +276,14 @@ public sealed class PhysicsModule(
         }
 
         var rigidBody = sceneObject.GetComponent<RigidBody>();
-        var body = _world.CreateRigidBody();
+        var body = state.World.CreateRigidBody();
         var actor = new PhysicsActor(sceneObject, collider, rigidBody, body);
 
         body.Tag = actor;
         body.Position = PhysicsShapeFactory.ToJVector(sceneObject.Transform.WorldPosition);
         body.Orientation = PhysicsShapeFactory.ToJQuaternion(sceneObject.Transform.WorldRotation);
-        body.BeginCollide += OnBeginCollide;
-        body.EndCollide += OnEndCollide;
+        body.BeginCollide += state.OnBeginCollide;
+        body.EndCollide += state.OnEndCollide;
         body.AddShape(shape, MassInertiaUpdateMode.Update);
 
         ApplyActorProperties(actor);
@@ -229,33 +292,68 @@ public sealed class PhysicsModule(
         if (rigidBody is not null)
             rigidBody.NativeBody = body;
 
-        _actorsBySceneObject.Add(sceneObject, actor);
-        _actorsByBody.Add(body, actor);
+        state.ActorsBySceneObject.Add(sceneObject, actor);
+        state.ActorsByBody.Add(body, actor);
     }
 
-    private void UnregisterActor(SceneObject sceneObject)
+    private void RebuildActor(SceneState state, SceneObject sceneObject)
     {
-        if (_world is null ||
-            !_actorsBySceneObject.Remove(sceneObject, out var actor))
+        var hadActor = state.ActorsBySceneObject.ContainsKey(sceneObject);
+        if (hadActor)
+            UnregisterActor(state, sceneObject);
+
+        if (sceneObject.GetComponent<Collider>() is null)
         {
+            state.Candidates.Remove(sceneObject);
+            CleanupSceneState(state);
             return;
         }
 
-        actor.Body.BeginCollide -= OnBeginCollide;
-        actor.Body.EndCollide -= OnEndCollide;
+        state.Candidates.Add(sceneObject);
+        TryRegisterActor(state, sceneObject);
+    }
+
+    private void UnregisterActor(SceneState state, SceneObject sceneObject)
+    {
+        if (!state.ActorsBySceneObject.Remove(sceneObject, out var actor))
+            return;
+
+        actor.Body.BeginCollide -= state.OnBeginCollide;
+        actor.Body.EndCollide -= state.OnEndCollide;
 
         if (actor.RigidBody is not null)
             actor.RigidBody.NativeBody = null;
 
-        _actorsByBody.Remove(actor.Body);
-        _world.Remove(actor.Body);
+        state.ActorsByBody.Remove(actor.Body);
+        state.World.Remove(actor.Body);
 
-        RemovePairsFor(actor);
+        RemovePairsFor(state, actor);
     }
 
-    private void SyncActorsToPhysics()
+    private static bool ShouldHaveActor(SceneObject sceneObject)
     {
-        foreach (var actor in _actorsBySceneObject.Values)
+        return !sceneObject.IsDestroyed &&
+               sceneObject.IsActive &&
+               sceneObject.GetComponent<Collider>() is not null;
+    }
+
+    private static void AttachRigidBody(PhysicsActor actor, RigidBody? rigidBody)
+    {
+        if (ReferenceEquals(actor.RigidBody, rigidBody))
+            return;
+
+        if (actor.RigidBody is not null)
+            actor.RigidBody.NativeBody = null;
+
+        actor.RigidBody = rigidBody;
+
+        if (rigidBody is not null)
+            rigidBody.NativeBody = actor.Body;
+    }
+
+    private static void SyncActorsToPhysics(SceneState state)
+    {
+        foreach (var actor in state.ActorsBySceneObject.Values)
         {
             ApplyActorProperties(actor);
 
@@ -278,9 +376,9 @@ public sealed class PhysicsModule(
         }
     }
 
-    private void SyncPhysicsToActors()
+    private static void SyncPhysicsToActors(SceneState state)
     {
-        foreach (var actor in _actorsBySceneObject.Values)
+        foreach (var actor in state.ActorsBySceneObject.Values)
         {
             if (actor.RigidBody is null ||
                 actor.Body.MotionType != MotionType.Dynamic)
@@ -295,7 +393,7 @@ public sealed class PhysicsModule(
         }
     }
 
-    private void ApplyActorProperties(PhysicsActor actor)
+    private static void ApplyActorProperties(PhysicsActor actor)
     {
         var body = actor.Body;
         body.MotionType = GetMotionType(actor);
@@ -314,7 +412,7 @@ public sealed class PhysicsModule(
         }
     }
 
-    private MotionType GetMotionType(PhysicsActor actor)
+    private static MotionType GetMotionType(PhysicsActor actor)
     {
         return actor.RigidBody?.MotionType switch
         {
@@ -325,6 +423,7 @@ public sealed class PhysicsModule(
     }
 
     private bool FilterBroadPhasePair(
+        SceneState state,
         IDynamicTreeProxy proxyA,
         IDynamicTreeProxy proxyB)
     {
@@ -334,8 +433,8 @@ public sealed class PhysicsModule(
             return false;
         }
 
-        if (!_actorsByBody.TryGetValue(shapeA.RigidBody, out var actorA) ||
-            !_actorsByBody.TryGetValue(shapeB.RigidBody, out var actorB))
+        if (!state.ActorsByBody.TryGetValue(shapeA.RigidBody, out var actorA) ||
+            !state.ActorsByBody.TryGetValue(shapeB.RigidBody, out var actorB))
         {
             return true;
         }
@@ -346,33 +445,34 @@ public sealed class PhysicsModule(
         return true;
     }
 
-    private void OnBeginCollide(Arbiter arbiter)
+    private static void OnBeginCollide(SceneState state, Arbiter arbiter)
     {
-        if (!TryGetActors(arbiter, out var actorA, out var actorB))
+        if (!TryGetActors(state, arbiter, out var actorA, out var actorB))
             return;
 
         var pair = new PhysicsPair(actorA, actorB);
-        if (!_collisionPairs.Add(pair))
+        if (!state.CollisionPairs.Add(pair))
             return;
 
         DispatchCollisionEnter(actorA, actorB);
         DispatchCollisionEnter(actorB, actorA);
     }
 
-    private void OnEndCollide(Arbiter arbiter)
+    private static void OnEndCollide(SceneState state, Arbiter arbiter)
     {
-        if (!TryGetActors(arbiter, out var actorA, out var actorB))
+        if (!TryGetActors(state, arbiter, out var actorA, out var actorB))
             return;
 
         var pair = new PhysicsPair(actorA, actorB);
-        if (!_collisionPairs.Remove(pair))
+        if (!state.CollisionPairs.Remove(pair))
             return;
 
         DispatchCollisionExit(actorA, actorB);
         DispatchCollisionExit(actorB, actorA);
     }
 
-    private bool TryGetActors(
+    private static bool TryGetActors(
+        SceneState state,
         Arbiter arbiter,
         out PhysicsActor actorA,
         out PhysicsActor actorB)
@@ -380,8 +480,8 @@ public sealed class PhysicsModule(
         actorA = null!;
         actorB = null!;
 
-        if (!_actorsByBody.TryGetValue(arbiter.Body1, out var resolvedActorA) ||
-            !_actorsByBody.TryGetValue(arbiter.Body2, out var resolvedActorB))
+        if (!state.ActorsByBody.TryGetValue(arbiter.Body1, out var resolvedActorA) ||
+            !state.ActorsByBody.TryGetValue(arbiter.Body2, out var resolvedActorB))
         {
             return false;
         }
@@ -391,9 +491,9 @@ public sealed class PhysicsModule(
         return true;
     }
 
-    private void DispatchCollisionStay()
+    private static void DispatchCollisionStay(SceneState state)
     {
-        foreach (var pair in _collisionPairs)
+        foreach (var pair in state.CollisionPairs)
         {
             if (pair.A.SceneObject.IsDestroyed || pair.B.SceneObject.IsDestroyed)
                 continue;
@@ -403,11 +503,11 @@ public sealed class PhysicsModule(
         }
     }
 
-    private void DispatchTriggers()
+    private static void DispatchTriggers(SceneState state)
     {
-        _triggerPairsNext.Clear();
+        state.TriggerPairsNext.Clear();
 
-        var actors = _actorsBySceneObject.Values.ToArray();
+        var actors = state.ActorsBySceneObject.Values.ToArray();
         for (var indexA = 0; indexA < actors.Length; indexA++)
         {
             for (var indexB = indexA + 1; indexB < actors.Length; indexB++)
@@ -425,9 +525,9 @@ public sealed class PhysicsModule(
                     continue;
 
                 var pair = new PhysicsPair(actorA, actorB);
-                _triggerPairsNext.Add(pair);
+                state.TriggerPairsNext.Add(pair);
 
-                if (_triggerPairs.Contains(pair))
+                if (state.TriggerPairs.Contains(pair))
                     continue;
 
                 DispatchTriggerEnter(actorA, actorB);
@@ -435,9 +535,9 @@ public sealed class PhysicsModule(
             }
         }
 
-        foreach (var pair in _triggerPairs)
+        foreach (var pair in state.TriggerPairs)
         {
-            if (_triggerPairsNext.Contains(pair))
+            if (state.TriggerPairsNext.Contains(pair))
             {
                 if (!pair.A.SceneObject.IsDestroyed &&
                     !pair.B.SceneObject.IsDestroyed)
@@ -453,9 +553,9 @@ public sealed class PhysicsModule(
             DispatchTriggerExit(pair.B, pair.A);
         }
 
-        _triggerPairs.Clear();
-        foreach (var pair in _triggerPairsNext)
-            _triggerPairs.Add(pair);
+        state.TriggerPairs.Clear();
+        foreach (var pair in state.TriggerPairsNext)
+            state.TriggerPairs.Add(pair);
     }
 
     private static bool ShapesOverlap(
@@ -483,20 +583,20 @@ public sealed class PhysicsModule(
                a.Min.Z <= b.Max.Z && a.Max.Z >= b.Min.Z;
     }
 
-    private void RemovePairsFor(PhysicsActor actor)
+    private static void RemovePairsFor(SceneState state, PhysicsActor actor)
     {
-        foreach (var pair in _collisionPairs.Where(pair => pair.Contains(actor)).ToArray())
+        foreach (var pair in state.CollisionPairs.Where(pair => pair.Contains(actor)).ToArray())
         {
-            _collisionPairs.Remove(pair);
+            state.CollisionPairs.Remove(pair);
 
             var other = pair.Other(actor);
             DispatchCollisionExit(actor, other);
             DispatchCollisionExit(other, actor);
         }
 
-        foreach (var pair in _triggerPairs.Where(pair => pair.Contains(actor)).ToArray())
+        foreach (var pair in state.TriggerPairs.Where(pair => pair.Contains(actor)).ToArray())
         {
-            _triggerPairs.Remove(pair);
+            state.TriggerPairs.Remove(pair);
 
             var other = pair.Other(actor);
             DispatchTriggerExit(actor, other);
@@ -504,7 +604,7 @@ public sealed class PhysicsModule(
         }
     }
 
-    private void DispatchCollisionEnter(
+    private static void DispatchCollisionEnter(
         PhysicsActor self,
         PhysicsActor other)
     {
@@ -513,10 +613,10 @@ public sealed class PhysicsModule(
             self.Collider,
             other.Collider,
             static (component, selfCollider, otherCollider) =>
-                component.DispatchCollisionEnter(selfCollider, otherCollider));
+                component.OnCollisionEnter(selfCollider, otherCollider));
     }
 
-    private void DispatchCollisionStay(
+    private static void DispatchCollisionStay(
         PhysicsActor self,
         PhysicsActor other)
     {
@@ -525,10 +625,10 @@ public sealed class PhysicsModule(
             self.Collider,
             other.Collider,
             static (component, selfCollider, otherCollider) =>
-                component.DispatchCollisionStay(selfCollider, otherCollider));
+                component.OnCollisionStay(selfCollider, otherCollider));
     }
 
-    private void DispatchCollisionExit(
+    private static void DispatchCollisionExit(
         PhysicsActor self,
         PhysicsActor other)
     {
@@ -537,10 +637,10 @@ public sealed class PhysicsModule(
             self.Collider,
             other.Collider,
             static (component, selfCollider, otherCollider) =>
-                component.DispatchCollisionExit(selfCollider, otherCollider));
+                component.OnCollisionExit(selfCollider, otherCollider));
     }
 
-    private void DispatchTriggerEnter(
+    private static void DispatchTriggerEnter(
         PhysicsActor self,
         PhysicsActor other)
     {
@@ -549,10 +649,10 @@ public sealed class PhysicsModule(
             self.Collider,
             other.Collider,
             static (component, selfCollider, otherCollider) =>
-                component.DispatchTriggerEnter(selfCollider, otherCollider));
+                component.OnTriggerEnter(selfCollider, otherCollider));
     }
 
-    private void DispatchTriggerStay(
+    private static void DispatchTriggerStay(
         PhysicsActor self,
         PhysicsActor other)
     {
@@ -561,10 +661,10 @@ public sealed class PhysicsModule(
             self.Collider,
             other.Collider,
             static (component, selfCollider, otherCollider) =>
-                component.DispatchTriggerStay(selfCollider, otherCollider));
+                component.OnTriggerStay(selfCollider, otherCollider));
     }
 
-    private void DispatchTriggerExit(
+    private static void DispatchTriggerExit(
         PhysicsActor self,
         PhysicsActor other)
     {
@@ -573,7 +673,7 @@ public sealed class PhysicsModule(
             self.Collider,
             other.Collider,
             static (component, selfCollider, otherCollider) =>
-                component.DispatchTriggerExit(selfCollider, otherCollider));
+                component.OnTriggerExit(selfCollider, otherCollider));
     }
 
     private static void DispatchPhysicsComponents(
@@ -585,9 +685,7 @@ public sealed class PhysicsModule(
         foreach (var component in sceneObject.Components)
         {
             if (!component.IsActive || component.IsDestroyed)
-            {
                 continue;
-            }
 
             try
             {
@@ -610,19 +708,54 @@ public sealed class PhysicsModule(
     {
         public SceneObject SceneObject { get; } = sceneObject;
         public Collider Collider { get; } = collider;
-        public RigidBody? RigidBody { get; } = rigidBody;
+        public RigidBody? RigidBody { get; set; } = rigidBody;
         public JitterRigidBody Body { get; } = body;
     }
 
     private sealed class BroadPhaseFilter(
-        PhysicsModule module) : IBroadPhaseFilter
+        SceneState state,
+        PhysicsSceneSystem system) : IBroadPhaseFilter
     {
         public bool Filter(
             IDynamicTreeProxy proxyA,
             IDynamicTreeProxy proxyB)
         {
-            return module.FilterBroadPhasePair(proxyA, proxyB);
+            return system.FilterBroadPhasePair(state, proxyA, proxyB);
         }
+    }
+
+    private sealed class SceneState
+    {
+        public SceneState(
+            Scene.Scene scene,
+            PhysicsSceneSystem system,
+            Vector3 gravity)
+        {
+            Scene = scene;
+            World = new World
+            {
+                Gravity = PhysicsShapeFactory.ToJVector(gravity),
+                AllowDeactivation = true
+            };
+            World.SolverIterations = (solver: 6, relaxation: 2);
+            World.BroadPhaseFilter = new BroadPhaseFilter(this, system);
+        }
+
+        public Scene.Scene Scene { get; }
+        public HashSet<SceneObject> Candidates { get; } = [];
+        public Dictionary<SceneObject, PhysicsActor> ActorsBySceneObject { get; } = [];
+        public Dictionary<JitterRigidBody, PhysicsActor> ActorsByBody { get; } = [];
+        public HashSet<PhysicsPair> CollisionPairs { get; } = [];
+        public HashSet<PhysicsPair> TriggerPairs { get; } = [];
+        public HashSet<PhysicsPair> TriggerPairsNext { get; } = [];
+        public World World { get; }
+        public float Accumulator { get; set; }
+
+        public void OnBeginCollide(Arbiter arbiter) =>
+            PhysicsSceneSystem.OnBeginCollide(this, arbiter);
+
+        public void OnEndCollide(Arbiter arbiter) =>
+            PhysicsSceneSystem.OnEndCollide(this, arbiter);
     }
 
     private readonly record struct PhysicsPair
@@ -651,5 +784,86 @@ public sealed class PhysicsModule(
 
         public PhysicsActor Other(PhysicsActor actor) =>
             ReferenceEquals(A, actor) ? B : A;
+    }
+}
+
+public sealed class PhysicsModule(
+    ISceneManager scenes,
+    PhysicsSceneSystem physicsSceneSystem) :
+    IModule,
+    IPhysicsSystem
+{
+    public sealed class Definition : AModuleDefinition<PhysicsModule>
+    {
+        protected override IReadOnlyList<Type> Exports => [typeof(IPhysicsSystem)];
+
+        public override void RegisterGlobal(ContainerBuilder builder)
+        {
+            builder
+                .RegisterType<PhysicsSceneSystem>()
+                .AsSelf()
+                .As<ISceneSystem>()
+                .SingleInstance();
+        }
+
+        protected override void RegisterModule(ContainerBuilder builder)
+        {
+            builder
+                .RegisterType<PhysicsModule>()
+                .AsSelf()
+                .SingleInstance();
+        }
+    }
+
+    private bool _disposed;
+
+    public Vector3 Gravity
+    {
+        get => physicsSceneSystem.Gravity;
+        set => physicsSceneSystem.Gravity = value;
+    }
+
+    public void OnInitialize()
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+    }
+
+    public bool Raycast(
+        Vector3 origin,
+        Vector3 direction,
+        float maxDistance,
+        SceneObject? ignoreSceneObject,
+        out PhysicsRaycastHit hit)
+    {
+        hit = default;
+
+        var scene = ignoreSceneObject?.Scene ?? scenes.ActiveScene;
+        if (scene is null ||
+            !scene.TryGetSystem<PhysicsSceneSystem>(out var system))
+        {
+            return false;
+        }
+
+        return system.Raycast(
+            scene,
+            origin,
+            direction,
+            maxDistance,
+            ignoreSceneObject,
+            out hit);
+    }
+
+    public void OnShutdown()
+    {
+        physicsSceneSystem.Shutdown();
+    }
+
+    public void Dispose()
+    {
+        if (_disposed)
+            return;
+
+        OnShutdown();
+        _disposed = true;
     }
 }
