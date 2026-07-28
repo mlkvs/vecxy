@@ -1,6 +1,6 @@
 # Vecxy
 
-![Vecxy runtime lighting](docs/images/runtime-lighting.png)
+![Vecxy duck](docs/images/duck.png)
 ![Vecxy runtime fog](docs/images/runtime-forest.png)
 ![Vecxy editor overview](docs/images/editor-overview.png)
 
@@ -12,7 +12,7 @@ It is designed for building real playable scenes early, then growing into more a
 
 - Scene-based workflow with hierarchical objects and components
 - OpenGL renderer with materials, meshes, models, skybox, and runtime-editable lights
-- Post-processing pipeline with configurable effects
+- Post-processing pipeline with configurable efуfects
 - Hot reload for assets and configs
 - Integrated editor overlay with hierarchy, inspector, configs, and game view
 - Input, physics, gizmos, and first-person gameplay foundation
