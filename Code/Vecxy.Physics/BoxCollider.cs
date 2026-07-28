@@ -19,16 +19,22 @@ public sealed class BoxCollider : Collider
                     "Box collider size must be positive on all axes.");
 
             _size = value;
+            
+            NotifyChanged();
         }
     }
 
     public Vector3 Center
     {
         get => _center;
-        set => _center = value;
+        set
+        {
+            _center = value;
+            NotifyChanged();
+        }
     }
 
-    protected override void OnGizmos(ISceneGizmoDrawer gizmos)
+    public override void OnGizmos(ISceneGizmoDrawer gizmos)
     {
         var transform =
             Matrix4x4.CreateTranslation(Center) *

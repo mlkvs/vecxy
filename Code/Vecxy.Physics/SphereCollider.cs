@@ -15,6 +15,7 @@ public sealed class SphereCollider : Collider
                     "Sphere collider radius must be positive.");
 
             _radius = value;
+            NotifyChanged();
         }
     }
 }

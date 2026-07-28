@@ -69,7 +69,7 @@ public sealed class PostProcessing : AComponent
             yield return effect;
     }
 
-    protected override void OnDestroy()
+    public override void OnDestroy()
     {
         ClearCustomEffects();
         _retro.Dispose();

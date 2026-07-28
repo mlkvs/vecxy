@@ -24,6 +24,33 @@ public interface IRenderer
     Mesh CreateQuad();
 }
 
+public sealed class RenderingSceneSystem : ISceneSystem
+{
+    public void OnObjectAdded(SceneObject sceneObject)
+    {
+    }
+
+    public void OnObjectRemoved(SceneObject sceneObject)
+    {
+    }
+
+    public void OnComponentAdded(SceneObject sceneObject, AComponent component)
+    {
+    }
+
+    public void OnComponentRemoved(SceneObject sceneObject, AComponent component)
+    {
+    }
+
+    public void OnComponentChanged(SceneObject sceneObject, AComponent component)
+    {
+    }
+
+    public void Update(float deltaTime)
+    {
+    }
+}
+
 public interface ISceneInstantiator
 {
     SceneObject InstantiateModel(
@@ -76,6 +103,14 @@ public sealed class RenderingModule(
                 typeof(IRenderOverlayStage)
             ];
 
+        public override void RegisterGlobal(ContainerBuilder builder)
+        {
+            builder
+                .RegisterType<RenderingSceneSystem>()
+                .As<ISceneSystem>()
+                .SingleInstance();
+        }
+
         protected override void RegisterModule(
             ContainerBuilder builder)
         {
@@ -124,7 +159,6 @@ public sealed class RenderingModule(
                 .RegisterType<RenderingStatistics>()
                 .AsSelf()
                 .SingleInstance();
-
         }
     }
 

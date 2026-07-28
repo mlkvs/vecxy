@@ -2,6 +2,8 @@ namespace Vecxy.Scene;
 
 public sealed class SceneObject
 {
+    private static int Count { get; set; } = 0;
+    
     private readonly List<AComponent> _components = [];
     private readonly List<SceneObject> _children = [];
 
@@ -9,6 +11,9 @@ public sealed class SceneObject
     private bool _enabled = true;
     private bool _destroying;
     private bool _destroyed;
+
+    public readonly int Id;
+    public readonly bool IsStatic;
 
     public Scene Scene { get; }
 
@@ -43,8 +48,11 @@ public sealed class SceneObject
         }
     }
 
-    internal SceneObject(Scene scene, string name)
+    internal SceneObject(Scene scene, string name, bool isStatic = false)
     {
+        Id = Count++;
+        IsStatic = isStatic;
+        
         Scene = scene;
         Name = name;
 
@@ -70,6 +78,11 @@ public sealed class SceneObject
 
         if (_active)
             component.Activate(ownerEnabled: true);
+        
+        foreach (var system in Scene.Systems)
+        {
+            system.OnComponentAdded(this, component);
+        }
 
         return component;
     }
@@ -227,6 +240,11 @@ public sealed class SceneObject
 
             component.Destroy();
             _components.RemoveAt(index);
+            
+            foreach (var system in Scene.Systems)
+            {
+                system.OnComponentRemoved(this, component);
+            }
 
             return true;
         }
@@ -249,6 +267,11 @@ public sealed class SceneObject
 
         component.Destroy();
         _components.RemoveAt(index);
+        
+        foreach (var system in Scene.Systems)
+        {
+            system.OnComponentRemoved(this, component);
+        }
         return true;
     }
 
@@ -316,7 +339,14 @@ public sealed class SceneObject
              index >= 0;
              --index)
         {
-            _components[index].Destroy();
+            var component = _components[index];
+            
+            component.Destroy();
+            
+            foreach (var system in Scene.Systems)
+            {
+                system.OnComponentRemoved(this, component);
+            }
         }
 
         _components.Clear();

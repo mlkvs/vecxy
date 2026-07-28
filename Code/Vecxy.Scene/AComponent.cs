@@ -23,6 +23,8 @@ public abstract class AComponent
     public bool IsActive => _active && _enabled;
 
     public bool IsDestroyed => _destroyed;
+    
+    public event Action<AComponent>? Changed;
 
     public bool Enabled
     {
@@ -46,24 +48,37 @@ public abstract class AComponent
         }
     }
 
-    protected virtual void Awake() { }
-    protected virtual void Start() { }
-    protected virtual void Update(float deltaTime) { }
-    protected virtual void LateUpdate(float deltaTime) { }
-    protected virtual void OnEnable() { }
-    protected virtual void OnDisable() { }
-    protected virtual void OnDestroy() { }
-    protected virtual void OnGizmos(ISceneGizmoDrawer gizmos) { }
-    protected virtual void OnCollisionEnter(Collider self, Collider other) { }
-    protected virtual void OnCollisionStay(Collider self, Collider other) { }
-    protected virtual void OnCollisionExit(Collider self, Collider other) { }
-    protected virtual void OnTriggerEnter(Collider self, Collider other) { }
-    protected virtual void OnTriggerStay(Collider self, Collider other) { }
-    protected virtual void OnTriggerExit(Collider self, Collider other) { }
+    public virtual void Awake() { }
+    public virtual void Start() { }
+    public virtual void Update(float deltaTime) { }
+    public virtual void LateUpdate(float deltaTime) { }
+    public virtual void OnEnable() { }
+    public virtual void OnDisable() { }
+    public virtual void OnDestroy() { }
+    public virtual void OnGizmos(ISceneGizmoDrawer gizmos) { }
+    public virtual void OnCollisionEnter(Collider self, Collider other) { }
+    public virtual void OnCollisionStay(Collider self, Collider other) { }
+    public virtual void OnCollisionExit(Collider self, Collider other) { }
+    public virtual void OnTriggerEnter(Collider self, Collider other) { }
+    public virtual void OnTriggerStay(Collider self, Collider other) { }
+    public virtual void OnTriggerExit(Collider self, Collider other) { }
 
     internal void Attach(SceneObject sceneObject)
     {
         SceneObject = sceneObject;
+    }
+    
+    protected void NotifyChanged()
+    {
+        if (!_active || !_enabled || _destroyed)
+            return;
+
+        Changed?.Invoke(this);
+
+        foreach (var system in SceneObject!.Scene.Systems)
+        {
+            system.OnComponentChanged(SceneObject, this);
+        }
     }
 
     internal void Activate(bool ownerEnabled)
@@ -163,34 +178,4 @@ public abstract class AComponent
 
         OnGizmos(gizmos);
     }
-
-    internal void DispatchCollisionEnter(
-        Collider self,
-        Collider other) =>
-        OnCollisionEnter(self, other);
-
-    internal void DispatchCollisionStay(
-        Collider self,
-        Collider other) =>
-        OnCollisionStay(self, other);
-
-    internal void DispatchCollisionExit(
-        Collider self,
-        Collider other) =>
-        OnCollisionExit(self, other);
-
-    internal void DispatchTriggerEnter(
-        Collider self,
-        Collider other) =>
-        OnTriggerEnter(self, other);
-
-    internal void DispatchTriggerStay(
-        Collider self,
-        Collider other) =>
-        OnTriggerStay(self, other);
-
-    internal void DispatchTriggerExit(
-        Collider self,
-        Collider other) =>
-        OnTriggerExit(self, other);
 }

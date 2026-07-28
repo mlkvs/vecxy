@@ -63,7 +63,7 @@ public sealed class MeshRenderer : AComponent
         _material = material;
     }
 
-    protected override void OnDestroy()
+    public override void OnDestroy()
     {
         _material?.Dispose();
         _mesh = null;

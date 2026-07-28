@@ -12,14 +12,20 @@ public interface ISceneManager
     void UnloadActiveScene();
 }
 
-public sealed class ScenesModule : 
+public interface ISceneFactory
+{
+    Scene Create();
+}
+
+public sealed class ScenesModule(IEnumerable<ISceneSystem> systems) : 
     IModule, 
     IModule.IUpdatable,
-    ISceneManager
+    ISceneManager,
+    ISceneFactory
 {
     public sealed class Definition : AModuleDefinition<ScenesModule>
     {
-        protected override IReadOnlyList<Type> Exports => [typeof(ISceneManager)];
+        protected override IReadOnlyList<Type> Exports => [typeof(ISceneManager), typeof(ISceneFactory)];
 
         protected override void RegisterModule(ContainerBuilder builder)
         {
@@ -47,6 +53,18 @@ public sealed class ScenesModule :
 
         _initialized = true;
         _activeScene?.Activate();
+    }
+    
+    public Scene Create()
+    {
+        var scene = new Scene();
+
+        foreach (var system in systems)
+        {
+            scene.RegisterSystem(system);
+        }
+
+        return scene; 
     }
 
     public void SetActiveScene(Scene scene)
