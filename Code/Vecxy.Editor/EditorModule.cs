@@ -8,6 +8,7 @@ using Vecxy.Diagnostics;
 using Vecxy.Diagnostics.Console;
 using Vecxy.Input;
 using Vecxy.Kernel;
+using Vecxy.Physics;
 using Vecxy.Rendering;
 using Vecxy.Scene;
 
@@ -907,8 +908,41 @@ public sealed class EditorModule(
         ImGui.Separator();
 
         if (ImGui.CollapsingHeader("Lighting", ImGuiTreeNodeFlags.DefaultOpen))
+            DrawSceneLightingInspector(scene.Lighting);
+    }
+
+    private static void DrawSceneLightingInspector(
+        SceneLightingSettings lighting)
+    {
+        if (ImGui.CollapsingHeader("Global", ImGuiTreeNodeFlags.DefaultOpen))
         {
-            DrawObjectProperties(scene.Lighting, "scene_lighting");
+            DrawObjectProperties(
+                lighting.Global,
+                "scene_lighting_global");
+        }
+
+        if (ImGui.CollapsingHeader("Fog", ImGuiTreeNodeFlags.DefaultOpen))
+        {
+            var enabled = lighting.Fog.Enabled;
+            if (ImGui.Checkbox("Enabled##scene_fog_enabled", ref enabled))
+                lighting.Fog.Enabled = enabled;
+
+            DrawObjectProperties(
+                lighting.Fog,
+                "scene_lighting_fog",
+                static property => property.Name == nameof(SceneFogSettings.Enabled));
+        }
+
+        if (ImGui.CollapsingHeader("Skybox", ImGuiTreeNodeFlags.DefaultOpen))
+        {
+            var enabled = lighting.Skybox.Enabled;
+            if (ImGui.Checkbox("Enabled##scene_skybox_enabled", ref enabled))
+                lighting.Skybox.Enabled = enabled;
+
+            DrawObjectProperties(
+                lighting.Skybox,
+                "scene_lighting_skybox",
+                static property => property.Name == nameof(SceneSkyboxSettings.Enabled));
         }
     }
 
@@ -1031,7 +1065,9 @@ public sealed class EditorModule(
         if (_selectedConfigValue is not null)
         {
             ImGui.Separator();
-            DrawObjectProperties(_selectedConfigValue, $"config_{_selectedConfig.Path}");
+            DrawConfigValueEditor(
+                _selectedConfigValue,
+                $"config_{_selectedConfig.Path}");
             ImGui.Separator();
 
             if (ImGui.Button("Save Config"))
@@ -1110,6 +1146,13 @@ public sealed class EditorModule(
             return true;
         }
 
+        if (component is PostProcessing postProcessing)
+        {
+            DrawPostProcessingInspector(postProcessing);
+            ImGui.PopID();
+            return true;
+        }
+
         foreach (var property in GetInspectableProperties(type))
             DrawProperty(component, property);
 
@@ -1157,6 +1200,54 @@ public sealed class EditorModule(
         foreach (var (name, parameter) in renderer.Material.Parameters.ToArray())
         {
             DrawMaterialParameter(assets, renderer.Material, name, parameter);
+        }
+    }
+
+    private static void DrawPostProcessingInspector(
+        PostProcessing postProcessing)
+    {
+        ImGui.TextDisabled(
+            "Live preview only. Config reload overwrites these runtime edits.");
+        ImGui.Separator();
+
+        foreach (var effect in postProcessing.EnumerateEffects())
+        {
+            if (!ImGui.CollapsingHeader(
+                    effect.Name,
+                    ImGuiTreeNodeFlags.DefaultOpen))
+            {
+                continue;
+            }
+
+            if (!string.IsNullOrWhiteSpace(effect.InspectorSourcePath))
+            {
+                ImGui.TextWrapped(effect.InspectorSourcePath);
+                ImGui.TextDisabled($"Version: {effect.InspectorVersion}");
+            }
+            else
+            {
+                ImGui.TextDisabled("No bound config");
+            }
+
+            if (effect.InspectorError is not null)
+            {
+                ImGui.TextColored(
+                    new Vector4(1.0f, 0.4f, 0.4f, 1.0f),
+                    effect.InspectorError.Message);
+            }
+
+            if (effect.InspectorSettings is not null)
+            {
+                DrawObjectProperties(
+                    effect.InspectorSettings,
+                    $"postfx_{postProcessing.GetHashCode()}_{effect.Name}");
+            }
+            else
+            {
+                ImGui.TextDisabled("Effect has no editable runtime settings.");
+            }
+
+            ImGui.Separator();
         }
     }
 
@@ -1795,12 +1886,178 @@ public sealed class EditorModule(
                !typeof(System.Collections.IEnumerable).IsAssignableFrom(type);
     }
 
+    private static void DrawConfigValueEditor(
+        object value,
+        string prefix)
+    {
+        if (value is PhysicsConfig physicsConfig)
+        {
+            DrawObjectProperties(
+                physicsConfig,
+                prefix,
+                static property => property.Name == nameof(PhysicsConfig.CollisionLayers));
+            DrawPhysicsCollisionLayerMatrix(physicsConfig, prefix);
+            return;
+        }
+
+        DrawObjectProperties(value, prefix);
+    }
+
     private static void DrawObjectProperties(
         object target,
         string prefix)
     {
+        DrawObjectProperties(target, prefix, null);
+    }
+
+    private static void DrawObjectProperties(
+        object target,
+        string prefix,
+        Func<PropertyInfo, bool>? filter)
+    {
         foreach (var property in GetInspectableProperties(target.GetType()))
+        {
+            if (filter is not null && filter(property))
+                continue;
+
             DrawProperty(target, property, prefix);
+        }
+    }
+
+    private static void DrawPhysicsCollisionLayerMatrix(
+        PhysicsConfig config,
+        string prefix)
+    {
+        if (!ImGui.CollapsingHeader(
+                "Collision Layer Matrix",
+                ImGuiTreeNodeFlags.DefaultOpen))
+        {
+            return;
+        }
+
+        if (config.CollisionLayers.Count == 0)
+        {
+            ImGui.TextDisabled("No collision layers configured.");
+            return;
+        }
+
+        var layers = config.CollisionLayers
+            .OrderBy(pair => pair.Value.Index)
+            .ThenBy(pair => pair.Key, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        var tableFlags =
+            ImGuiTableFlags.Borders |
+            ImGuiTableFlags.RowBg |
+            ImGuiTableFlags.SizingFixedFit |
+            ImGuiTableFlags.ScrollX |
+            ImGuiTableFlags.ScrollY;
+
+        if (!ImGui.BeginTable(
+                $"physics_layers_matrix##{prefix}",
+                layers.Length + 1,
+                tableFlags,
+                new Vector2(0.0f, MathF.Min(420.0f, 72.0f + layers.Length * 28.0f))))
+        {
+            return;
+        }
+
+        ImGui.TableSetupScrollFreeze(1, 1);
+        ImGui.TableNextRow();
+        ImGui.TableSetColumnIndex(0);
+        ImGui.TextUnformatted("Layer");
+
+        for (var column = 0; column < layers.Length; ++column)
+        {
+            ImGui.TableSetColumnIndex(column + 1);
+            ImGui.TextUnformatted(layers[column].Key);
+        }
+
+        for (var row = 0; row < layers.Length; ++row)
+        {
+            var rowName = layers[row].Key;
+            var rowConfig = layers[row].Value;
+
+            ImGui.TableNextRow();
+            ImGui.TableSetColumnIndex(0);
+            ImGui.TextUnformatted($"{rowName} [{rowConfig.Index}]");
+
+            for (var column = 0; column < layers.Length; ++column)
+            {
+                var columnName = layers[column].Key;
+                var checkedValue = rowConfig.CollidesWith.Contains(
+                    columnName,
+                    StringComparer.OrdinalIgnoreCase);
+
+                ImGui.TableSetColumnIndex(column + 1);
+
+                if (row == column)
+                {
+                    ImGui.BeginDisabled();
+                    ImGui.Checkbox(
+                        $"##{prefix}_{rowName}_{columnName}",
+                        ref checkedValue);
+                    ImGui.EndDisabled();
+                    continue;
+                }
+
+                if (!ImGui.Checkbox(
+                        $"##{prefix}_{rowName}_{columnName}",
+                        ref checkedValue))
+                {
+                    continue;
+                }
+
+                SetCollisionLayerPair(
+                    config,
+                    rowName,
+                    columnName,
+                    checkedValue);
+            }
+        }
+
+        ImGui.EndTable();
+    }
+
+    private static void SetCollisionLayerPair(
+        PhysicsConfig config,
+        string layerA,
+        string layerB,
+        bool enabled)
+    {
+        if (!config.CollisionLayers.TryGetValue(layerA, out var configA) ||
+            !config.CollisionLayers.TryGetValue(layerB, out var configB))
+        {
+            return;
+        }
+
+        configA.CollidesWith = UpdateCollisionTargets(
+            configA.CollidesWith,
+            layerB,
+            enabled);
+        configB.CollidesWith = UpdateCollisionTargets(
+            configB.CollidesWith,
+            layerA,
+            enabled);
+    }
+
+    private static string[] UpdateCollisionTargets(
+        string[] source,
+        string target,
+        bool enabled)
+    {
+        var values = new HashSet<string>(
+            source,
+            StringComparer.OrdinalIgnoreCase);
+
+        if (enabled)
+            values.Add(target);
+        else
+            values.Remove(target);
+
+        return values
+            .OrderBy(value => value, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
     }
 
     private static void DrawProperty(
@@ -2016,6 +2273,16 @@ public sealed class EditorModule(
 
         if (target is Light &&
             property.Name is "Range" or "Intensity")
+        {
+            return MathF.Max(0.0f, value);
+        }
+
+        if (target is SceneGlobalLightingSettings &&
+            property.Name is
+                "AmbientIntensity" or
+                "DirectLightIntensityScale" or
+                "SpecularStrength" or
+                "Exposure")
         {
             return MathF.Max(0.0f, value);
         }

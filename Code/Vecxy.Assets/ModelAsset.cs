@@ -69,7 +69,8 @@ public sealed class ModelNode
 public enum EModelLightKind : byte
 {
     Point,
-    Spot
+    Spot,
+    Directional
 }
 
 public sealed class ModelLight
@@ -773,7 +774,8 @@ public sealed class ModelAssetImporter : IAssetImporter<ModelAsset>
                 : null;
 
             if (!string.Equals(type, "point", StringComparison.Ordinal) &&
-                !string.Equals(type, "spot", StringComparison.Ordinal))
+                !string.Equals(type, "spot", StringComparison.Ordinal) &&
+                !string.Equals(type, "directional", StringComparison.Ordinal))
             {
                 continue;
             }
@@ -815,7 +817,9 @@ public sealed class ModelAssetImporter : IAssetImporter<ModelAsset>
                         : name!,
                     string.Equals(type, "spot", StringComparison.Ordinal)
                         ? EModelLightKind.Spot
-                        : EModelLightKind.Point,
+                        : string.Equals(type, "directional", StringComparison.Ordinal)
+                            ? EModelLightKind.Directional
+                            : EModelLightKind.Point,
                     color,
                     intensity,
                     range,

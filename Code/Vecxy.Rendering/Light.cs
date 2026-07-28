@@ -41,4 +41,18 @@ public abstract class Light : AComponent
             _range = value;
         }
     }
+
+    protected Vector4 GizmoColor =>
+        new(
+            Math.Clamp(_color.X, 0.0f, 1.0f),
+            Math.Clamp(_color.Y, 0.0f, 1.0f),
+            Math.Clamp(_color.Z, 0.0f, 1.0f),
+            1.0f);
+
+    protected float GizmoScale(float fallback = 1.0f)
+    {
+        return _range > 0.0f
+            ? _range
+            : fallback;
+    }
 }

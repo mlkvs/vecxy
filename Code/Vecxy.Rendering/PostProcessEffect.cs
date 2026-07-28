@@ -26,6 +26,10 @@ public abstract class APostProcessEffect : IDisposable
     public abstract bool Enabled { get; }
     public abstract int Order { get; }
     public abstract void Apply(Shader shader, in PostProcessContext context);
+    public virtual object? InspectorSettings => null;
+    public virtual string? InspectorSourcePath => null;
+    public virtual int InspectorVersion => -1;
+    public virtual Exception? InspectorError => null;
 
     internal AssetRef<ShaderAsset> GetShaderAsset(IAssetsManager assets)
     {
@@ -75,6 +79,17 @@ public abstract class APostProcessEffect<TConfig> : APostProcessEffect
         _config is not null && _config.TryGetValue(out var value)
             ? value
             : _defaults;
+
+    public override object? InspectorSettings =>
+        _config is not null && _config.TryGetValue(out var value)
+            ? value
+            : _defaults;
+
+    public override string? InspectorSourcePath => _config?.Path;
+
+    public override int InspectorVersion => _config?.Version ?? -1;
+
+    public override Exception? InspectorError => _config?.LastError;
 
     public override bool Enabled => Settings.Enabled;
 

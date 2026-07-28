@@ -66,6 +66,7 @@ public sealed class RenderingModule(
 {
     private const int MaxPointLights = 8;
     private const int MaxSpotLights = 8;
+    private const int MaxDirectionalLights = 4;
 
     public sealed class Definition :
         AModuleDefinition<RenderingModule>
@@ -436,6 +437,15 @@ public sealed class RenderingModule(
 
             switch (light.Kind)
             {
+                case EModelLightKind.Directional:
+                {
+                    var directionalLight =
+                        sceneObject.AddComponent<DirectionalLight>();
+                    directionalLight.Color = light.Color;
+                    directionalLight.Intensity = light.Intensity;
+                    break;
+                }
+
                 case EModelLightKind.Point:
                 {
                     var pointLight =
@@ -977,6 +987,15 @@ public sealed class RenderingModule(
     {
         var pointLights = new List<PointLightData>(MaxPointLights);
         var spotLights = new List<SpotLightData>(MaxSpotLights);
+        var directionalLights =
+            new List<DirectionalLightData>(MaxDirectionalLights);
+        var global = new GlobalLightingData(
+            scene.Lighting.Global.AmbientSkyColor,
+            scene.Lighting.Global.AmbientGroundColor,
+            scene.Lighting.Global.AmbientIntensity,
+            scene.Lighting.Global.DirectLightIntensityScale,
+            scene.Lighting.Global.SpecularStrength,
+            scene.Lighting.Global.Exposure);
         FogData? fog = scene.Lighting.Fog.Enabled
             ? CreateFogData(scene.Lighting.Fog)
             : null;
@@ -1012,9 +1031,23 @@ public sealed class RenderingModule(
                         MathF.Cos(spotLight.InnerConeAngle),
                         MathF.Cos(spotLight.OuterConeAngle)));
             }
+
+            if (directionalLights.Count < MaxDirectionalLights &&
+                sceneObject.GetComponent<DirectionalLight>() is
+                { IsActive: true } directionalLight)
+            {
+                directionalLights.Add(
+                    new DirectionalLightData(
+                        Vector3.Normalize(
+                            directionalLight.Transform.Forward),
+                        directionalLight.Color,
+                        directionalLight.Intensity));
+            }
         }
 
         return new SceneLighting(
+            global,
+            directionalLights.ToArray(),
             pointLights.ToArray(),
             spotLights.ToArray(),
             fog);
@@ -1039,17 +1072,17 @@ public sealed class RenderingModule(
         Camera camera,
         SceneLighting lighting)
     {
-        var ambient =
-            lighting.PointLights.Length == 0 &&
-            lighting.SpotLights.Length == 0
-                ? new Vector3(0.18f)
-                : new Vector3(0.015f);
+        var global = lighting.Global;
+        var ambientSky = global.AmbientSkyColor * global.AmbientIntensity;
+        var ambientGround = global.AmbientGroundColor * global.AmbientIntensity;
 
         shader.Set(
             "uCameraPosition",
             camera.Transform.WorldPosition);
-        shader.Set("uAmbientColor", ambient);
-        shader.Set("uExposure", 0.0025f);
+        shader.Set("uAmbientSkyColor", ambientSky);
+        shader.Set("uAmbientGroundColor", ambientGround);
+        shader.Set("uExposure", global.Exposure);
+        shader.Set("uSpecularStrength", global.SpecularStrength);
 
         if (lighting.Fog is { } fog)
         {
@@ -1079,6 +1112,23 @@ public sealed class RenderingModule(
         }
 
         shader.Set(
+            "uDirectionalLightCount",
+            lighting.DirectionalLights.Length);
+        for (var index = 0; index < lighting.DirectionalLights.Length; index++)
+        {
+            var light = lighting.DirectionalLights[index];
+            shader.Set(
+                $"uDirectionalLights[{index}].direction",
+                light.Direction);
+            shader.Set(
+                $"uDirectionalLights[{index}].color",
+                light.Color);
+            shader.Set(
+                $"uDirectionalLights[{index}].intensity",
+                light.Intensity * global.DirectLightIntensityScale);
+        }
+
+        shader.Set(
             "uPointLightCount",
             lighting.PointLights.Length);
         for (var index = 0; index < lighting.PointLights.Length; index++)
@@ -1092,7 +1142,7 @@ public sealed class RenderingModule(
                 light.Color);
             shader.Set(
                 $"uPointLights[{index}].intensity",
-                light.Intensity);
+                light.Intensity * global.DirectLightIntensityScale);
             shader.Set(
                 $"uPointLights[{index}].range",
                 light.Range);
@@ -1115,7 +1165,7 @@ public sealed class RenderingModule(
                 light.Color);
             shader.Set(
                 $"uSpotLights[{index}].intensity",
-                light.Intensity);
+                light.Intensity * global.DirectLightIntensityScale);
             shader.Set(
                 $"uSpotLights[{index}].range",
                 light.Range);
@@ -1193,9 +1243,24 @@ public sealed class RenderingModule(
     }
 
     private readonly record struct SceneLighting(
+        GlobalLightingData Global,
+        DirectionalLightData[] DirectionalLights,
         PointLightData[] PointLights,
         SpotLightData[] SpotLights,
         FogData? Fog);
+
+    private readonly record struct GlobalLightingData(
+        Vector3 AmbientSkyColor,
+        Vector3 AmbientGroundColor,
+        float AmbientIntensity,
+        float DirectLightIntensityScale,
+        float SpecularStrength,
+        float Exposure);
+
+    private readonly record struct DirectionalLightData(
+        Vector3 Direction,
+        Vector3 Color,
+        float Intensity);
 
     private readonly record struct PointLightData(
         Vector3 Position,
