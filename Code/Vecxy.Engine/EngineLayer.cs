@@ -1,5 +1,6 @@
 using JetBrains.Annotations;
 using Vecxy.Assets;
+using Vecxy.Audio;
 using Vecxy.Input;
 using Vecxy.Kernel;
 using Vecxy.Physics;
@@ -27,7 +28,8 @@ public sealed class EngineLayer(
                 new RenderingModule.Definition(),
                 new InputModule.Definition(),
                 new ScenesModule.Definition(),
-                new PhysicsModule.Definition()
+                new PhysicsModule.Definition(),
+                new AudioModule.Definition()
             ];
         }
     }
