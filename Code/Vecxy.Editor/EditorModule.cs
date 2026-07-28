@@ -922,6 +922,10 @@ public sealed class EditorModule(
         if (ImGui.Checkbox("Enabled", ref enabled))
             sceneObject.Enabled = enabled;
 
+        var isStatic = sceneObject.IsStatic;
+        if (ImGui.Checkbox("Is Static", ref isStatic))
+            sceneObject.IsStatic = isStatic;
+
         ImGui.Separator();
 
         DrawTransformInspector(sceneObject.Transform);
@@ -1251,8 +1255,14 @@ public sealed class EditorModule(
 
         foreach (var componentType in GetAddableComponentTypes())
         {
-            var alreadyPresent = sceneObject.Components.Any(component => component.GetType() == componentType);
-            if (alreadyPresent)
+            var disallowsMultiple =
+                componentType.IsDefined(
+                    typeof(SingleComponentAttribute),
+                    inherit: true);
+            var alreadyPresent = sceneObject.Components.Any(
+                component => component.GetType() == componentType);
+
+            if (disallowsMultiple && alreadyPresent)
                 continue;
 
             if (!string.IsNullOrWhiteSpace(_componentSearch) &&

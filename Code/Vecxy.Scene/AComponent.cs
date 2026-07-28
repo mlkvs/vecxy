@@ -1,5 +1,3 @@
-﻿using Vecxy.Physics;
-
 namespace Vecxy.Scene;
 
 public abstract class AComponent
@@ -14,17 +12,17 @@ public abstract class AComponent
 
     public Scene Scene =>
         SceneObject?.Scene
-        ?? throw new InvalidOperationException("Component is not attached to a scene object.");
+        ?? throw new InvalidOperationException(
+            "Component is not attached to a scene object.");
 
     public Transform Transform =>
         SceneObject?.Transform
-        ?? throw new InvalidOperationException("Component is not attached to a scene object.");
+        ?? throw new InvalidOperationException(
+            "Component is not attached to a scene object.");
 
     public bool IsActive => _active && _enabled;
 
     public bool IsDestroyed => _destroyed;
-    
-    public event Action<AComponent>? Changed;
 
     public bool Enabled
     {
@@ -50,35 +48,17 @@ public abstract class AComponent
 
     public virtual void Awake() { }
     public virtual void Start() { }
+    public virtual void FixedUpdate(float deltaTime) { }
     public virtual void Update(float deltaTime) { }
     public virtual void LateUpdate(float deltaTime) { }
     public virtual void OnEnable() { }
     public virtual void OnDisable() { }
     public virtual void OnDestroy() { }
     public virtual void OnGizmos(ISceneGizmoDrawer gizmos) { }
-    public virtual void OnCollisionEnter(Collider self, Collider other) { }
-    public virtual void OnCollisionStay(Collider self, Collider other) { }
-    public virtual void OnCollisionExit(Collider self, Collider other) { }
-    public virtual void OnTriggerEnter(Collider self, Collider other) { }
-    public virtual void OnTriggerStay(Collider self, Collider other) { }
-    public virtual void OnTriggerExit(Collider self, Collider other) { }
 
     internal void Attach(SceneObject sceneObject)
     {
         SceneObject = sceneObject;
-    }
-    
-    protected void NotifyChanged()
-    {
-        if (!_active || !_enabled || _destroyed)
-            return;
-
-        Changed?.Invoke(this);
-
-        foreach (var system in SceneObject!.Scene.Systems)
-        {
-            system.OnComponentChanged(SceneObject, this);
-        }
     }
 
     internal void Activate(bool ownerEnabled)
@@ -103,16 +83,21 @@ public abstract class AComponent
         if (!_active || !_enabled || _destroyed)
             return;
 
-        if (!_started)
-        {
-            _started = true;
-            Start();
-
-            if (!_active || !_enabled || _destroyed)
-                return;
-        }
+        if (!EnsureStarted())
+            return;
 
         Update(deltaTime);
+    }
+
+    internal void ProcessFixedUpdate(float deltaTime)
+    {
+        if (!_active || !_enabled || _destroyed)
+            return;
+
+        if (!EnsureStarted())
+            return;
+
+        FixedUpdate(deltaTime);
     }
 
     internal void ProcessLateUpdate(float deltaTime)
@@ -177,5 +162,16 @@ public abstract class AComponent
             return;
 
         OnGizmos(gizmos);
+    }
+
+    private bool EnsureStarted()
+    {
+        if (_started)
+            return true;
+
+        _started = true;
+        Start();
+
+        return _active && _enabled && !_destroyed;
     }
 }

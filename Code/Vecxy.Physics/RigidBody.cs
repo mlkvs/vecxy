@@ -3,137 +3,116 @@ using Vecxy.Scene;
 
 namespace Vecxy.Physics;
 
+[SingleComponent]
 public sealed class RigidBody : AComponent
 {
-    private EPhysicsMotionType _motionType = EPhysicsMotionType.Static;
+    private EPhysicsMotionType _motionType = EPhysicsMotionType.Dynamic;
     private float _mass = 1.0f;
-    private float _friction = 0.5f;
-    private float _restitution;
-    private bool _affectedByGravity = true;
-    private bool _enableSpeculativeContacts;
+    private float _linearDamping;
+    private float _angularDamping;
     private Vector3 _velocity;
     private Vector3 _angularVelocity;
-
-    internal Jitter2.Dynamics.RigidBody? NativeBody { get; set; }
+    private int _velocityVersion;
+    private int _angularVelocityVersion;
 
     public EPhysicsMotionType MotionType
     {
         get => _motionType;
         set
         {
-            if (_motionType == value)
-                return;
+            if (!Enum.IsDefined(value))
+                throw new ArgumentOutOfRangeException(nameof(value));
 
             _motionType = value;
-            NotifyChanged();
         }
     }
 
-    public bool AffectedByGravity
-    {
-        get => _affectedByGravity;
-        set
-        {
-            if (_affectedByGravity == value)
-                return;
-
-            _affectedByGravity = value;
-            NotifyChanged();
-        }
-    }
+    public bool AffectedByGravity { get; set; } = true;
 
     public float Mass
     {
         get => _mass;
         set
         {
-            if (value <= 0.0f)
+            if (!float.IsFinite(value) || value <= 0.0f)
                 throw new ArgumentOutOfRangeException(nameof(value));
-
-            if (Math.Abs(_mass - value) <= float.Epsilon)
-                return;
 
             _mass = value;
-            NotifyChanged();
         }
     }
 
-    public float Friction
+    public float LinearDamping
     {
-        get => _friction;
+        get => _linearDamping;
         set
         {
-            if (value < 0.0f)
+            if (!float.IsFinite(value) || value is < 0.0f or > 1.0f)
                 throw new ArgumentOutOfRangeException(nameof(value));
 
-            if (Math.Abs(_friction - value) <= float.Epsilon)
-                return;
-
-            _friction = value;
-            NotifyChanged();
+            _linearDamping = value;
         }
     }
 
-    public float Restitution
+    public float AngularDamping
     {
-        get => _restitution;
+        get => _angularDamping;
         set
         {
-            if (value < 0.0f || value > 1.0f)
+            if (!float.IsFinite(value) || value is < 0.0f or > 1.0f)
                 throw new ArgumentOutOfRangeException(nameof(value));
 
-            if (Math.Abs(_restitution - value) <= float.Epsilon)
-                return;
-
-            _restitution = value;
-            NotifyChanged();
+            _angularDamping = value;
         }
     }
 
-    public bool EnableSpeculativeContacts
-    {
-        get => _enableSpeculativeContacts;
-        set
-        {
-            if (_enableSpeculativeContacts == value)
-                return;
-
-            _enableSpeculativeContacts = value;
-            NotifyChanged();
-        }
-    }
+    public bool EnableSpeculativeContacts { get; set; }
 
     public Vector3 Velocity
     {
-        get => NativeBody is null
-            ? _velocity
-            : PhysicsShapeFactory.ToVector3(NativeBody.Velocity);
+        get => _velocity;
         set
         {
+            ThrowIfNotFinite(value, nameof(value));
             _velocity = value;
-
-            if (NativeBody is not null &&
-                NativeBody.MotionType != Jitter2.Dynamics.MotionType.Static)
-            {
-                NativeBody.Velocity = PhysicsShapeFactory.ToJVector(value);
-            }
+            _velocityVersion++;
         }
     }
 
     public Vector3 AngularVelocity
     {
-        get => NativeBody is null
-            ? _angularVelocity
-            : PhysicsShapeFactory.ToVector3(NativeBody.AngularVelocity);
+        get => _angularVelocity;
         set
         {
+            ThrowIfNotFinite(value, nameof(value));
             _angularVelocity = value;
-
-            if (NativeBody is not null &&
-                NativeBody.MotionType != Jitter2.Dynamics.MotionType.Static)
-            {
-                NativeBody.AngularVelocity = PhysicsShapeFactory.ToJVector(value);
-            }
+            _angularVelocityVersion++;
         }
+    }
+
+    internal int VelocityVersion => _velocityVersion;
+    internal int AngularVelocityVersion => _angularVelocityVersion;
+
+    internal void SetSimulationVelocity(
+        Vector3 velocity,
+        Vector3 angularVelocity)
+    {
+        _velocity = velocity;
+        _angularVelocity = angularVelocity;
+    }
+
+    private static void ThrowIfNotFinite(
+        Vector3 value,
+        string parameterName)
+    {
+        if (float.IsFinite(value.X) &&
+            float.IsFinite(value.Y) &&
+            float.IsFinite(value.Z))
+        {
+            return;
+        }
+
+        throw new ArgumentException(
+            "Velocity must be finite.",
+            parameterName);
     }
 }

@@ -37,6 +37,7 @@ public sealed class ScenesModule(IEnumerable<ISceneSystem> systems) :
     }
 
     private readonly List<Scene> _loadedScenes = [];
+    private readonly List<Scene> _createdScenes = [];
     private Scene? _activeScene;
     private bool _initialized;
     private bool _disposed;
@@ -64,13 +65,22 @@ public sealed class ScenesModule(IEnumerable<ISceneSystem> systems) :
             scene.RegisterSystem(system);
         }
 
-        return scene; 
+        _createdScenes.Add(scene);
+        return scene;
     }
 
     public void SetActiveScene(Scene scene)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         ArgumentNullException.ThrowIfNull(scene);
+
+        if (!_createdScenes.Contains(scene))
+        {
+            foreach (var system in systems)
+                scene.RegisterSystem(system);
+
+            _createdScenes.Add(scene);
+        }
 
         if (!_loadedScenes.Contains(scene))
             _loadedScenes.Add(scene);
@@ -93,7 +103,9 @@ public sealed class ScenesModule(IEnumerable<ISceneSystem> systems) :
         if (_activeScene is not null)
         {
             _activeScene.Deactivate();
+            _activeScene.DetachSystems();
             _loadedScenes.Remove(_activeScene);
+            _createdScenes.Remove(_activeScene);
         }
 
         _activeScene = null;
@@ -114,14 +126,17 @@ public sealed class ScenesModule(IEnumerable<ISceneSystem> systems) :
         if (!_initialized)
             return;
 
-        foreach (var scene in _loadedScenes.ToArray().Reverse())
+        foreach (var scene in _createdScenes.ToArray().Reverse())
         {
             if (ReferenceEquals(scene, _activeScene))
                 scene.Deactivate();
+
+            scene.DetachSystems();
         }
 
         _activeScene = null;
         _loadedScenes.Clear();
+        _createdScenes.Clear();
 
         _initialized = false;
     }

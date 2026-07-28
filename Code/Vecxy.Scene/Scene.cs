@@ -12,6 +12,7 @@ public sealed class Scene
 
     private bool _active;
     private bool _updating;
+    private bool _systemsDetached;
 
     public string Name { get; }
 
@@ -33,7 +34,25 @@ public sealed class Scene
 
     public void RegisterSystem(ISceneSystem system)
     {
+        ArgumentNullException.ThrowIfNull(system);
+
+        if (_systemsDetached)
+            throw new InvalidOperationException(
+                "Cannot register a system after the scene has been detached.");
+
+        if (_systems.Contains(system))
+            return;
+
         _systems.Add(system);
+        system.OnSceneAttached(this);
+
+        foreach (var sceneObject in _objects)
+        {
+            system.OnObjectAdded(sceneObject);
+
+            foreach (var component in sceneObject.Components)
+                system.OnComponentAdded(sceneObject, component);
+        }
     }
 
     public T? GetSystem<T>() where T : class, ISceneSystem
@@ -54,19 +73,27 @@ public sealed class Scene
         return system is not null;
     }
 
-    public SceneObject CreateObject(string name = "SceneObject")
+    public SceneObject CreateObject(
+        string name = "SceneObject",
+        bool isStatic = false)
     {
-        var sceneObject = new SceneObject(this, name);
+        if (_systemsDetached)
+            throw new ObjectDisposedException(nameof(Scene));
+
+        var sceneObject = new SceneObject(this, name, isStatic);
 
         _objects.Add(sceneObject);
-
-        if (_active)
-            sceneObject.Activate();
 
         foreach (var system in Systems)
         {
             system.OnObjectAdded(sceneObject);
+
+            foreach (var component in sceneObject.Components)
+                system.OnComponentAdded(sceneObject, component);
         }
+
+        if (_active)
+            sceneObject.Activate();
 
         return sceneObject;
     }
@@ -120,19 +147,19 @@ public sealed class Scene
                     sceneObject.Update(deltaTime);
             }
 
+            for (int index = 0, count = _systems.Count; index < count; ++index)
+            {
+                var system = _systems[index];
+
+                system.Update(this, deltaTime);
+            }
+
             for (int index = 0, count = _objects.Count; index < count; ++index)
             {
                 var sceneObject = _objects[index];
 
                 if (!sceneObject.IsDestroying)
                     sceneObject.LateUpdate(deltaTime);
-            }
-
-            for (int index = 0, count = _systems.Count; index < count; ++index)
-            {
-                var system = _systems[index];
-                
-                system.Update(deltaTime);
             }
         }
         finally
@@ -153,6 +180,34 @@ public sealed class Scene
             sceneObject.Deactivate();
 
         FlushDestroyedObjects();
+    }
+
+    internal void ProcessFixedUpdate(float deltaTime)
+    {
+        if (!_active)
+            return;
+
+        for (int index = 0, count = _objects.Count; index < count; ++index)
+        {
+            var sceneObject = _objects[index];
+
+            if (!sceneObject.IsDestroying)
+                sceneObject.FixedUpdate(deltaTime);
+        }
+    }
+
+    internal void DetachSystems()
+    {
+        if (_systemsDetached)
+            return;
+
+        Deactivate();
+
+        for (var index = _systems.Count - 1; index >= 0; --index)
+            _systems[index].OnSceneDetached(this);
+
+        _systems.Clear();
+        _systemsDetached = true;
     }
 
     private void FlushDestroyedObjects()

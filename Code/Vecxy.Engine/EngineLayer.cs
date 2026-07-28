@@ -20,7 +20,9 @@ public sealed class EngineLayer(
     {
         public override IReadOnlyList<Vecxy.Kernel.IDefinition> Children { get; }
 
-        public Definition(AssetsModule.Options? assets = null)
+        public Definition(
+            AssetsModule.Options? assets = null,
+            PhysicsModule.Options? physics = null)
         {
             Children =
             [
@@ -28,8 +30,8 @@ public sealed class EngineLayer(
                 new RenderingModule.Definition(),
                 new InputModule.Definition(),
                 new ScenesModule.Definition(),
-                new PhysicsModule.Definition(),
-                new AudioModule.Definition()
+                new PhysicsModule.Definition(physics),
+                //new AudioModule.Definition()
             ];
         }
     }

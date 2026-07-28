@@ -24,32 +24,7 @@ public interface IRenderer
     Mesh CreateQuad();
 }
 
-public sealed class RenderingSceneSystem : ISceneSystem
-{
-    public void OnObjectAdded(SceneObject sceneObject)
-    {
-    }
-
-    public void OnObjectRemoved(SceneObject sceneObject)
-    {
-    }
-
-    public void OnComponentAdded(SceneObject sceneObject, AComponent component)
-    {
-    }
-
-    public void OnComponentRemoved(SceneObject sceneObject, AComponent component)
-    {
-    }
-
-    public void OnComponentChanged(SceneObject sceneObject, AComponent component)
-    {
-    }
-
-    public void Update(float deltaTime)
-    {
-    }
-}
+public sealed class RenderingSceneSystem : ASceneSystem;
 
 public interface ISceneInstantiator
 {

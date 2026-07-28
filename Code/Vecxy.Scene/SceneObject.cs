@@ -13,7 +13,6 @@ public sealed class SceneObject
     private bool _destroyed;
 
     public readonly int Id;
-    public readonly bool IsStatic;
 
     public Scene Scene { get; }
 
@@ -32,6 +31,8 @@ public sealed class SceneObject
     public bool IsDestroyed => _destroyed;
 
     public IReadOnlyList<AComponent> Components => _components;
+
+    public bool IsStatic { get; set; }
 
     public bool Enabled
     {
@@ -56,7 +57,9 @@ public sealed class SceneObject
         Scene = scene;
         Name = name;
 
-        Transform = AddComponent<Transform>();
+        Transform = new Transform();
+        Transform.Attach(this);
+        _components.Add(Transform);
     }
 
     public T AddComponent<T>() where T : AComponent, new()
@@ -73,6 +76,17 @@ public sealed class SceneObject
             throw new InvalidOperationException(
                 "Component is already attached to a scene object.");
 
+        if (component.GetType().IsDefined(
+                typeof(SingleComponentAttribute),
+                inherit: true) &&
+            _components.Any(existing =>
+                existing.GetType() == component.GetType()))
+        {
+            throw new InvalidOperationException(
+                $"Scene object already contains component " +
+                $"'{component.GetType().Name}'.");
+        }
+
         component.Attach(this);
         _components.Add(component);
 
@@ -87,10 +101,12 @@ public sealed class SceneObject
         return component;
     }
 
-    public SceneObject CreateChild(string name = "SceneObject")
+    public SceneObject CreateChild(
+        string name = "SceneObject",
+        bool? isStatic = null)
     {
         ThrowIfDestroyed();
-        var child = Scene.CreateObject(name);
+        var child = Scene.CreateObject(name, isStatic ?? IsStatic);
         child.SetParent(this, worldPositionStays: false);
         return child;
     }
@@ -158,6 +174,34 @@ public sealed class SceneObject
         return component is not null;
     }
 
+    public IEnumerable<T> GetComponents<T>() where T : AComponent
+    {
+        ThrowIfDestroyed();
+
+        for (int index = 0, count = _components.Count;
+             index < count;
+             ++index)
+        {
+            if (_components[index] is T component)
+                yield return component;
+        }
+    }
+
+    public void GetComponents<T>(List<T> result)
+        where T : AComponent
+    {
+        ThrowIfDestroyed();
+        ArgumentNullException.ThrowIfNull(result);
+
+        for (int index = 0, count = _components.Count;
+             index < count;
+             ++index)
+        {
+            if (_components[index] is T component)
+                result.Add(component);
+        }
+    }
+
     public bool HasComponent<T>() where T : AComponent
     {
         return GetComponent<T>() is not null;
@@ -186,7 +230,7 @@ public sealed class SceneObject
     {
         foreach (var sceneObject in EnumerateHierarchy(includeSelf))
         {
-            if (sceneObject.GetComponent<T>() is { } component)
+            foreach (var component in sceneObject.GetComponents<T>())
                 yield return component;
         }
     }
@@ -238,13 +282,13 @@ public sealed class SceneObject
                 throw new InvalidOperationException(
                     "Transform cannot be removed.");
 
-            component.Destroy();
-            _components.RemoveAt(index);
-            
             foreach (var system in Scene.Systems)
             {
                 system.OnComponentRemoved(this, component);
             }
+
+            _components.RemoveAt(index);
+            component.Destroy();
 
             return true;
         }
@@ -265,13 +309,13 @@ public sealed class SceneObject
             throw new InvalidOperationException(
                 "Transform cannot be removed.");
 
-        component.Destroy();
-        _components.RemoveAt(index);
-        
         foreach (var system in Scene.Systems)
         {
             system.OnComponentRemoved(this, component);
         }
+
+        _components.RemoveAt(index);
+        component.Destroy();
         return true;
     }
 
@@ -317,6 +361,19 @@ public sealed class SceneObject
         }
     }
 
+    internal void FixedUpdate(float deltaTime)
+    {
+        if (!_active || _destroyed)
+            return;
+
+        for (int index = 0, count = _components.Count;
+             index < count;
+             ++index)
+        {
+            _components[index].ProcessFixedUpdate(deltaTime);
+        }
+    }
+
     internal void Deactivate()
     {
         SetActiveRecursively(false);
@@ -341,12 +398,12 @@ public sealed class SceneObject
         {
             var component = _components[index];
             
-            component.Destroy();
-            
             foreach (var system in Scene.Systems)
             {
                 system.OnComponentRemoved(this, component);
             }
+
+            component.Destroy();
         }
 
         _components.Clear();

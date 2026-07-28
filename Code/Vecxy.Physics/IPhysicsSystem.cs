@@ -5,7 +5,14 @@ namespace Vecxy.Physics;
 
 public interface IPhysicsSystem
 {
-    Vector3 Gravity { get; set; }
+    PhysicsSettings Settings { get; }
+
+    void AddForce(RigidBody body, Vector3 force);
+    void AddImpulse(RigidBody body, Vector3 impulse);
+    void Teleport(
+        RigidBody body,
+        Vector3 position,
+        Quaternion rotation);
 
     bool Raycast(
         Vector3 origin,

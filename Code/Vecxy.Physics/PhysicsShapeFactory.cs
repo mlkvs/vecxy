@@ -1,3 +1,4 @@
+using System.Numerics;
 using Jitter2.Collision.Shapes;
 using Jitter2.LinearMath;
 
@@ -5,50 +6,47 @@ namespace Vecxy.Physics;
 
 internal static class PhysicsShapeFactory
 {
-    public static RigidBodyShape? Create(Collider collider)
+    public static RigidBodyShape Create(
+        in PhysicsShapeDefinition definition)
     {
-        return collider switch
+        RigidBodyShape shape = definition.Type switch
         {
-            BoxCollider box => CreateBoxShape(box),
-            CapsuleCollider capsule => CreateCapsuleShape(capsule),
-            SphereCollider sphere => new SphereShape(sphere.Radius),
-            _ => null
+            EPhysicsShapeType.Box =>
+                new BoxShape(ToJVector(definition.Size)),
+            EPhysicsShapeType.Sphere =>
+                new SphereShape(definition.Radius),
+            EPhysicsShapeType.Capsule =>
+                new CapsuleShape(
+                    definition.Radius,
+                    definition.Height),
+            _ => throw new ArgumentOutOfRangeException(
+                nameof(definition))
         };
-    }
 
-    private static RigidBodyShape CreateBoxShape(BoxCollider box)
-    {
-        var shape = new BoxShape(ToJVector(box.Size));
-
-        if (box.Center == System.Numerics.Vector3.Zero)
+        if (definition.Center == Vector3.Zero &&
+            definition.Rotation == Quaternion.Identity)
+        {
             return shape;
+        }
+
+        var orientation = JMatrix.CreateFromQuaternion(
+            ToJQuaternion(definition.Rotation));
 
         return new TransformedShape(
             shape,
-            translation: ToJVector(box.Center));
+            ToJVector(definition.Center),
+            orientation);
     }
 
-    private static RigidBodyShape CreateCapsuleShape(CapsuleCollider capsule)
-    {
-        var shape = new CapsuleShape(capsule.Radius, capsule.Height);
-
-        if (capsule.Center == System.Numerics.Vector3.Zero)
-            return shape;
-
-        return new TransformedShape(
-            shape,
-            ToJVector(capsule.Center));
-    }
-
-    public static JVector ToJVector(System.Numerics.Vector3 value) =>
+    public static JVector ToJVector(Vector3 value) =>
         new(value.X, value.Y, value.Z);
 
-    public static JQuaternion ToJQuaternion(System.Numerics.Quaternion value) =>
+    public static JQuaternion ToJQuaternion(Quaternion value) =>
         new(value.X, value.Y, value.Z, value.W);
 
-    public static System.Numerics.Vector3 ToVector3(JVector value) =>
+    public static Vector3 ToVector3(JVector value) =>
         new(value.X, value.Y, value.Z);
 
-    public static System.Numerics.Quaternion ToQuaternion(JQuaternion value) =>
+    public static Quaternion ToQuaternion(JQuaternion value) =>
         new(value.X, value.Y, value.Z, value.W);
 }

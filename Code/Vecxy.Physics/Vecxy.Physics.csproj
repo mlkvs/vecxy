@@ -4,6 +4,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\Vecxy.Assets\Vecxy.Assets.csproj" />
     <ProjectReference Include="..\Vecxy.Diagnostics\Vecxy.Diagnostics.csproj" />
     <ProjectReference Include="..\Vecxy.Kernel\Vecxy.Kernel.csproj" />
     <ProjectReference Include="..\Vecxy.Scene\Vecxy.Scene.csproj" />
