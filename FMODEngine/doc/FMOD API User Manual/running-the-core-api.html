@@ -1,0 +1,79 @@
+<html>
+<head>
+<title>Core API Getting Started</title>
+<link rel="stylesheet" href="style/docs.css">
+<link rel="stylesheet" href="style/code_highlight.css">
+<script type="text/javascript" src="scripts/language-selector.js"></script></head>
+<body>
+<div class="docs-body">
+<div class="manual-toc">
+<p>FMOD Engine User Manual 2.03</p>
+<ul>
+<li><a href="welcome.html">Welcome to the FMOD Engine</a></li>
+<li><a href="core-api-concepts.html">Core API Key Concepts</a></li>
+<li class="manual-current-chapter manual-active-chapter"><a href="running-the-core-api.html">Core API Getting Started</a><ul>
+<li><a href="#initializing-the-core-api">Initializing the Core API</a></li>
+<li><a href="#configuring-the-core-api">Configuring the Core API</a></li>
+<li><a href="#updating-the-fmod-engine">Updating the FMOD Engine</a></li>
+<li><a href="#shutting-down-the-fmod-engine">Shutting Down the FMOD Engine</a></li>
+</ul>
+</li>
+<li><a href="loading-and-playing-sounds-in-the-core-api.html">Core API Loading and Playing Sounds</a></li>
+<li><a href="spatializing-sounds-in-the-core-api.html">Core API Spatializing Sounds</a></li>
+<li><a href="mixing-and-routing-in-the-core-api.html">Core API Mixing and Routing</a></li>
+<li><a href="using-dsp-effects-in-the-core-api.html">Core API Using DSP Effects</a></li>
+<li><a href="effects-reference.html">Core API Effect Reference</a></li>
+<li><a href="managing-resources-in-the-core-api.html">Core API Managing Resources</a></li>
+<li><a href="advanced-core-api-topics.html">Core API Advanced Topics</a></li>
+<li><a href="core-api.html">Core API Reference</a></li>
+<li><a href="studio-api-getting-started.html">Studio API Getting Started</a></li>
+<li><a href="studio-guide.html">Studio API Guide</a></li>
+<li><a href="studio-api-3d-events.html">Studio API 3D Events</a></li>
+<li><a href="studio-api-threads.html">Studio API Threads</a></li>
+<li><a href="studio-api.html">Studio API Reference</a></li>
+<li><a href="platforms.html">Platform Details</a></li>
+<li><a href="dsp-plugin-api-guide.html">Plug-in DSP API Guide</a></li>
+<li><a href="plugin-api.html">Plug-in API Reference</a></li>
+<li><a href="fsbank-api.html">FSBank API Reference</a></li>
+<li><a href="troubleshooting.html">Troubleshooting</a></li>
+<li><a href="glossary.html">Glossary</a></li>
+</ul>
+</div>
+<div class="manual-content api">
+<h1>3. Core API Getting Started</h1>
+<p>This chapter describes how to start up, configure, run, and shut down the <a href="glossary.html#fmod-engine">FMOD Engine</a> using only the <a href="glossary.html#core-api">Core API</a>. It frequently references concepts explained in the <a href="core-api-concepts.html">Core API: Key Concepts</a> chapter.</p>
+<p>At the most basic level, all that is needed to configure the Core API is creating the <a href="glossary.html#system">System object</a> and calling <a class="apilink" href="core-api-system.html#system_init">System::init</a> on it. The sound card can be manually selected using the <a class="apilink" href="core-api-system.html#system_setdriver">System::setDriver</a> function. More settings can be configured, such as the mixing rate of the FMOD <a href="glossary.html#system">system</a>, the resampling method, or the speaker mode with <a class="apilink" href="core-api-system.html#system_setsoftwareformat">System::setSoftwareFormat</a>. Modifying the mixer settings only adjusts the internal mixing format; at the end, the audio stream is always converted to the settings that are set by the player (e.g.: the settings in the control panel in Windows, or the standard 7.1/48khz output mode on Xbox One or PS4).</p>
+<h2 id="initializing-the-core-api"><a href="#initializing-the-core-api">3.1 Initializing the Core API</a></h2>
+<p>The <a href="glossary.html#core-api">Core API</a> can be used without needing to use the <a href="glossary.html#studio-api">Studio API</a> at all. Using the Core API gives access to the fundamental abilities of loading and playing <a href="glossary.html#sound">sounds</a>, creating <a href="glossary.html#dsp-effect">DSP effects</a>, setting up <a class="apilink" href="core-api-channelgroup.html">ChannelGroup</a>s, and setting sample-accurate fade points and start/stop times. However, when just using the Core API, it is not possible to load <a href="glossary.html#fmod-studio">FMOD Studio</a> banks or load and play <span class="dead-link" href="glossary.html#event">events</span class="dead-link"> that sound artists have designed in FMOD Studio. To initialize the Core API directly:</p>
+<div class="highlight language-text"><pre><span></span>FMOD_RESULT result;
+FMOD::System *system = NULL;
+
+result = FMOD::System_Create(&amp;system);      // Create the main system object.
+if (result != FMOD_OK)
+{
+    printf(&quot;FMOD error! (%d) %s\n&quot;, result, FMOD_ErrorString(result));
+    exit(-1);
+}
+
+result = system-&gt;init(512, FMOD_INIT_NORMAL, 0);    // Initialize FMOD.
+if (result != FMOD_OK)
+{
+    printf(&quot;FMOD error! (%d) %s\n&quot;, result, FMOD_ErrorString(result));
+    exit(-1);
+}
+</pre></div>
+
+<p>FMOD <a class="apilink" href="core-api-system.html">System</a> object is returned to you directly as a pointer. Once you destroy the Core API <a class="apilink" href="core-api-system.html">System</a>, it is no longer safe to call FMOD functions with that pointer.</p>
+<p>The Core API can be customized with advanced settings by calling <a class="apilink" href="core-api-system.html#system_setadvancedsettings">System::setAdvancedSettings</a> before initialization.</p>
+<h2 id="configuring-the-core-api"><a href="#configuring-the-core-api">3.2 Configuring the Core API</a></h2>
+<p>The output hardware, FMOD's resource usage, and other types of configuration options can be set if you desire behavior differing from the default. These are generally called before <a class="apilink" href="core-api-system.html#system_init">System::init</a>. For more information about these, see <a class="apilink" href="core-api-system.html#system_setadvancedsettings">System::setAdvancedSettings</a>, <a class="apilink" href="studio-api-system.html#studio_system_setadvancedsettings">Studio::System::setAdvancedSettings</a>.</p>
+<h2 id="updating-the-fmod-engine"><a href="#updating-the-fmod-engine">3.3 Updating the FMOD Engine</a></h2>
+<p>The <a href="glossary.html#fmod-engine">FMOD Engine</a> should be ticked once per game update. To tick it when using the <a href="glossary.html#core-api">Core API</a>, call <a class="apilink" href="core-api-system.html#system_update">System::update</a>. (If you're using the <a href="glossary.html#studio-api">Studio API</a>, you should instead call <a class="apilink" href="studio-api-system.html#studio_system_update">Studio::System::update</a>.)</p>
+<h2 id="shutting-down-the-fmod-engine"><a href="#shutting-down-the-fmod-engine">3.4 Shutting Down the FMOD Engine</a></h2>
+<p>To shut down the <a href="glossary.html#core-api">Core API</a>, call <a class="apilink" href="core-api-system.html#system_release">System::release</a>.</p></div>
+
+<p class="manual-footer">FMOD Engine User Manual 2.03.14 (2026-05-28). &copy; 2026 Firelight Technologies Pty Ltd.</p>
+</div>
+</body>
+</html>
+

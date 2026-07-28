@@ -1,0 +1,660 @@
+<html>
+<head>
+<title>Core API Mixing and Routing</title>
+<link rel="stylesheet" href="style/docs.css">
+<link rel="stylesheet" href="style/code_highlight.css">
+<script type="text/javascript" src="scripts/language-selector.js"></script></head>
+<body>
+<div class="docs-body">
+<div class="manual-toc">
+<p>FMOD Engine User Manual 2.03</p>
+<ul>
+<li><a href="welcome.html">Welcome to the FMOD Engine</a></li>
+<li><a href="core-api-concepts.html">Core API Key Concepts</a></li>
+<li><a href="running-the-core-api.html">Core API Getting Started</a></li>
+<li><a href="loading-and-playing-sounds-in-the-core-api.html">Core API Loading and Playing Sounds</a></li>
+<li><a href="spatializing-sounds-in-the-core-api.html">Core API Spatializing Sounds</a></li>
+<li class="manual-current-chapter manual-active-chapter"><a href="mixing-and-routing-in-the-core-api.html">Core API Mixing and Routing</a><ul>
+<li><a href="#channel-groups-and-routing">Channel Groups and Routing</a><ul>
+<li><a href="#channel-and-channel-group-handles">Channel and Channel Group Handles</a></li>
+</ul>
+</li>
+<li><a href="#upmixdownmix-behavior">Upmix/Downmix Behavior</a><ul>
+<li><a href="#mono">Mono</a></li>
+<li><a href="#stereo">Stereo</a></li>
+<li><a href="#quad">Quad</a></li>
+<li><a href="#surround">Surround</a></li>
+<li><a href="#51">5.1</a></li>
+<li><a href="#71">7.1</a></li>
+<li><a href="#714">7.1.4</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li><a href="using-dsp-effects-in-the-core-api.html">Core API Using DSP Effects</a></li>
+<li><a href="effects-reference.html">Core API Effect Reference</a></li>
+<li><a href="managing-resources-in-the-core-api.html">Core API Managing Resources</a></li>
+<li><a href="advanced-core-api-topics.html">Core API Advanced Topics</a></li>
+<li><a href="core-api.html">Core API Reference</a></li>
+<li><a href="studio-api-getting-started.html">Studio API Getting Started</a></li>
+<li><a href="studio-guide.html">Studio API Guide</a></li>
+<li><a href="studio-api-3d-events.html">Studio API 3D Events</a></li>
+<li><a href="studio-api-threads.html">Studio API Threads</a></li>
+<li><a href="studio-api.html">Studio API Reference</a></li>
+<li><a href="platforms.html">Platform Details</a></li>
+<li><a href="dsp-plugin-api-guide.html">Plug-in DSP API Guide</a></li>
+<li><a href="plugin-api.html">Plug-in API Reference</a></li>
+<li><a href="fsbank-api.html">FSBank API Reference</a></li>
+<li><a href="troubleshooting.html">Troubleshooting</a></li>
+<li><a href="glossary.html">Glossary</a></li>
+</ul>
+</div>
+<div class="manual-content api">
+<h1>6. Core API Mixing and Routing</h1>
+<p>This chapter covers the many ways in which <a href="glossary.html#channel-group">channel groups</a> and the <a href="glossary.html#dsp-graph">dsp graph</a> can be used to manipulate and process your game's <a href="glossary.html#sound">sounds</a>.</p>
+<h2 id="channel-groups-and-routing"><a href="#channel-groups-and-routing">6.1 Channel Groups and Routing</a></h2>
+<p>While it is possible to add the same <a href="glossary.html#effect">effect</a> to multiple <a href="glossary.html#channel">channels</a>, creating a submix of those channels and adding the effect to that submix requires only a single instance of the effect, and thus consumes fewer resources. This reduces CPU usage greatly.</p>
+<p>The primary tool for achieving this in <a href="glossary.html#fmod-studio">FMOD Studio</a> and the Studio API is the "bus"; in the Core API, it is the "channel group." If multiple channels are routed into the same bus or channel group, the it creates a sub-mix of those <a href="glossary.html#signal">signals</a>. If an effect is added to that bus or <a class="apilink" href="core-api-channelgroup.html">ChannelGroup</a>, the effect only processes that sub-mix, rather than processing every individual <a class="apilink" href="core-api-channel.html">Channel</a> that contributed to it.</p>
+<p>The volume of a <a class="apilink" href="core-api-channelgroup.html">ChannelGroup</a> can be altered, which allows for master volume groups. The volume is scaled based on a <a href="effects-reference.html#fader">fader DSP</a> inside a <a class="apilink" href="core-api-channelgroup.html">ChannelGroup</a>. All <a class="apilink" href="core-api-channel.html">Channel</a>s and <a class="apilink" href="core-api-channelgroup.html">ChannelGroup</a>s have a fader <a href="glossary.html#dsp">DSP</a> by default.</p>
+<p><a class="apilink" href="core-api-channelgroup.html">ChannelGroup</a>s are hierarchical. <a class="apilink" href="core-api-channelgroup.html">ChannelGroup</a>s can contain <a class="apilink" href="core-api-channelgroup.html">ChannelGroup</a>s, which can contain other <a class="apilink" href="core-api-channelgroup.html">ChannelGroup</a>s and <a class="apilink" href="core-api-channel.html">Channel</a>s.</p>
+<p>Many attributes can be applied to a <a class="apilink" href="core-api-channelgroup.html">ChannelGroup</a>, including things like speaker mix, and 3D position. A whole group of <a class="apilink" href="core-api-channel.html">Channel</a>s, and the <a class="apilink" href="core-api-channelgroup.html">ChannelGroup</a>s below them, can be positioned in 3D with 1 call, rather than trying to position all of them individually.</p>
+<p>'Master Volume', 'SFX Volume' and 'Music Volume' are typical settings in a game. Setting up an 'SFX' <a class="apilink" href="core-api-channelgroup.html">ChannelGroup</a>, and a 'Music' <a class="apilink" href="core-api-channelgroup.html">ChannelGroup</a>, and having them children of the master <a class="apilink" href="core-api-channelgroup.html">ChannelGroup</a> (see <a class="apilink" href="core-api-system.html#system_getmasterchannelgroup">System::getMasterChannelGroup</a>)</p>
+<h3 id="channel-and-channel-group-handles"><a href="#channel-and-channel-group-handles">6.1.1 Channel and Channel Group Handles</a></h3>
+<p>All FMOD types, whether they are represented internally via pointer or handle, look like a pointer type. No matter the type, a null pointer will never be returned as a valid result, but it is not safe to assume anything else about the pointer value. Do not assume that the pointer value falls in any particular address range, or that it has any zero bits in the bottom of the pointer value address.</p>
+<p>All FMOD types are equivalent for both the C and C++ API. It is possible to cast between the appropriate types by re-interpreting the pointer type directly.</p>
+<p>FMOD <a class="apilink" href="core-api-channel.html">Channel</a>s are returned to you as a pointer, but actually consist of 32 bits of packed integer handle data. This allows <a class="apilink" href="core-api-channel.html">Channel</a>s to be re-used safely.</p>
+<p>If a <a class="apilink" href="core-api-channel.html">Channel</a> is stopped with <a class="apilink" href="core-api-channelcontrol.html#channelcontrol_stop">ChannelControl::stop</a> or ends naturally, the <a class="apilink" href="core-api-channel.html">Channel</a> handle will become invalid and return <a class="apilink" href="core-api-common.html#fmod_err_invalid_handle">FMOD_ERR_INVALID_HANDLE</a>.</p>
+<p>If not enough <a class="apilink" href="core-api-channel.html">Channel</a>s are specified at <a class="apilink" href="core-api-system.html#system_init">System::init</a> and an existing virtual <a class="apilink" href="core-api-channel.html">Channel</a> is stolen by the FMOD priority system, then the handle to the stolen <a class="apilink" href="core-api-channel.html">Channel</a> becomes 'invalid'.  Subsequent <a class="apilink" href="core-api-channel.html">Channel</a> commands to a stolen handle will return <a class="apilink" href="core-api-common.html#fmod_err_channel_stolen">FMOD_ERR_CHANNEL_STOLEN</a>.</p>
+<p>FMOD <a class="apilink" href="core-api-channelgroup.html">ChannelGroup</a>s are returned to you directly as a pointer. Once you destroy a <a class="apilink" href="core-api-channelgroup.html">ChannelGroup</a>, it is no longer safe to call FMOD functions with that pointer.</p>
+<h2 id="upmixdownmix-behavior"><a href="#upmixdownmix-behavior">6.2 Upmix/Downmix Behavior</a></h2>
+<p>FMOD handles downmixing using mix matrices. Below you can find the various mix matrix layouts, with each table representing a separate output format. In each table, speakers in the "Output" column are assigned levels from the incoming speaker formulas in the relevant row, according to the incoming speaker layout. Different mix matrix layouts can be set using <a class="apilink" href="core-api-channelcontrol.html#channelcontrol_setmixmatrix">ChannelControl::setMixMatrix</a>. See <a class="apilink" href="core-api-common.html#fmod_speaker">FMOD_SPEAKER</a> and <a class="apilink" href="core-api-common.html#fmod_speakermode">FMOD_SPEAKERMODE</a> for more details on existing speaker layouts.<br />
+For an improved result when using 5.1 on a stereo output device,the Dolby Pro Logic II downmix algorithm can be chosen by specifying <a class="apilink" href="core-api-system.html#fmod_init_prefer_dolby_downmix">FMOD_INIT_PREFER_DOLBY_DOWNMIX</a> as an init flag when calling <a class="apilink" href="core-api-system.html#system_init">System::init</a>.</p>
+<table>
+<thead>
+<tr>
+<th>Key</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>M</strong></td>
+<td>Mono</td>
+</tr>
+<tr>
+<td><strong>L</strong></td>
+<td>Left</td>
+</tr>
+<tr>
+<td><strong>R</strong></td>
+<td>Right</td>
+</tr>
+<tr>
+<td><strong>FL</strong></td>
+<td>Front Left</td>
+</tr>
+<tr>
+<td><strong>FR</strong></td>
+<td>Front Right</td>
+</tr>
+<tr>
+<td><strong>C</strong></td>
+<td>Center</td>
+</tr>
+<tr>
+<td><strong>LFE</strong></td>
+<td>Low Frequency Effects</td>
+</tr>
+<tr>
+<td><strong>SL</strong></td>
+<td>Surround Left</td>
+</tr>
+<tr>
+<td><strong>SR</strong></td>
+<td>Surround Right</td>
+</tr>
+<tr>
+<td><strong>BL</strong></td>
+<td>Back Left</td>
+</tr>
+<tr>
+<td><strong>BR</strong></td>
+<td>Back Right</td>
+</tr>
+<tr>
+<td><strong>TFL</strong></td>
+<td>Top Front Left</td>
+</tr>
+<tr>
+<td><strong>TFR</strong></td>
+<td>Top Front Right</td>
+</tr>
+<tr>
+<td><strong>TBL</strong></td>
+<td>Top Back Left</td>
+</tr>
+<tr>
+<td><strong>TBR</strong></td>
+<td>Top Back Right</td>
+</tr>
+</tbody>
+</table>
+<h3 id="mono"><a href="#mono">6.2.1 Mono</a></h3>
+<div class="mixdowntable">
+<table>
+<thead>
+<tr>
+<th>Output</th>
+<th>Mono</th>
+<th>Stereo</th>
+<th>Quad</th>
+<th>5.0</th>
+<th>5.1</th>
+<th>7.1</th>
+<th>7.1.4</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>M</strong></td>
+<td><strong>M</strong></td>
+<td><strong>L</strong> x 0.707 + <strong>R</strong> x 0.707</td>
+<td><strong>FL</strong> x 0.500 + <strong>FR</strong> x 0.500 + <strong>SL</strong> x 0.500 + <strong>SR</strong> x 0.500</td>
+<td><strong>FL</strong> x 0.447 + <strong>FR</strong> x 0.447 + <strong>C</strong> x 0.447 + <strong>BL</strong> x 0.447 + <strong>BR</strong> x 0.447</td>
+<td><strong>FL</strong> x 0.447 + <strong>FR</strong> x 0.447 + <strong>C</strong> x 0.447 + <strong>BL</strong> x 0.447 + <strong>BR</strong> x 0.447</td>
+<td><strong>FL</strong> x 0.378 + <strong>FR</strong> x 0.378 + <strong>C</strong> x 0.378 + <strong>SL</strong> x 0.378 + <strong>SR</strong> x 0.378 + <strong>BL</strong> x 0.378 + <strong>BR</strong> x 0.378</td>
+<td><strong>FL</strong> x 0.378 + <strong>FR</strong> x 0.378 + <strong>C</strong> x 0.378 + <strong>SL</strong> x 0.378 + <strong>SR</strong> x 0.378 + <strong>BL</strong> x 0.378 + <strong>BR</strong> x 0.378</td>
+</tr>
+</tbody>
+</table>
+</div>
+<h3 id="stereo"><a href="#stereo">6.2.2 Stereo</a></h3>
+<div class="mixdowntable">
+<table>
+<thead>
+<tr>
+<th>Output</th>
+<th>Mono</th>
+<th>Stereo</th>
+<th>Quad</th>
+<th>5.0</th>
+<th>5.1</th>
+<th>7.1</th>
+<th>7.1.4</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>L</strong></td>
+<td><strong>M</strong> x 0.707</td>
+<td><strong>L</strong></td>
+<td><strong>FL</strong> + <strong>SL</strong> x 0.707</td>
+<td><strong>FL</strong> + <strong>C</strong> x 0.707 + <strong>BL</strong> x 0.707</td>
+<td><strong>FL</strong> + <strong>C</strong> x 0.707 + <strong>BL</strong> x 0.707</td>
+<td><strong>FL</strong> + <strong>C</strong> x 0.707 + <strong>SL</strong> x 0.707 + <strong>BL</strong> x 0.596</td>
+<td><strong>FL</strong> + <strong>C</strong> x 0.707 + <strong>SL</strong> x 0.707 + <strong>BL</strong> x 0.596</td>
+</tr>
+<tr>
+<td><strong>R</strong></td>
+<td><strong>M</strong> x 0.707</td>
+<td><strong>R</strong></td>
+<td><strong>FR</strong> + <strong>SR</strong> x 0.707</td>
+<td><strong>FR</strong> + <strong>C</strong> x 0.707 + <strong>BR</strong> x 0.707</td>
+<td><strong>FR</strong> + <strong>C</strong> x 0.707 + <strong>BR</strong> x 0.707</td>
+<td><strong>FR</strong> + <strong>C</strong> x 0.707 + <strong>SR</strong> x 0.707 + <strong>BR</strong> x 0.596</td>
+<td><strong>FR</strong> + <strong>C</strong> x 0.707 + <strong>SR</strong> x 0.707 + <strong>BR</strong> x 0.596</td>
+</tr>
+</tbody>
+</table>
+</div>
+<h3 id="quad"><a href="#quad">6.2.3 Quad</a></h3>
+<div class="mixdowntable">
+<table>
+<thead>
+<tr>
+<th>Output</th>
+<th>Mono</th>
+<th>Stereo</th>
+<th>Quad</th>
+<th>5.0</th>
+<th>5.1</th>
+<th>7.1</th>
+<th>7.1.4</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>FL</strong></td>
+<td><strong>M</strong> x 0.707</td>
+<td><strong>L</strong></td>
+<td><strong>FL</strong></td>
+<td><strong>FL</strong> + <strong>C</strong> x 0.707</td>
+<td><strong>FL</strong> + <strong>C</strong> x 0.707</td>
+<td><strong>FL</strong> x 0.965 + <strong>FR</strong> x 0.258 + <strong>C</strong> x 0.707 + <strong>SL</strong> x 0.707</td>
+<td><strong>FL</strong> x 0.965 + <strong>FR</strong> x 0.258 + <strong>C</strong> x 0.707 + <strong>SL</strong> x 0.707</td>
+</tr>
+<tr>
+<td><strong>FR</strong></td>
+<td><strong>M</strong> x 0.707</td>
+<td><strong>R</strong></td>
+<td><strong>FR</strong></td>
+<td><strong>FR</strong> + <strong>C</strong> x 0.707</td>
+<td><strong>FR</strong> + <strong>C</strong> x 0.707</td>
+<td><strong>FL</strong> x 0.258 + <strong>FR</strong> x 0.965 + <strong>C</strong> x 0.707 + <strong>SR</strong> x 0.707</td>
+<td><strong>FL</strong> x 0.258 + <strong>FR</strong> x 0.965 + <strong>C</strong> x 0.707 + <strong>SR</strong> x 0.707</td>
+</tr>
+<tr>
+<td><strong>SL</strong></td>
+<td></td>
+<td></td>
+<td><strong>SL</strong></td>
+<td><strong>BL</strong></td>
+<td><strong>BL</strong></td>
+<td><strong>SL</strong> x 0.707 + <strong>BL</strong> x 0.965 + <strong>BR</strong> x 0.258</td>
+<td><strong>SL</strong> x 0.707 + <strong>BL</strong> x 0.965 + <strong>BR</strong> x 0.258</td>
+</tr>
+<tr>
+<td><strong>SR</strong></td>
+<td></td>
+<td></td>
+<td><strong>SR</strong></td>
+<td><strong>BR</strong></td>
+<td><strong>BR</strong></td>
+<td><strong>SR</strong> x 0.707 + <strong>BL</strong> x 0.258 + <strong>BR</strong> x 0.965</td>
+<td><strong>SR</strong> x 0.707 + <strong>BL</strong> x 0.258 + <strong>BR</strong> x 0.965</td>
+</tr>
+</tbody>
+</table>
+</div>
+<h3 id="surround"><a href="#surround">6.2.4 Surround</a></h3>
+<div class="mixdowntable">
+<table>
+<thead>
+<tr>
+<th>Output</th>
+<th>Mono</th>
+<th>Stereo</th>
+<th>Quad</th>
+<th>5.0</th>
+<th>5.1</th>
+<th>7.1</th>
+<th>7.1.4</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>FL</strong></td>
+<td><strong>M</strong> x 0.707</td>
+<td><strong>L</strong></td>
+<td><strong>FL</strong> x 0.961</td>
+<td><strong>FL</strong></td>
+<td><strong>FL</strong></td>
+<td><strong>FL</strong> + <strong>SL</strong> x 0.367</td>
+<td><strong>FL</strong> + <strong>SL</strong> x 0.367</td>
+</tr>
+<tr>
+<td><strong>FR</strong></td>
+<td><strong>M</strong> x 0.707</td>
+<td><strong>R</strong></td>
+<td><strong>FR</strong> x 0.961</td>
+<td><strong>FR</strong></td>
+<td><strong>FR</strong></td>
+<td><strong>FR</strong> + <strong>SR</strong> x 0.367</td>
+<td><strong>FR</strong> + <strong>SR</strong> x 0.367</td>
+</tr>
+<tr>
+<td><strong>C</strong></td>
+<td></td>
+<td></td>
+<td></td>
+<td><strong>C</strong></td>
+<td><strong>C</strong></td>
+<td><strong>C</strong></td>
+<td><strong>C</strong></td>
+</tr>
+<tr>
+<td><strong>BL</strong></td>
+<td></td>
+<td></td>
+<td><strong>FL</strong> x 0.274 + <strong>SL</strong> x 0.960 + <strong>SR</strong> x 0.422</td>
+<td><strong>BL</strong></td>
+<td><strong>BL</strong></td>
+<td><strong>SL</strong> x 0.930 + <strong>BL</strong> x 0.700 + <strong>BR</strong> x 0.460</td>
+<td><strong>SL</strong> x 0.930 + <strong>BL</strong> x 0.700 + <strong>BR</strong> x 0.460</td>
+</tr>
+<tr>
+<td><strong>BR</strong></td>
+<td></td>
+<td></td>
+<td><strong>FR</strong> x 0.274 + <strong>SL</strong> x 0.422 + <strong>SR</strong> x 0.960</td>
+<td><strong>BR</strong></td>
+<td><strong>BR</strong></td>
+<td><strong>SR</strong> x 0.930 + <strong>BL</strong> x 0.460 + <strong>BR</strong> x 0.700</td>
+<td><strong>SR</strong> x 0.930 + <strong>BL</strong> x 0.460 + <strong>BR</strong> x 0.700</td>
+</tr>
+</tbody>
+</table>
+</div>
+<h3 id="51"><a href="#51">6.2.5 5.1</a></h3>
+<div class="mixdowntable">
+<table>
+<thead>
+<tr>
+<th>Output</th>
+<th>Mono</th>
+<th>Stereo</th>
+<th>Quad</th>
+<th>5.0</th>
+<th>5.1</th>
+<th>7.1</th>
+<th>7.1.4</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>FL</strong></td>
+<td><strong>M</strong> x 0.707</td>
+<td><strong>L</strong></td>
+<td><strong>FL</strong> x 0.961</td>
+<td><strong>FL</strong></td>
+<td><strong>FL</strong></td>
+<td><strong>FL</strong> + <strong>SL</strong> x 0.367</td>
+<td><strong>FL</strong> + <strong>SL</strong> x 0.367</td>
+</tr>
+<tr>
+<td><strong>FR</strong></td>
+<td><strong>M</strong> x 0.707</td>
+<td><strong>R</strong></td>
+<td><strong>FR</strong> x 0.961</td>
+<td><strong>FR</strong></td>
+<td><strong>FR</strong></td>
+<td><strong>FR</strong> + <strong>SR</strong> x 0.367</td>
+<td><strong>FR</strong> + <strong>SR</strong> x 0.367</td>
+</tr>
+<tr>
+<td><strong>C</strong></td>
+<td></td>
+<td></td>
+<td></td>
+<td><strong>C</strong></td>
+<td><strong>C</strong></td>
+<td><strong>C</strong></td>
+<td><strong>C</strong></td>
+</tr>
+<tr>
+<td><strong>LFE</strong></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td><strong>LFE</strong></td>
+<td><strong>LFE</strong></td>
+<td><strong>LFE</strong></td>
+</tr>
+<tr>
+<td><strong>BL</strong></td>
+<td></td>
+<td></td>
+<td><strong>FL</strong> x 0.274 + <strong>SL</strong> x 0.960 + <strong>SR</strong> x 0.422</td>
+<td><strong>BL</strong></td>
+<td><strong>BL</strong></td>
+<td><strong>SL</strong> x 0.930 + <strong>BL</strong> x 0.700 + <strong>BR</strong> x 0.460</td>
+<td><strong>SL</strong> x 0.930 + <strong>BL</strong> x 0.700 + <strong>BR</strong> x 0.460</td>
+</tr>
+<tr>
+<td><strong>BR</strong></td>
+<td></td>
+<td></td>
+<td><strong>FR</strong> x 0.274 + <strong>SL</strong> x 0.422 + <strong>SR</strong> x 0.960</td>
+<td><strong>BR</strong></td>
+<td><strong>BR</strong></td>
+<td><strong>SR</strong> x 0.930 + <strong>BL</strong> x 0.460 + <strong>BR</strong> x 0.700</td>
+<td><strong>SR</strong> x 0.930 + <strong>BL</strong> x 0.460 + <strong>BR</strong> x 0.700</td>
+</tr>
+</tbody>
+</table>
+</div>
+<h3 id="71"><a href="#71">6.2.6 7.1</a></h3>
+<div class="mixdowntable">
+<table>
+<thead>
+<tr>
+<th>Output</th>
+<th>Mono</th>
+<th>Stereo</th>
+<th>Quad</th>
+<th>5.0</th>
+<th>5.1</th>
+<th>7.1</th>
+<th>7.1.4</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>FL</strong></td>
+<td><strong>M</strong> x 0.707</td>
+<td><strong>L</strong></td>
+<td><strong>FL</strong> x 0.939</td>
+<td><strong>FL</strong></td>
+<td><strong>FL</strong></td>
+<td><strong>FL</strong></td>
+<td><strong>FL</strong></td>
+</tr>
+<tr>
+<td><strong>FR</strong></td>
+<td><strong>M</strong> x 0.707</td>
+<td><strong>R</strong></td>
+<td><strong>FR</strong> x 0.939</td>
+<td><strong>FR</strong></td>
+<td><strong>FR</strong></td>
+<td><strong>FR</strong></td>
+<td><strong>FR</strong></td>
+</tr>
+<tr>
+<td><strong>C</strong></td>
+<td></td>
+<td></td>
+<td></td>
+<td><strong>C</strong></td>
+<td><strong>C</strong></td>
+<td><strong>C</strong></td>
+<td><strong>C</strong></td>
+</tr>
+<tr>
+<td><strong>LFE</strong></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td><strong>LFE</strong></td>
+<td><strong>LFE</strong></td>
+<td><strong>LFE</strong></td>
+</tr>
+<tr>
+<td><strong>SL</strong></td>
+<td></td>
+<td></td>
+<td><strong>FL</strong> x 0.344 + <strong>SL</strong> x 0.344</td>
+<td><strong>BL</strong> x 0.883</td>
+<td><strong>BL</strong> x 0.883</td>
+<td><strong>SL</strong></td>
+<td><strong>SL</strong></td>
+</tr>
+<tr>
+<td><strong>SR</strong></td>
+<td></td>
+<td></td>
+<td><strong>FR</strong> x 0.344 + <strong>SR</strong> x 0.344</td>
+<td><strong>BR</strong> x 0.883</td>
+<td><strong>BR</strong> x 0.883</td>
+<td><strong>SR</strong></td>
+<td><strong>SR</strong></td>
+</tr>
+<tr>
+<td><strong>BL</strong></td>
+<td></td>
+<td></td>
+<td><strong>SL</strong> x 0.939</td>
+<td><strong>BL</strong> x 0.470</td>
+<td><strong>BL</strong> x 0.470</td>
+<td><strong>BL</strong></td>
+<td><strong>BL</strong></td>
+</tr>
+<tr>
+<td><strong>BR</strong></td>
+<td></td>
+<td></td>
+<td><strong>SR</strong> x 0.939</td>
+<td><strong>BR</strong> x 0.470</td>
+<td><strong>BR</strong> x 0.470</td>
+<td><strong>BR</strong></td>
+<td><strong>BR</strong></td>
+</tr>
+</tbody>
+</table>
+</div>
+<h3 id="714"><a href="#714">6.2.7 7.1.4</a></h3>
+<div class="mixdowntable">
+<table>
+<thead>
+<tr>
+<th>Output</th>
+<th>Mono</th>
+<th>Stereo</th>
+<th>Quad</th>
+<th>5.0</th>
+<th>5.1</th>
+<th>7.1</th>
+<th>7.1.4</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>FL</strong></td>
+<td><strong>M</strong> x 0.707</td>
+<td><strong>L</strong></td>
+<td><strong>FL</strong> x 0.939</td>
+<td><strong>FL</strong></td>
+<td><strong>FL</strong></td>
+<td><strong>FL</strong></td>
+<td><strong>FL</strong></td>
+</tr>
+<tr>
+<td><strong>FR</strong></td>
+<td><strong>M</strong> x 0.707</td>
+<td><strong>R</strong></td>
+<td><strong>FR</strong> x 0.939</td>
+<td><strong>FR</strong></td>
+<td><strong>FR</strong></td>
+<td><strong>FR</strong></td>
+<td><strong>FR</strong></td>
+</tr>
+<tr>
+<td><strong>C</strong></td>
+<td></td>
+<td></td>
+<td></td>
+<td><strong>C</strong></td>
+<td><strong>C</strong></td>
+<td><strong>C</strong></td>
+<td><strong>C</strong></td>
+</tr>
+<tr>
+<td><strong>LFE</strong></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td><strong>LFE</strong></td>
+<td><strong>LFE</strong></td>
+<td><strong>LFE</strong></td>
+</tr>
+<tr>
+<td><strong>SL</strong></td>
+<td></td>
+<td></td>
+<td><strong>FL</strong> x 0.344 + <strong>SL</strong> x 0.344</td>
+<td><strong>BL</strong> x 0.883</td>
+<td><strong>BL</strong> x 0.883</td>
+<td><strong>SL</strong></td>
+<td><strong>SL</strong></td>
+</tr>
+<tr>
+<td><strong>SR</strong></td>
+<td></td>
+<td></td>
+<td><strong>FR</strong> x 0.344 + <strong>SR</strong> x 0.344</td>
+<td><strong>BR</strong> x 0.883</td>
+<td><strong>BR</strong> x 0.883</td>
+<td><strong>SR</strong></td>
+<td><strong>SR</strong></td>
+</tr>
+<tr>
+<td><strong>BL</strong></td>
+<td></td>
+<td></td>
+<td><strong>SL</strong> x 0.939</td>
+<td><strong>BL</strong> x 0.470</td>
+<td><strong>BL</strong> x 0.470</td>
+<td><strong>BL</strong></td>
+<td><strong>BL</strong></td>
+</tr>
+<tr>
+<td><strong>BR</strong></td>
+<td></td>
+<td></td>
+<td><strong>SR</strong> x 0.939</td>
+<td><strong>BR</strong> x 0.470</td>
+<td><strong>BR</strong> x 0.470</td>
+<td><strong>BR</strong></td>
+<td><strong>BR</strong></td>
+</tr>
+<tr>
+<td><strong>TFL</strong></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td><strong>TFL</strong></td>
+</tr>
+<tr>
+<td><strong>TFR</strong></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td><strong>TFR</strong></td>
+</tr>
+<tr>
+<td><strong>TBL</strong></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td><strong>TBL</strong></td>
+</tr>
+<tr>
+<td><strong>TBR</strong></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td><strong>TBR</strong></td>
+</tr>
+</tbody>
+</table>
+</div></div>
+
+<p class="manual-footer">FMOD Engine User Manual 2.03.14 (2026-05-28). &copy; 2026 Firelight Technologies Pty Ltd.</p>
+</div>
+</body>
+</html>
+

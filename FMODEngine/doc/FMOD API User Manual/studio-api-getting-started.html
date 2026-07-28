@@ -1,0 +1,89 @@
+<html>
+<head>
+<title>Studio API Getting Started</title>
+<link rel="stylesheet" href="style/docs.css">
+<link rel="stylesheet" href="style/code_highlight.css">
+<script type="text/javascript" src="scripts/language-selector.js"></script></head>
+<body>
+<div class="docs-body">
+<div class="manual-toc">
+<p>FMOD Engine User Manual 2.03</p>
+<ul>
+<li><a href="welcome.html">Welcome to the FMOD Engine</a></li>
+<li><a href="core-api-concepts.html">Core API Key Concepts</a></li>
+<li><a href="running-the-core-api.html">Core API Getting Started</a></li>
+<li><a href="loading-and-playing-sounds-in-the-core-api.html">Core API Loading and Playing Sounds</a></li>
+<li><a href="spatializing-sounds-in-the-core-api.html">Core API Spatializing Sounds</a></li>
+<li><a href="mixing-and-routing-in-the-core-api.html">Core API Mixing and Routing</a></li>
+<li><a href="using-dsp-effects-in-the-core-api.html">Core API Using DSP Effects</a></li>
+<li><a href="effects-reference.html">Core API Effect Reference</a></li>
+<li><a href="managing-resources-in-the-core-api.html">Core API Managing Resources</a></li>
+<li><a href="advanced-core-api-topics.html">Core API Advanced Topics</a></li>
+<li><a href="core-api.html">Core API Reference</a></li>
+<li class="manual-current-chapter manual-active-chapter"><a href="studio-api-getting-started.html">Studio API Getting Started</a><ul>
+<li><a href="#initialization">Initialization</a><ul>
+<li><a href="#studio-api-initialization">Studio API Initialization</a></li>
+<li><a href="#advanced-initialization-settings">Advanced Initialization Settings</a></li>
+</ul>
+</li>
+<li><a href="#update">Update</a></li>
+<li><a href="#shut-down">Shut Down</a></li>
+<li><a href="#error-checking">Error Checking</a></li>
+<li><a href="#configuration">Configuration</a></li>
+</ul>
+</li>
+<li><a href="studio-guide.html">Studio API Guide</a></li>
+<li><a href="studio-api-3d-events.html">Studio API 3D Events</a></li>
+<li><a href="studio-api-threads.html">Studio API Threads</a></li>
+<li><a href="studio-api.html">Studio API Reference</a></li>
+<li><a href="platforms.html">Platform Details</a></li>
+<li><a href="dsp-plugin-api-guide.html">Plug-in DSP API Guide</a></li>
+<li><a href="plugin-api.html">Plug-in API Reference</a></li>
+<li><a href="fsbank-api.html">FSBank API Reference</a></li>
+<li><a href="troubleshooting.html">Troubleshooting</a></li>
+<li><a href="glossary.html">Glossary</a></li>
+</ul>
+</div>
+<div class="manual-content api">
+<h1>12. Studio API Getting Started</h1>
+<p>The <a href="glossary.html#studio-api">Studio API</a> is designed to be intuitive and flexible. This chapter contains an introduction to using it, and explains the key factors involved in using it effectively.</p>
+<h2 id="initialization"><a href="#initialization">12.1 Initialization</a></h2>
+<p>Before anything else can be done with the <a href="glossary.html#studio-api">Studio API</a>, it is necessary to initialize the <a href="studio-api-system.html">studio system</a>.</p>
+<h3 id="studio-api-initialization"><a href="#studio-api-initialization">12.1.1 Studio API Initialization</a></h3>
+<p>The Studio API can load <a href="glossary.html#fmod-studio">FMOD Studio</a> banks and can play <span class="dead-link" href="glossary.html#event">events</span class="dead-link"> created by sound designers in FMOD Studio. When using the Studio API, you can create a <a href="studio-api-system.html">studio system</a> and then call <a class="apilink" href="studio-api-system.html#studio_system_initialize">Studio::System::initialize</a>. That function also initializes the in-built core system as well. Here is a simple example:</p>
+<div class="highlight language-text"><pre><span></span>FMOD_RESULT result;
+FMOD::Studio::System* system = NULL;
+
+result = FMOD::Studio::System::create(&amp;system); // Create the Studio System object.
+if (result != FMOD_OK)
+{
+    printf(&quot;FMOD error! (%d) %s\n&quot;, result, FMOD_ErrorString(result));
+    exit(-1);
+}
+
+// Initialize the Studio system, which also initializes the Core system
+result = system-&gt;initialize(512, FMOD_STUDIO_INIT_NORMAL, FMOD_INIT_NORMAL, 0);
+if (result != FMOD_OK)
+{
+    printf(&quot;FMOD error! (%d) %s\n&quot;, result, FMOD_ErrorString(result));
+    exit(-1);
+}
+</pre></div>
+
+<h3 id="advanced-initialization-settings"><a href="#advanced-initialization-settings">12.1.2 Advanced Initialization Settings</a></h3>
+<p>The <a href="glossary.html#fmod-engine">FMOD Engine</a> can be customized with advanced settings by calling <a class="apilink" href="studio-api-system.html#studio_system_setadvancedsettings">Studio::System::setAdvancedSettings</a> before initialization. For a description of the typical settings for effective virtual voices, see the <a href="managing-resources-in-the-core-api.html#virtual-voice-system">Virtual Voice System</a> section of the <a href="managing-resources-in-the-core-api.html">Managing Resources in the Core API</a> chapter.</p>
+<h2 id="update"><a href="#update">12.2 Update</a></h2>
+<p>The <a href="glossary.html#fmod-engine">FMOD Engine</a> should be ticked once per game update. To tick the FMOD Engine while using the <a href="glossary.html#studio-api">Studio API</a>, call <a class="apilink" href="studio-api-system.html#studio_system_update">Studio::System::update</a>. Internally, this also updates the <a href="glossary.html#system">Core API system</a>.</p>
+<p>If the Studio API is running in asynchronous mode (the default, unless <a class="apilink" href="studio-api-system.html#fmod_studio_init_synchronous_update">FMOD_STUDIO_INIT_SYNCHRONOUS_UPDATE</a> has been specified), then <a class="apilink" href="studio-api-system.html#studio_system_update">Studio::System::update</a> will be extremely quick, as it is merely swapping a buffer for the asynchronous execution of that frame's commands.</p>
+<h2 id="shut-down"><a href="#shut-down">12.3 Shut Down</a></h2>
+<p>To shut down the <a href="glossary.html#studio-api">Studio API</a>, call <a class="apilink" href="studio-api-system.html#studio_system_release">Studio::System::release</a>.</p>
+<h2 id="error-checking"><a href="#error-checking">12.4 Error Checking</a></h2>
+<p>In the FMOD examples, the error codes are checked with a macro that calls into a handling function if an unexpected error occurs. That is the recommended way of calling <a href="glossary.html#studio-api">Studio API</a> functions. There is also a callback that can be received whenever a public FMOD function has an error. See <a class="apilink" href="core-api-system.html#fmod_system_callback">FMOD_SYSTEM_CALLBACK</a> for more information.</p>
+<h2 id="configuration"><a href="#configuration">12.5 Configuration</a></h2>
+<p>The output hardware, the <a href="glossary.html#fmod-engine">FMOD Engine</a>'s resource usage, and other types of configuration options can be set if you desire behavior differing from the default. These are generally called before <a class="apilink" href="core-api-system.html#system_init">System::init</a>. For examples of these, see <a class="apilink" href="studio-api-system.html#studio_system_getcoresystem">Studio::System::getCoreSystem</a>, <a class="apilink" href="core-api-system.html#system_setadvancedsettings">System::setAdvancedSettings</a>, <a class="apilink" href="studio-api-system.html#studio_system_setadvancedsettings">Studio::System::setAdvancedSettings</a>.</p></div>
+
+<p class="manual-footer">FMOD Engine User Manual 2.03.14 (2026-05-28). &copy; 2026 Firelight Technologies Pty Ltd.</p>
+</div>
+</body>
+</html>
+

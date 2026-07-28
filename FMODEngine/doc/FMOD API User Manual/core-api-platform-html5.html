@@ -1,0 +1,302 @@
+<html>
+<head>
+<title>Core API Reference | HTML5 Specific</title>
+<link rel="stylesheet" href="style/docs.css">
+<link rel="stylesheet" href="style/code_highlight.css">
+<script type="text/javascript" src="scripts/language-selector.js"></script></head>
+<body>
+<div class="docs-body">
+<div class="manual-toc">
+<p>FMOD Engine User Manual 2.03</p>
+<ul>
+<li><a href="welcome.html">Welcome to the FMOD Engine</a></li>
+<li><a href="core-api-concepts.html">Core API Key Concepts</a></li>
+<li><a href="running-the-core-api.html">Core API Getting Started</a></li>
+<li><a href="loading-and-playing-sounds-in-the-core-api.html">Core API Loading and Playing Sounds</a></li>
+<li><a href="spatializing-sounds-in-the-core-api.html">Core API Spatializing Sounds</a></li>
+<li><a href="mixing-and-routing-in-the-core-api.html">Core API Mixing and Routing</a></li>
+<li><a href="using-dsp-effects-in-the-core-api.html">Core API Using DSP Effects</a></li>
+<li><a href="effects-reference.html">Core API Effect Reference</a></li>
+<li><a href="managing-resources-in-the-core-api.html">Core API Managing Resources</a></li>
+<li><a href="advanced-core-api-topics.html">Core API Advanced Topics</a></li>
+<li class="manual-current-chapter manual-inactive-chapter"><a href="core-api.html">Core API Reference</a><ul class="subchapters"><li><a href="core-api-common.html">Common</a></li><li><a href="core-api-common-dsp-effects.html">Effect Parameters</a></li><li><a href="core-api-system.html">System</a></li><li><a href="core-api-sound.html">Sound</a></li><li><a href="core-api-channelcontrol.html">ChannelControl</a></li><li><a href="core-api-channel.html">Channel</a></li><li><a href="core-api-channelgroup.html">ChannelGroup</a></li><li><a href="core-api-soundgroup.html">SoundGroup</a></li><li><a href="core-api-dsp.html">DSP</a></li><li><a href="core-api-dspconnection.html">DSPConnection</a></li><li><a href="core-api-geometry.html">Geometry</a></li><li><a href="core-api-reverb3d.html">Reverb3D</a></li><li><a href="core-api-platform-ios.html">iOS Specific</a></li><li><a href="core-api-platform-android.html">Android Specific</a></li><li class="manual-current-chapter manual-active-chapter"><a href="core-api-platform-html5.html">HTML5 Specific</a></li></ul></li>
+<li><a href="studio-api-getting-started.html">Studio API Getting Started</a></li>
+<li><a href="studio-guide.html">Studio API Guide</a></li>
+<li><a href="studio-api-3d-events.html">Studio API 3D Events</a></li>
+<li><a href="studio-api-threads.html">Studio API Threads</a></li>
+<li><a href="studio-api.html">Studio API Reference</a></li>
+<li><a href="platforms.html">Platform Details</a></li>
+<li><a href="dsp-plugin-api-guide.html">Plug-in DSP API Guide</a></li>
+<li><a href="plugin-api.html">Plug-in API Reference</a></li>
+<li><a href="fsbank-api.html">FSBank API Reference</a></li>
+<li><a href="troubleshooting.html">Troubleshooting</a></li>
+<li><a href="glossary.html">Glossary</a></li>
+</ul>
+</div>
+<div class="manual-content api">
+<h1>11. Core API Reference | HTML5 Specific</h1>
+<p>APIs and types for HTML5 platform.</p>
+<ul>
+<li><span><a class="apilink" href="core-api-platform-html5.html#fs_createpreloadedfile" title="Mounts a local file so that FMOD can recognize it when calling a function that uses a filename.  Should be called in prerun.">FS_createPreloadedFile</a> Mounts a local file so that FMOD can recognize it when calling a function that uses a filename.  Should be called in prerun.</span></li>
+<li><span><a class="apilink" href="core-api-platform-html5.html#readfile" title="Read the entire contents of a file into a memory variable, as preloaded by FS_createPreloadedFile.">ReadFile</a> Read the entire contents of a file into a memory variable, as preloaded by <code>FS_createPreloadedFile</code>.</span></li>
+<li><span><a class="apilink" href="core-api-platform-html5.html#memory_free" title="Free memory allocated by FMOD internally in ReadFile.">Memory_Free</a> Free memory allocated by FMOD internally in <code>ReadFile</code>.</span></li>
+<li><span><a class="apilink" href="core-api-platform-html5.html#file_open" title="Helper function to open a file that was preloaded by FS_createPreloadedFile.">file_open</a> Helper function to open a file that was preloaded by <code>FS_createPreloadedFile</code>.</span></li>
+<li><span><a class="apilink" href="core-api-platform-html5.html#file_close" title="Helper function to close a file manually that was preloaded with FS_createPreloadedFile.">file_close</a> Helper function to close a file manually that was preloaded with <code>FS_createPreloadedFile</code>.</span></li>
+<li><span><a class="apilink" href="core-api-platform-html5.html#file_read" title="Helper function to read from a file that was preloaded with FS_createPreloadedFile.">file_read</a> Helper function to read from a file that was preloaded with <code>FS_createPreloadedFile</code>.</span></li>
+<li><span><a class="apilink" href="core-api-platform-html5.html#file_seek" title="Helper function to seek a file manually that was preloaded with FS_createPreloadedFile.">file_seek</a> Helper function to seek a file manually that was preloaded with <code>FS_createPreloadedFile</code>.</span></li>
+<li><span><a class="apilink" href="core-api-platform-html5.html#getvalue" title="Retrieve a value from a specific FMOD memory address.">getValue</a> Retrieve a value from a specific FMOD memory address.</span></li>
+<li><span><a class="apilink" href="core-api-platform-html5.html#setvalue" title="Store a value at a specific FMOD memory address.">setValue</a> Store a value at a specific FMOD memory address.</span></li>
+</ul>
+<h2 api="function" id="fs_createpreloadedfile"><a href="#fs_createpreloadedfile">FS_createPreloadedFile</a></h2>
+<p>Mounts a local file so that FMOD can recognize it when calling a function that uses a filename.  Should be called in prerun.</p>
+<p>
+<div class="language-selector">
+<div class="language-tab" data-language="language-javascript">JS</div>
+</div>
+</p>
+<div class="highlight language-javascript"><pre><span></span><span class="nx">FS_createPreloadedFile</span><span class="p">(</span><span class="nx">ptr</span><span class="p">,</span> <span class="nx">value</span><span class="p">,</span> <span class="nx">type</span><span class="p">);</span>
+</pre></div>
+
+<dl>
+<dt>parent</dt>
+<dd>Parent folder path. (<a href="glossary.html#string-format">UTF-8 string</a>)</dd>
+<dt>name</dt>
+<dd>The name of the new file. (<a href="glossary.html#string-format">UTF-8 string</a>)</dd>
+<dt>url</dt>
+<dd>Local (real) file system path the contents will be loaded from (<a href="glossary.html#string-format">UTF-8 string</a>).</dd>
+<dt>canRead</dt>
+<dd>
+<p>Whether the file should have read permissions set from the program’s point of view.</p>
+<ul>
+<li><span class="label">Units:</span> Boolean</li>
+</ul>
+</dd>
+<dt>canWrite</dt>
+<dd>
+<p>Whether the file should have write permissions set from the program’s point of view.</p>
+<ul>
+<li><span class="label">Units:</span> Boolean</li>
+</ul>
+</dd>
+</dl>
+<h4 id="example-usage"><a href="#example-usage">Example usage.</a></h4>
+<div class="highlight language-javascript"><pre><span></span><span class="kd">function</span> <span class="nx">prerun</span><span class="p">()</span>
+<span class="p">{</span>
+    <span class="kd">var</span> <span class="nx">fileUrl</span> <span class="o">=</span> <span class="s2">&quot;/public/js/&quot;</span><span class="p">;</span>
+    <span class="kd">var</span> <span class="nx">fileName</span> <span class="o">=</span> <span class="s2">&quot;Master.Bank&quot;</span><span class="p">;</span>
+    <span class="kd">var</span> <span class="nx">folderName</span> <span class="o">=</span> <span class="s2">&quot;/&quot;</span><span class="p">;</span>
+
+    <span class="nx">FMOD</span><span class="p">.</span><span class="nx">FS_createPreloadedFile</span><span class="p">(</span><span class="nx">folderName</span><span class="p">,</span> <span class="nx">fileName</span><span class="p">,</span> <span class="nx">fileUrl</span> <span class="o">+</span> <span class="nx">fileName</span><span class="p">,</span> <span class="kc">true</span><span class="p">,</span> <span class="kc">false</span><span class="p">);</span>
+<span class="p">}</span>
+</pre></div>
+
+<p>Wrapper for the <a href="https://emscripten.org/docs/api_reference/Filesystem-API.html#FS.createPreloadedFile">emscripten function</a>.</p>
+<p><strong>See Also:</strong> <a class="apilink" href="core-api-platform-html5.html#readfile">ReadFile</a></p>
+<h2 api="function" id="readfile"><a href="#readfile">ReadFile</a></h2>
+<p>Read the entire contents of a file into a memory variable, as preloaded by <a class="apilink" href="core-api-platform-html5.html#fs_createpreloadedfile">FS_createPreloadedFile</a>.</p>
+<p>
+<div class="language-selector">
+<div class="language-tab" data-language="language-javascript">JS</div>
+</div>
+</p>
+<div class="highlight language-javascript"><pre><span></span><span class="nx">ReadFile</span><span class="p">(</span><span class="nx">system</span><span class="p">,</span> <span class="nx">value</span><span class="p">,</span> <span class="nx">type</span><span class="p">);</span>
+</pre></div>
+
+<dl>
+<dt>system</dt>
+<dd><a class="apilink" href="core-api-system.html">System</a> object handle.</dd>
+<dt>filename</dt>
+<dd>Filename of the file that is to be loaded, that has the path and filename that matches the preloaded path/filename if loaded in that fashion.</dd>
+<dt>output <span><a class="token" href="glossary.html#documentation-conventions" title="Output">Out</a></span></dt>
+<dd>Output object containing 'val' and 'length'. Val contains memory that can be passed to FMOD functions like <a class="apilink" href="core-api-system.html#system_createsound">System::createSound</a> (using <a class="apilink" href="core-api-common.html#fmod_openmemory">FMOD_OPENMEMORY</a> ) or <a class="apilink" href="studio-api-system.html#studio_system_loadbankmemory">Studio::System::loadBankMemory</a>.</dd>
+</dl>
+<h4 id="example-usage_1"><a href="#example-usage_1">Example usage.</a></h4>
+<div class="highlight language-javascript"><pre><span></span><span class="nx">result</span> <span class="o">=</span> <span class="nx">FMOD</span><span class="p">.</span><span class="nx">ReadFile</span><span class="p">(</span><span class="nx">gSystemCore</span><span class="p">,</span> <span class="s2">&quot;/&quot;</span> <span class="o">+</span> <span class="nx">filename</span><span class="p">,</span> <span class="nx">outval</span><span class="p">);</span>
+<span class="nx">CHECK_RESULT</span><span class="p">(</span><span class="nx">result</span><span class="p">);</span>
+
+<span class="nx">memoryPtr</span>    <span class="o">=</span> <span class="nx">outval</span><span class="p">.</span><span class="nx">val</span><span class="p">;</span>      <span class="c1">// Pointer to FMOD owned file data. See below where FMOD.Memory_Free is used to free it.</span>
+<span class="nx">memoryLength</span> <span class="o">=</span> <span class="nx">outval</span><span class="p">.</span><span class="nx">length</span><span class="p">;</span>   <span class="c1">// Length of FMOD owned file data</span>
+
+<span class="nx">result</span> <span class="o">=</span> <span class="nx">gSystem</span><span class="p">.</span><span class="nx">loadBankMemory</span><span class="p">(</span><span class="nx">memoryPtr</span><span class="p">,</span> <span class="nx">memoryLength</span><span class="p">,</span> <span class="nx">FMOD</span><span class="p">.</span><span class="nx">STUDIO_LOAD_MEMORY</span><span class="p">,</span> <span class="nx">FMOD</span><span class="p">.</span><span class="nx">STUDIO_LOAD_BANK_NONBLOCKING</span><span class="p">,</span> <span class="nx">outval</span><span class="p">);</span>
+<span class="nx">CHECK_RESULT</span><span class="p">(</span><span class="nx">result</span><span class="p">);</span>
+</pre></div>
+
+<p>Call <a class="apilink" href="core-api-platform-html5.html#memory_free">Memory_Free</a> on the variable after using it.</p>
+<h2 api="function" id="memory_free"><a href="#memory_free">Memory_Free</a></h2>
+<p>Free memory allocated by FMOD internally in <a class="apilink" href="core-api-platform-html5.html#readfile">ReadFile</a>.</p>
+<p>
+<div class="language-selector">
+<div class="language-tab" data-language="language-javascript">JS</div>
+</div>
+</p>
+<div class="highlight language-javascript"><pre><span></span><span class="nx">Memory_Free</span><span class="p">(</span><span class="nx">ptr</span><span class="p">);</span>
+</pre></div>
+
+<dl>
+<dt>ptr</dt>
+<dd>Number representing the FMOD buffer address from the ReadFile function.</dd>
+</dl>
+<p><strong>See Also:</strong> <a class="apilink" href="core-api-platform-html5.html#readfile">ReadFile</a></p>
+<h2 api="function" id="file_open"><a href="#file_open">file_open</a></h2>
+<p>Helper function to open a file that was preloaded by <a class="apilink" href="core-api-platform-html5.html#fs_createpreloadedfile">FS_createPreloadedFile</a>.</p>
+<p>
+<div class="language-selector">
+<div class="language-tab" data-language="language-javascript">JS</div>
+</div>
+</p>
+<div class="highlight language-javascript"><pre><span></span><span class="nx">file_open</span><span class="p">(</span><span class="nx">system</span><span class="p">,</span> <span class="nx">filename</span><span class="p">,</span> <span class="nx">filesize</span><span class="p">,</span> <span class="nx">handle</span><span class="p">);</span>
+</pre></div>
+
+<dl>
+<dt>system</dt>
+<dd><a class="apilink" href="core-api-system.html">System</a> object handle.</dd>
+<dt>filename</dt>
+<dd>path and filename which matches the path/filename set up in FMOD.FS_createPreloadedFile. (<a href="glossary.html#string-format">UTF-8 string</a>)</dd>
+<dt>filesize <span><a class="token" href="glossary.html#documentation-conventions" title="Output">Out</a></span></dt>
+<dd>An object with the calculated size of the file stored in filesize.val.</dd>
+<dt>handle <span><a class="token" href="glossary.html#documentation-conventions" title="Output">Out</a></span></dt>
+<dd>An object with the file handle stored in handle.val.</dd>
+</dl>
+<p><strong>See Also:</strong> <a class="apilink" href="core-api-platform-html5.html#file_close">file_close</a>, <a class="apilink" href="core-api-platform-html5.html#file_read">file_read</a>, <a class="apilink" href="core-api-platform-html5.html#file_seek">file_seek</a></p>
+<h2 api="function" id="file_close"><a href="#file_close">file_close</a></h2>
+<p>Helper function to close a file manually that was preloaded with <a class="apilink" href="core-api-platform-html5.html#fs_createpreloadedfile">FS_createPreloadedFile</a>.</p>
+<p>
+<div class="language-selector">
+<div class="language-tab" data-language="language-javascript">JS</div>
+</div>
+</p>
+<div class="highlight language-javascript"><pre><span></span><span class="nx">file_close</span><span class="p">(</span><span class="nx">handle</span><span class="p">);</span>
+</pre></div>
+
+<dl>
+<dt>handle</dt>
+<dd>Handle returned by the <a class="apilink" href="core-api-platform-html5.html#file_open">file_open</a> function.</dd>
+</dl>
+<p><strong>See Also:</strong> <a class="apilink" href="core-api-platform-html5.html#file_read">file_read</a>, <a class="apilink" href="core-api-platform-html5.html#file_seek">file_seek</a></p>
+<h2 api="function" id="file_read"><a href="#file_read">file_read</a></h2>
+<p>Helper function to read from a file that was preloaded with <a class="apilink" href="core-api-platform-html5.html#fs_createpreloadedfile">FS_createPreloadedFile</a>.</p>
+<p>
+<div class="language-selector">
+<div class="language-tab" data-language="language-javascript">JS</div>
+</div>
+</p>
+<div class="highlight language-javascript"><pre><span></span><span class="nx">file_read</span><span class="p">(</span><span class="nx">handle</span><span class="p">,</span> <span class="nx">buffer</span><span class="p">,</span> <span class="nx">sizebytes</span><span class="p">,</span> <span class="nx">bytesread</span><span class="p">);</span>
+</pre></div>
+
+<dl>
+<dt>handle</dt>
+<dd>Handle returned by the <a class="apilink" href="core-api-platform-html5.html#file_open">file_open</a> function.</dd>
+<dt>buffer</dt>
+<dd>A memory address that would come from FMOD, such as that from an FMOD callback or <a class="apilink" href="core-api-sound.html#sound_lock">Sound::lock</a>.</dd>
+<dt>sizebytes</dt>
+<dd>Integer value with the number of bytes requested to be read from the file handle.</dd>
+<dt>bytesread <span><a class="token" href="glossary.html#documentation-conventions" title="Output">Out</a></span></dt>
+<dd>An object with the number of bytes actually read stored in bytesread.val.</dd>
+</dl>
+<p><strong>See Also:</strong> <a class="apilink" href="core-api-platform-html5.html#file_open">file_open</a>, <a class="apilink" href="core-api-platform-html5.html#file_close">file_close</a>, <a class="apilink" href="core-api-platform-html5.html#file_seek">file_seek</a></p>
+<h2 api="function" id="file_seek"><a href="#file_seek">file_seek</a></h2>
+<p>Helper function to seek a file manually that was preloaded with <a class="apilink" href="core-api-platform-html5.html#fs_createpreloadedfile">FS_createPreloadedFile</a>.</p>
+<p>
+<div class="language-selector">
+<div class="language-tab" data-language="language-javascript">JS</div>
+</div>
+</p>
+<div class="highlight language-javascript"><pre><span></span><span class="nx">file_seek</span><span class="p">(</span><span class="nx">handle</span><span class="p">,</span> <span class="nx">pos</span><span class="p">);</span>
+</pre></div>
+
+<dl>
+<dt>handle</dt>
+<dd>Handle returned by <a class="apilink" href="core-api-platform-html5.html#file_open">file_open</a> function.</dd>
+<dt>pos</dt>
+<dd>offset in bytes to seek into the file, relative to the start.</dd>
+</dl>
+<p><strong>See Also:</strong> <a class="apilink" href="core-api-platform-html5.html#file_close">file_close</a>, <a class="apilink" href="core-api-platform-html5.html#file_read">file_read</a></p>
+<h2 api="function" id="setvalue"><a href="#setvalue">setValue</a></h2>
+<p>Store a value at a specific FMOD memory address.</p>
+<p>
+<div class="language-selector">
+<div class="language-tab" data-language="language-javascript">JS</div>
+</div>
+</p>
+<div class="highlight language-javascript"><pre><span></span><span class="nx">setValue</span><span class="p">(</span><span class="nx">ptr</span><span class="p">,</span> <span class="nx">value</span><span class="p">,</span> <span class="nx">type</span><span class="p">);</span>
+</pre></div>
+
+<dl>
+<dt>ptr</dt>
+<dd>Number representing the FMOD buffer address.</dd>
+<dt>value</dt>
+<dd>The value to be stored.</dd>
+<dt>type</dt>
+<dd>value type specified as a string. ie 'i8', 'i16', 'i32', 'i64', 'float', 'double'. (<a href="glossary.html#string-format">UTF-8 string</a>)</dd>
+</dl>
+<h4 id="example-usage_2"><a href="#example-usage_2">Example usage.</a></h4>
+<div class="highlight language-javascript"><pre><span></span><span class="k">for</span> <span class="p">(</span><span class="kd">var</span> <span class="nx">samp</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span> <span class="nx">samp</span> <span class="o">&lt;</span> <span class="nx">length</span><span class="p">;</span> <span class="nx">samp</span><span class="o">++</span><span class="p">)</span>
+<span class="p">{</span>
+    <span class="k">for</span> <span class="p">(</span><span class="kd">var</span> <span class="nx">chan</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span> <span class="nx">chan</span> <span class="o">&lt;</span> <span class="nx">outchannels</span><span class="p">;</span> <span class="nx">chan</span><span class="o">++</span><span class="p">)</span>
+    <span class="p">{</span>
+        <span class="c1">// This DSP filter just halves the volume! Input is modified, and sent to output.</span>
+        <span class="kd">let</span> <span class="nx">val</span> <span class="o">=</span> <span class="nx">FMOD</span><span class="p">.</span><span class="nx">getValue</span><span class="p">(</span><span class="nx">inbuffer</span> <span class="o">+</span> <span class="p">(((</span><span class="nx">samp</span> <span class="o">*</span> <span class="nx">inchannels</span><span class="p">)</span> <span class="o">+</span> <span class="nx">chan</span><span class="p">)</span> <span class="o">*</span> <span class="mi">4</span><span class="p">),</span> <span class="s1">&#39;float&#39;</span><span class="p">)</span> <span class="o">*</span> <span class="nx">dsp_state</span><span class="p">.</span><span class="nx">plugindata</span><span class="p">.</span><span class="nx">volume_linear</span><span class="p">;</span>
+
+        <span class="nx">FMOD</span><span class="p">.</span><span class="nx">setValue</span><span class="p">(</span><span class="nx">outbuffer</span> <span class="o">+</span> <span class="p">(((</span><span class="nx">samp</span> <span class="o">*</span> <span class="nx">outchannels</span><span class="p">)</span> <span class="o">+</span> <span class="nx">chan</span><span class="p">)</span> <span class="o">*</span> <span class="mi">4</span><span class="p">),</span> <span class="nx">val</span><span class="p">,</span> <span class="s1">&#39;float&#39;</span><span class="p">);</span>
+    <span class="p">}</span>
+<span class="p">}</span>
+</pre></div>
+
+<p>Wrapper for the <a href="https://emscripten.org/docs/api_reference/preamble.js.html#accessing-memory">emscripten function</a>.</p>
+<p><strong>See Also:</strong> <a class="apilink" href="core-api-platform-html5.html#getvalue">getValue</a></p>
+<h2 api="function" id="getvalue"><a href="#getvalue">getValue</a></h2>
+<p>Retrieve a value from a specific FMOD memory address.</p>
+<p>
+<div class="language-selector">
+<div class="language-tab" data-language="language-javascript">JS</div>
+</div>
+</p>
+<div class="highlight language-javascript"><pre><span></span><span class="nx">getValue</span><span class="p">(</span><span class="nx">ptr</span><span class="p">,</span> <span class="nx">value</span><span class="p">);</span>
+</pre></div>
+
+<dl>
+<dt>ptr</dt>
+<dd>Number representing the FMOD buffer address.</dd>
+<dt>type</dt>
+<dd>value type specified as a string. ie 'i8', 'i16', 'i32', 'i64', 'float', 'double'. (<a href="glossary.html#string-format">UTF-8 string</a>)</dd>
+</dl>
+<h4 id="example-usage_3"><a href="#example-usage_3">Example usage.</a></h4>
+<div class="highlight language-javascript"><pre><span></span><span class="k">for</span> <span class="p">(</span><span class="kd">var</span> <span class="nx">samp</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span> <span class="nx">samp</span> <span class="o">&lt;</span> <span class="nx">length</span><span class="p">;</span> <span class="nx">samp</span><span class="o">++</span><span class="p">)</span>
+<span class="p">{</span>
+    <span class="k">for</span> <span class="p">(</span><span class="kd">var</span> <span class="nx">chan</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span> <span class="nx">chan</span> <span class="o">&lt;</span> <span class="nx">outchannels</span><span class="p">;</span> <span class="nx">chan</span><span class="o">++</span><span class="p">)</span>
+    <span class="p">{</span>
+        <span class="c1">// This DSP filter just halves the volume! Input is modified, and sent to output.</span>
+        <span class="kd">let</span> <span class="nx">val</span> <span class="o">=</span> <span class="nx">FMOD</span><span class="p">.</span><span class="nx">getValue</span><span class="p">(</span><span class="nx">inbuffer</span> <span class="o">+</span> <span class="p">(((</span><span class="nx">samp</span> <span class="o">*</span> <span class="nx">inchannels</span><span class="p">)</span> <span class="o">+</span> <span class="nx">chan</span><span class="p">)</span> <span class="o">*</span> <span class="mi">4</span><span class="p">),</span> <span class="s1">&#39;float&#39;</span><span class="p">)</span> <span class="o">*</span> <span class="nx">dsp_state</span><span class="p">.</span><span class="nx">plugindata</span><span class="p">.</span><span class="nx">volume_linear</span><span class="p">;</span>
+
+        <span class="nx">FMOD</span><span class="p">.</span><span class="nx">setValue</span><span class="p">(</span><span class="nx">outbuffer</span> <span class="o">+</span> <span class="p">(((</span><span class="nx">samp</span> <span class="o">*</span> <span class="nx">outchannels</span><span class="p">)</span> <span class="o">+</span> <span class="nx">chan</span><span class="p">)</span> <span class="o">*</span> <span class="mi">4</span><span class="p">),</span> <span class="nx">val</span><span class="p">,</span> <span class="s1">&#39;float&#39;</span><span class="p">);</span>
+    <span class="p">}</span>
+<span class="p">}</span>
+</pre></div>
+
+<p>Wrapper for the <a href="https://emscripten.org/docs/api_reference/preamble.js.html#accessing-memory">emscripten function</a>.</p>
+<p><strong>Return value</strong></p>
+<p>If this method succeeds, it returns an integer value stored at the specified memory address.</p>
+<p><strong>See Also:</strong> <a class="apilink" href="core-api-platform-html5.html#setvalue">setValue</a></p>
+<h2 api="function" id="file_seek_1"><a href="#file_seek_1">file_seek</a></h2>
+<p>Helper function to seek a file manually that was preloaded with <a class="apilink" href="core-api-platform-html5.html#fs_createpreloadedfile">FS_createPreloadedFile</a>.</p>
+<p>
+<div class="language-selector">
+<div class="language-tab" data-language="language-javascript">JS</div>
+</div>
+</p>
+<div class="highlight language-javascript"><pre><span></span><span class="nx">file_seek</span><span class="p">(</span><span class="nx">handle</span><span class="p">,</span> <span class="nx">pos</span><span class="p">);</span>
+</pre></div>
+
+<dl>
+<dt>handle</dt>
+<dd>Handle returned by <a class="apilink" href="core-api-platform-html5.html#file_open">file_open</a> function.</dd>
+<dt>pos</dt>
+<dd>offset in bytes to seek into the file, relative to the start.</dd>
+</dl>
+<p><strong>See Also:</strong> <a class="apilink" href="core-api-platform-html5.html#file_close">file_close</a>, <a class="apilink" href="core-api-platform-html5.html#file_read">file_read</a></p></div>
+
+<p class="manual-footer">FMOD Engine User Manual 2.03.14 (2026-05-28). &copy; 2026 Firelight Technologies Pty Ltd.</p>
+</div>
+</body>
+</html>
+

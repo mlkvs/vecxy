@@ -1,0 +1,663 @@
+<html>
+<head>
+<title>Core API Loading and Playing Sounds</title>
+<link rel="stylesheet" href="style/docs.css">
+<link rel="stylesheet" href="style/code_highlight.css">
+<script type="text/javascript" src="scripts/language-selector.js"></script></head>
+<body>
+<div class="docs-body">
+<div class="manual-toc">
+<p>FMOD Engine User Manual 2.03</p>
+<ul>
+<li><a href="welcome.html">Welcome to the FMOD Engine</a></li>
+<li><a href="core-api-concepts.html">Core API Key Concepts</a></li>
+<li><a href="running-the-core-api.html">Core API Getting Started</a></li>
+<li class="manual-current-chapter manual-active-chapter"><a href="loading-and-playing-sounds-in-the-core-api.html">Core API Loading and Playing Sounds</a><ul>
+<li><a href="#loading-samples-for-playback">Loading Samples for Playback</a><ul>
+<li><a href="#non-blocking-sound-creation">Non-blocking Sound Creation</a></li>
+<li><a href="#loading-modes">Loading modes</a><ul>
+<li><a href="#decompressed-sounds">Decompressed Sounds</a></li>
+<li><a href="#compressed-sounds">Compressed Sounds</a></li>
+<li><a href="#streams">Streams</a><ul>
+<li><a href="#internet-streaming">Internet Streaming</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</li>
+<li><a href="#playing-a-sound">Playing a sound</a><ul>
+<li><a href="#getting-a-subsound">Getting a Subsound</a></li>
+</ul>
+</li>
+<li><a href="#advanced-sound-creation">Advanced Sound Creation</a><ul>
+<li><a href="#creating-a-sound-from-memory">Creating a Sound from memory</a></li>
+<li><a href="#creating-a-sound-from-pcm-data">Creating a Sound from PCM data</a></li>
+<li><a href="#creating-a-sound-by-manually-providing-sample-data">Creating a Sound by manually providing sample data</a></li>
+<li><a href="#creating-the-sound-as-a-streamed-fsb-file">Creating the Sound as a Streamed FSB File</a></li>
+</ul>
+</li>
+<li><a href="#avoiding-stalls-while-loading-or-releasing-a-sound">Avoiding Stalls While Loading or Releasing a Sound</a></li>
+<li><a href="#asynchronous-io-and-deferred-file-reading">Asynchronous I/O and Deferred File Reading</a><ul>
+<li><a href="#setup-override-fmods-file-system-with-callbacks">Setup : Override FMOD's file system with callbacks</a></li>
+<li><a href="#defining-the-basics-opening-and-closing-the-file-handle">Defining the basics - opening and closing the file handle.</a></li>
+<li><a href="#defining-userasyncread">Defining 'userasyncread'</a></li>
+<li><a href="#defining-userasynccancel">Defining 'userasynccancel'</a></li>
+<li><a href="#filling-out-the-fmod_asyncreadinfo-structure-when-performing-a-deferred-read">Filling out the FMOD_ASYNCREADINFO structure when performing a deferred read</a></li>
+<li><a href="#threading-issues-read-priorities">Threading issues &amp; read priorities</a></li>
+</ul>
+</li>
+<li><a href="#supported-file-formats">Supported File Formats</a></li>
+</ul>
+</li>
+<li><a href="spatializing-sounds-in-the-core-api.html">Core API Spatializing Sounds</a></li>
+<li><a href="mixing-and-routing-in-the-core-api.html">Core API Mixing and Routing</a></li>
+<li><a href="using-dsp-effects-in-the-core-api.html">Core API Using DSP Effects</a></li>
+<li><a href="effects-reference.html">Core API Effect Reference</a></li>
+<li><a href="managing-resources-in-the-core-api.html">Core API Managing Resources</a></li>
+<li><a href="advanced-core-api-topics.html">Core API Advanced Topics</a></li>
+<li><a href="core-api.html">Core API Reference</a></li>
+<li><a href="studio-api-getting-started.html">Studio API Getting Started</a></li>
+<li><a href="studio-guide.html">Studio API Guide</a></li>
+<li><a href="studio-api-3d-events.html">Studio API 3D Events</a></li>
+<li><a href="studio-api-threads.html">Studio API Threads</a></li>
+<li><a href="studio-api.html">Studio API Reference</a></li>
+<li><a href="platforms.html">Platform Details</a></li>
+<li><a href="dsp-plugin-api-guide.html">Plug-in DSP API Guide</a></li>
+<li><a href="plugin-api.html">Plug-in API Reference</a></li>
+<li><a href="fsbank-api.html">FSBank API Reference</a></li>
+<li><a href="troubleshooting.html">Troubleshooting</a></li>
+<li><a href="glossary.html">Glossary</a></li>
+</ul>
+</div>
+<div class="manual-content api">
+<h1>4. Core API Loading and Playing Sounds</h1>
+<p>This chapter describes how to load and play sounds using the <a href="glossary.html#core-api">Core API</a>.</p>
+<h2 id="loading-samples-for-playback"><a href="#loading-samples-for-playback">4.1 Loading Samples for Playback</a></h2>
+<p>Before an asset may be played, its sample data must be loaded or buffered into memory. The process of loading or buffering the sampledata into memory is referred to as "creating the sound." Sounds are created using <a href="core-api-system.html#system_createstream">System::createStream</a> or <a href="core-api-system.html#system_createsound">System::createSound</a>, which also lets you choose the <a href="glossary.html#loading-mode">loading mode</a> to be used for that sound.</p>
+<h3 id="non-blocking-sound-creation"><a href="#non-blocking-sound-creation">4.1.1 Non-blocking Sound Creation</a></h3>
+<p>Loading a sound is one of the slowest operations the FMOD Engine can perform. You may optionally place a sound load into the background so that it doesn't affect processing in the main application thread by using the <a class="apilink" href="core-api-common.html#fmod_nonblocking">FMOD_NONBLOCKING</a> flag in <a class="apilink" href="core-api-system.html#system_createsound">System::createSound</a>.</p>
+<div class="highlight language-text"><pre><span></span>FMOD::Sound *sound;
+result = system-&gt;createStream(&quot;../media/wave.mp3&quot;, FMOD_NONBLOCKING, 0, &amp;sound); // Creates a handle to a stream then commands the FMOD Async loader to open the stream in the background.
+ERRCHECK(result);
+</pre></div>
+
+<p>This immediately returns a sound handle, which you can use to check the status of the sound being loaded with <a class="apilink" href="core-api-sound.html#sound_getopenstate">Sound::getOpenState</a>. When the sound is ready to play, its state is <a class="apilink" href="core-api-sound.html#fmod_openstate_ready">FMOD_OPENSTATE_READY</a>. Wait until the sound is ready before playing it. If a function other than getOpenState is called on a sound that is still loading, it typically returns <a class="apilink" href="core-api-common.html#fmod_err_notready">FMOD_ERR_NOTREADY</a>.</p>
+<p>To avoid a stall on a streaming sound when trying to free/release it, check that the state is <a class="apilink" href="core-api-sound.html#fmod_openstate_ready">FMOD_OPENSTATE_READY</a> before calling <a class="apilink" href="core-api-sound.html#sound_release">Sound::release</a>.</p>
+<p>You can specify a callback using the nonblockcallback member of the <a class="apilink" href="core-api-system.html#fmod_createsoundexinfo">FMOD_CREATESOUNDEXINFO</a> structure, to be called when the sound finished loading or the stream finishes opening. The following are examples of the callback definition and the createSound call.</p>
+<div class="highlight language-text"><pre><span></span>FMOD_RESULT F_CALLBACK nonblockcallback(FMOD_SOUND *sound, FMOD_RESULT result)
+{
+    FMOD::Sound *snd = (FMOD::Sound *)sound;
+
+    printf(&quot;Sound loaded! (%d) %s\n&quot;, result, FMOD_ErrorString(result)); 
+
+    return FMOD_OK;
+}
+</pre></div>
+
+<div class="highlight language-text"><pre><span></span>FMOD_RESULT result;
+FMOD::Sound *sound;
+FMOD_CREATESOUNDEXINFO exinfo;
+
+memset(&amp;exinfo, 0, sizeof(FMOD_CREATESOUNDEXINFO));
+exinfo.cbsize = sizeof(FMOD_CREATESOUNDEXINFO);
+exinfo.nonblockcallback = nonblockcallback;
+
+result = system-&gt;createStream(&quot;../media/wave.mp3&quot;, FMOD_NONBLOCKING, &amp;exinfo, &amp;sound);
+ERRCHECK(result);
+</pre></div>
+
+<h3 id="loading-modes"><a href="#loading-modes">4.1.2 Loading modes</a></h3>
+<p>There are three different ways in which sample data may be loaded for playback.</p>
+<h4 id="decompressed-sounds"><a href="#decompressed-sounds">Decompressed Sounds</a></h4>
+<p>The default mode for createSound is <a class="apilink" href="core-api-common.html#fmod_createsample">FMOD_CREATESAMPLE</a>, which decompresses the sample data into memory in PCM format for playback. (PCM data is raw uncompressed audio data. For more information, see <a href="glossary.html#sample-data">Sample Data</a>.) Decompressed sounds uses little to no CPU time to process, as PCM data is the same format that the FMOD mixing engine uses, as well as the format used by the audio device itself. However, uncompressed PCM data requires a lot more memory than compressed sample data.</p>
+<p>Decompressed sounds are desirable on platforms with limited CPU cycles, especially mobile devices.</p>
+<h4 id="compressed-sounds"><a href="#compressed-sounds">Compressed Sounds</a></h4>
+<p>For shorter sounds, rather than decompressing the audio file into memory, you may wish to load the audio file into memory in its compressed form. Compressed sounds require less loading time and memory than decompressed sounds, as the sample data does not need to be decompressed when it is loaded. However, because compressed samples are more complicated to play, they have larger contexts to deal with (for example vorbis decode information), so there is a constant per voice overhead (up to a fixed limit) for each playing compressed sound.</p>
+<p>Codec allocation is incurred at <a class="apilink" href="core-api-system.html#system_init">System::init</a> time if you call <a class="apilink" href="core-api-system.html#system_setadvancedsettings">System::setAdvancedSettings</a> and set a maxCodecs value, or it could happen the first time a sound is loaded with the <a class="apilink" href="core-api-common.html#fmod_createcompressedsample">FMOD_CREATECOMPRESSEDSAMPLE</a> flag. If not configured with <a class="apilink" href="core-api-system.html#system_setadvancedsettings">System::setAdvancedSettings</a>, this uses the default of 32 codecs for the allocation.</p>
+<p>For example, the vorbis codec has an overhead of 16kb per voice, so the default of 32 vorbis codecs would consume 512kb of memory. If you used <a class="apilink" href="core-api-system.html#system_setadvancedsettings">System::setAdvancedSettings</a> to set the maxVorbisCodecs value to 16 instead, the vorbis codecs would instead consume 256kb of memory, but you could only play 16 compressed sounds encoded in Vorbis format.</p>
+<p>Generally, the best cross platform codec to used as a compressed sample is Vorbis (from an FSB file). However, if Vorbis uses too much CPU for your platform (i.e.: mobile), the FADPCM codec is a good second option. It is less compressed, and uses far fewer CPU cycles to decode, while giving good quality and 4:1 compression. For PS4 or Xbox One, it is better to use the AT9 and XMA codec formats respectively, as the decoding of these formats are handled by separate media chips, taking the load off the CPU. See the relevant <a href="platforms.html">Platform Details</a> section for details on platform specific audio formats.</p>
+<p>To play a sound as <strong>compressed</strong>, add the <a class="apilink" href="core-api-common.html#fmod_createcompressedsample">FMOD_CREATECOMPRESSEDSAMPLE</a> flag to the <a class="apilink" href="core-api-system.html#system_createsound">System::createSound</a> function.</p>
+<h4 id="streams"><a href="#streams">Streams</a></h4>
+<p>Streaming is the ability to take a large <a href="glossary.html#asset">audio asset</a>, and read/play it in real time in small chunks at a time, avoiding the need to load the entire asset into memory.</p>
+<p>Whether an asset should be streamed is a question of resource availability and allocation. Each currently-playing streaming asset requires constant file I/O (which is to say, access to the disk) and a very small amount of memory for the stream's ring buffer; whereas assets using other <a href="glossary.html#loading-mode">loading modes</a> require much more memory but only require file I/O when they’re first loaded, and only require these resources once, no matter how many instances of the asset are playing.</p>
+<p>File I/O is a very limited resource on many platforms, and is needed for many things other than audio. Fortunately, most games load much of their content into memory up-front at the start of new levels and areas, and many users do not run applications that constantly access the disk in the background. This means that there are usually periods when the player’s device is not otherwise loading content from disk, meaning that streaming assets that play in those periods can enjoy uncontested and uninterrupted file I/O. By contrast, a streaming asset that plays while the disk is being accessed regularly by anything else may not be able to access to disk frequently enough to refresh its ring buffer, and so may suffer from buffer starvation. Buffer starvation of a streaming asset manifests as the sound stuttering or stopping entirely.</p>
+<p>The streaming loading mode is therefore best used for assets that meet the following conditions:</p>
+<ul>
+<li>The asset would take up an inconveniently large amount of memory if fully loaded.</li>
+<li>Few instances of the asset ever need to be playing at the same time.</li>
+<li>Few or no other streaming assets ever need to be playing at the same time as the asset.</li>
+<li>The asset only plays at times when the game does not need to read or write much to the drive on which the asset or its <a href="glossary.html#bank-file">bank file</a> is stored.</li>
+</ul>
+<p>Accordingly, streaming is typically reserved for:</p>
+<ul>
+<li>Music</li>
+<li>Voice overs and dialogue</li>
+<li>Long ambiance tracks</li>
+</ul>
+<p>To play a <a class="apilink" href="core-api-sound.html">Sound</a> as a <a href="glossary.html#stream">stream</a>, add the <a class="apilink" href="core-api-common.html#fmod_createstream">FMOD_CREATESTREAM</a> flag to the <a class="apilink" href="core-api-system.html#system_createsound">System::createSound</a> function, or use the <a class="apilink" href="core-api-system.html#system_createstream">System::createStream</a> function. These options both equate to the same end behavior.</p>
+<p>Streaming behavior can be adjusted in several ways, as streaming a file takes two threads, one for file reading, and one for codec decoding/decompression. File buffer sizes can be adjusted with <a class="apilink" href="core-api-system.html#system_setstreambuffersize">System::setStreamBufferSize</a> and codec decoding buffer size can be adjusted with <a class="apilink" href="core-api-system.html#fmod_createsoundexinfo">FMOD_CREATESOUNDEXINFO</a> decodeBufferSize member, or <a class="apilink" href="core-api-system.html#fmod_advancedsettings_defaultdecodebuffersize">FMOD_ADVANCEDSETTINGS::defaultDecodeBufferSize</a>.</p>
+<h5 id="internet-streaming"><a href="#internet-streaming">Internet Streaming</a></h5>
+<p>FMOD streaming supports internet addresses. Supplying http or https in the filename will switch FMOD to streaming using native http, shoutcast or icecast.</p>
+<p>Playlist files (such as ASX/PLS/M3U/WAX formats) are supported, including redirection.</p>
+<p>Proxy specification and authentication are supported, as well as real-time shoutcast stream switching, metadata retrieval and packet loss notification.</p>
+<h2 id="playing-a-sound"><a href="#playing-a-sound">4.2 Playing a sound</a></h2>
+<p>To execute a simple playSound</p>
+<ol>
+<li>Load a sound with <a class="apilink" href="core-api-system.html#system_createsound">System::createSound</a>, using the system object handle as described above. This will return a <strong>Sound</strong> handle. This is your handle to your loaded sound.</li>
+<li>Play the sound with <a class="apilink" href="core-api-system.html#system_playsound">System::playSound</a>, using the Sound handle returned from Step 1. This will return a <strong>Channel</strong> handle.</li>
+<li>Let it play in the background, or monitor its status with <a class="apilink" href="core-api-channelcontrol.html#channelcontrol_isplaying">ChannelControl::isPlaying</a>, using the <strong>Channel</strong> handle returned from Step 2. A channel handle will also go immediately <strong>invalid</strong> when a sound ends, when calling any relevant Channel based function, so that is another way to know a sound has ended. The error code returned will be <a class="apilink" href="core-api-common.html#fmod_err_invalid_handle">FMOD_ERR_INVALID_HANDLE</a>.</li>
+</ol>
+<p>All functions execute immediately, so you can either fire and forget a sound during main loop execution or poll for a sound to finish. Playing a sound does not <strong>block</strong> the application.</p>
+<p>The following example shows playing a sound loaded with <code>createSound</code> and then playing it.</p>
+<p>
+<div class="language-selector">
+<div class="language-tab" data-language="language-c">C</div>
+<div class="language-tab" data-language="language-cpp">C++</div>
+<div class="language-tab" data-language="language-csharp">C#</div>
+<div class="language-tab" data-language="language-javascript">JS</div>
+</div>
+</p>
+<div class="highlight language-c"><pre><span></span><span class="n">FMOD_RESULT</span> <span class="n">result</span><span class="p">;</span>
+<span class="n">FMOD_SOUND</span> <span class="o">*</span><span class="n">sound</span><span class="p">;</span>
+<span class="n">FMOD_CHANNEL</span> <span class="o">*</span><span class="n">channel</span><span class="p">;</span>
+
+<span class="n">result</span> <span class="o">=</span> <span class="n">FMOD_System_CreateSound</span><span class="p">(</span><span class="n">system</span><span class="p">,</span> <span class="s">&quot;../media/wave.mp3&quot;</span><span class="p">,</span> <span class="n">FMOD_DEFAULT</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">sound</span><span class="p">);</span>
+<span class="n">ERRCHECK</span><span class="p">(</span><span class="n">result</span><span class="p">);</span>
+
+<span class="n">result</span> <span class="o">=</span> <span class="n">FMOD_System_PlaySound</span><span class="p">(</span><span class="n">system</span><span class="p">,</span> <span class="n">sound</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">channel</span><span class="p">);</span>
+<span class="n">ERRCHECK</span><span class="p">(</span><span class="n">result</span><span class="p">);</span>
+</pre></div>
+
+<div class="highlight language-cpp"><pre><span></span><span class="n">FMOD_RESULT</span> <span class="n">result</span><span class="p">;</span>
+<span class="n">FMOD</span><span class="o">::</span><span class="n">Sound</span> <span class="o">*</span><span class="n">sound</span><span class="p">;</span>
+<span class="n">FMOD</span><span class="o">::</span><span class="n">Channel</span> <span class="o">*</span><span class="n">channel</span><span class="p">;</span>
+
+<span class="n">result</span> <span class="o">=</span> <span class="n">system</span><span class="o">-&gt;</span><span class="n">createSound</span><span class="p">(</span><span class="s">&quot;../media/wave.mp3&quot;</span><span class="p">,</span> <span class="n">FMOD_DEFAULT</span><span class="p">,</span> <span class="k">nullptr</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">sound</span><span class="p">);</span>
+<span class="n">ERRCHECK</span><span class="p">(</span><span class="n">result</span><span class="p">);</span>
+
+<span class="n">result</span> <span class="o">=</span> <span class="n">system</span><span class="o">-&gt;</span><span class="n">playSound</span><span class="p">(</span><span class="n">sound</span><span class="p">,</span> <span class="k">nullptr</span><span class="p">,</span> <span class="nb">false</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">channel</span><span class="p">);</span>
+<span class="n">ERRCHECK</span><span class="p">(</span><span class="n">result</span><span class="p">);</span>
+</pre></div>
+
+<div class="highlight language-csharp"><pre><span></span><span class="n">FMOD</span><span class="p">.</span><span class="n">RESULT</span> <span class="n">result</span><span class="p">;</span>
+<span class="n">FMOD</span><span class="p">.</span><span class="n">Sound</span> <span class="n">sound</span><span class="p">;</span>
+<span class="n">FMOD</span><span class="p">.</span><span class="n">Channel</span> <span class="n">channel</span><span class="p">;</span>
+
+<span class="n">result</span> <span class="p">=</span> <span class="n">system</span><span class="p">.</span><span class="n">createSound</span><span class="p">(</span><span class="s">&quot;../media/wave.mp3&quot;</span><span class="p">,</span> <span class="n">FMOD</span><span class="p">.</span><span class="n">MODE</span><span class="p">.</span><span class="n">DEFAULT</span><span class="p">,</span> <span class="k">out</span> <span class="n">sound</span><span class="p">);</span>
+<span class="n">ERRCHECK</span><span class="p">(</span><span class="n">result</span><span class="p">);</span>
+
+<span class="n">result</span> <span class="p">=</span> <span class="n">system</span><span class="p">.</span><span class="n">playSound</span><span class="p">(</span><span class="n">sound</span><span class="p">,</span> <span class="k">null</span><span class="p">,</span> <span class="k">false</span><span class="p">,</span> <span class="k">out</span> <span class="n">channel</span><span class="p">);</span>
+<span class="n">ERRCHECK</span><span class="p">(</span><span class="n">result</span><span class="p">);</span>
+</pre></div>
+
+<div class="highlight language-javascript"><pre><span></span><span class="kd">var</span> <span class="nx">result</span><span class="p">;</span>
+<span class="kd">var</span> <span class="nx">sound</span> <span class="o">=</span> <span class="p">{};</span>
+<span class="kd">var</span> <span class="nx">outval</span> <span class="o">=</span> <span class="p">{};</span>
+<span class="kd">var</span> <span class="nx">channel</span> <span class="o">=</span> <span class="kc">null</span><span class="p">;</span>
+
+<span class="nx">result</span> <span class="o">=</span> <span class="nx">system</span><span class="p">.</span><span class="nx">createSound</span><span class="p">(</span><span class="s2">&quot;../media/wave.mp3&quot;</span><span class="p">,</span> <span class="nx">FMOD</span><span class="p">.</span><span class="nx">MODE_DEFAULT</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="nx">outval</span><span class="p">);</span>
+<span class="nx">ERRCHECK</span><span class="p">(</span><span class="nx">result</span><span class="p">);</span>
+
+<span class="nx">sound</span> <span class="o">=</span> <span class="nx">outval</span><span class="p">.</span><span class="nx">val</span><span class="p">;</span>
+
+<span class="nx">result</span> <span class="o">=</span> <span class="nx">system</span><span class="p">.</span><span class="nx">playSound</span><span class="p">(</span><span class="nx">sound</span><span class="p">,</span> <span class="kc">null</span><span class="p">,</span> <span class="kc">false</span><span class="p">,</span> <span class="nx">channel</span><span class="p">);</span>
+<span class="nx">ERRCHECK</span><span class="p">(</span><span class="nx">result</span><span class="p">);</span>
+</pre></div>
+
+<h3 id="getting-a-subsound"><a href="#getting-a-subsound">4.2.1 Getting a Subsound</a></h3>
+<p>When a sound contains multiple <a href="glossary.html#subsound">subsounds</a>, you can get get the number of subsounds by using <a class="apilink" href="core-api-sound.html#sound_getnumsubsounds">Sound::getNumSubSounds</a>, and get a pointer to a specific subsound by calling <a class="apilink" href="core-api-sound.html#sound_getsubsound">Sound::getSubSound</a> and specifying the index of the subsound you want.</p>
+<p>Under most circumstances, <code>getSubSound</code> is a free function call, whether it be called on a sample or a stream, as all it does is return a pointer. However, if <code>getSubSound</code> is called on a blocking stream, it may cause <a class="apilink" href="core-api-system.html#system_playsound">System::playSound</a> to stall for several milliseconds or more while it seeks and reflushes the stream buffer. Time taken can depend on the file format and media.</p>
+<p>If the parent sound was opened using <a class="apilink" href="core-api-common.html#fmod_nonblocking">FMOD_NONBLOCKING</a>, its current <a class="apilink" href="core-api-sound.html#fmod_openstate">FMOD_OPENSTATE</a> will have to be polled with <a class="apilink" href="core-api-sound.html#sound_getopenstate">Sound::getOpenState</a> until it returns <a class="apilink" href="core-api-sound.html#fmod_openstate_ready">FMOD_OPENSTATE_READY</a>. When the stream is ready and <a class="apilink" href="core-api-system.html#system_playsound">System::playSound</a> is called, then the <code>playsound</code> will not stall and will execute immediately because the stream has been flushed.</p>
+<h2 id="advanced-sound-creation"><a href="#advanced-sound-creation">4.3 Advanced Sound Creation</a></h2>
+<p>FMOD has a number of <a class="apilink" href="core-api-common.html#fmod_mode">FMOD_MODE</a> modes for <a class="apilink" href="core-api-sound.html">Sound</a> creation that require the use of <a class="apilink" href="core-api-system.html#fmod_createsoundexinfo">FMOD_CREATESOUNDEXINFO</a> to specify various properties of the sound, such as the data format, frequency, length, callbacks, and so on. The following details how to use these modes, and provides basic examples of creating a sound using each mode.</p>
+<h3 id="creating-a-sound-from-memory"><a href="#creating-a-sound-from-memory">4.3.1 Creating a Sound from memory</a></h3>
+<p><a class="apilink" href="core-api-common.html#fmod_openmemory">FMOD_OPENMEMORY</a> causes FMOD to interpret the first argument of <a class="apilink" href="core-api-system.html#system_createsound">System::createSound</a> or <a class="apilink" href="core-api-system.html#system_createstream">System::createStream</a> as a pointer to memory instead of a filename. <a class="apilink" href="core-api-system.html#fmod_createsoundexinfo_length">FMOD_CREATESOUNDEXINFO::length</a> is used to specify the length of the sound, specifically the amount of memory in bytes the sound's data occupies. This data is copied into FMOD's buffers and can be freed after the sound is created. If using <a class="apilink" href="core-api-common.html#fmod_createstream">FMOD_CREATESTREAM</a>, the data is instead streamed from the buffer pointed to by the pointer you passed in, so you should ensure that the memory isn't freed until you have finished with and released the stream.</p>
+<p>
+<div class="language-selector">
+<div class="language-tab" data-language="language-c">C</div>
+<div class="language-tab" data-language="language-cpp">C++</div>
+<div class="language-tab" data-language="language-csharp">C#</div>
+<div class="language-tab" data-language="language-javascript">JS</div>
+</div>
+</p>
+<div class="highlight language-cpp"><pre><span></span><span class="n">FMOD</span><span class="o">::</span><span class="n">Sound</span> <span class="o">*</span><span class="n">sound</span><span class="p">;</span>
+<span class="n">FMOD_CREATESOUNDEXINFO</span> <span class="n">exinfo</span><span class="p">;</span>
+<span class="kt">void</span> <span class="o">*</span><span class="n">buffer</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+<span class="kt">int</span> <span class="n">length</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+
+<span class="c1">//</span>
+<span class="c1">// Load your audio data to the &quot;buffer&quot; pointer here</span>
+<span class="c1">//</span>
+
+<span class="c1">// Create extended sound info struct</span>
+<span class="n">memset</span><span class="p">(</span><span class="o">&amp;</span><span class="n">exinfo</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="k">sizeof</span><span class="p">(</span><span class="n">FMOD_CREATESOUNDEXINFO</span><span class="p">));</span>
+<span class="n">exinfo</span><span class="p">.</span><span class="n">cbsize</span> <span class="o">=</span> <span class="k">sizeof</span><span class="p">(</span><span class="n">FMOD_CREATESOUNDEXINFO</span><span class="p">);</span>     <span class="c1">// Size of the struct.</span>
+<span class="n">exinfo</span><span class="p">.</span><span class="n">length</span> <span class="o">=</span> <span class="n">length</span><span class="p">;</span>                             <span class="c1">// Length of sound - PCM data in bytes</span>
+
+<span class="n">system</span><span class="o">-&gt;</span><span class="n">createSound</span><span class="p">((</span><span class="k">const</span> <span class="kt">char</span> <span class="o">*</span><span class="p">)</span><span class="n">buffer</span><span class="p">,</span> <span class="n">FMOD_OPENMEMORY</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">exinfo</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">sound</span><span class="p">);</span>
+<span class="c1">// The audio data pointed to by &quot;buffer&quot; has been duplicated into FMOD&#39;s buffers, and can now be freed</span>
+<span class="c1">// However, if loading as a stream with FMOD_CREATESTREAM or System::createStream, the memory must stay active, so do not free it!</span>
+</pre></div>
+
+<div class="highlight language-c"><pre><span></span><span class="n">FMOD_Sound</span> <span class="o">*</span><span class="n">sound</span><span class="p">;</span>
+<span class="n">FMOD_CREATESOUNDEXINFO</span> <span class="n">exinfo</span><span class="p">;</span>
+<span class="kt">void</span> <span class="o">*</span><span class="n">buffer</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+<span class="kt">int</span> <span class="n">length</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+
+<span class="c1">//</span>
+<span class="c1">// Load your audio data to the &quot;buffer&quot; pointer here</span>
+<span class="c1">//</span>
+
+<span class="c1">// Create extended sound info struct</span>
+<span class="n">memset</span><span class="p">(</span><span class="o">&amp;</span><span class="n">exinfo</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="k">sizeof</span><span class="p">(</span><span class="n">FMOD_CREATESOUNDEXINFO</span><span class="p">));</span>
+<span class="n">exinfo</span><span class="p">.</span><span class="n">cbsize</span> <span class="o">=</span> <span class="k">sizeof</span><span class="p">(</span><span class="n">FMOD_CREATESOUNDEXINFO</span><span class="p">);</span>     <span class="c1">// Size of the struct.</span>
+<span class="n">exinfo</span><span class="p">.</span><span class="n">length</span> <span class="o">=</span> <span class="n">length</span><span class="p">;</span>                             <span class="c1">// Length of sound - PCM data in bytes</span>
+
+<span class="n">FMOD_System_CreateSound</span><span class="p">(</span><span class="n">system</span><span class="p">,</span> <span class="p">(</span><span class="k">const</span> <span class="kt">char</span> <span class="o">*</span><span class="p">)</span><span class="n">buffer</span><span class="p">,</span> <span class="n">FMOD_OPENMEMORY</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">exinfo</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">sound</span><span class="p">);</span>
+<span class="c1">// The audio data pointed to by &quot;buffer&quot; has been duplicated into FMOD&#39;s buffers, and can now be freed</span>
+<span class="c1">// However, if loading as a stream with FMOD_CREATESTREAM or System::createStream, the memory must stay active, so do not free it!</span>
+</pre></div>
+
+<div class="highlight language-csharp"><pre><span></span><span class="n">FMOD</span><span class="p">.</span><span class="n">Sound</span> <span class="n">sound</span><span class="p">;</span>
+<span class="n">FMOD</span><span class="p">.</span><span class="n">CREATESOUNDEXINFO</span> <span class="n">exinfo</span><span class="p">;</span>
+<span class="kt">byte</span><span class="p">[]</span> <span class="n">buffer</span><span class="p">;</span>
+
+<span class="c1">//</span>
+<span class="c1">// Load your audio data to the &quot;buffer&quot; array here</span>
+<span class="c1">//</span>
+
+<span class="c1">// Create extended sound info struct</span>
+<span class="n">exinfo</span> <span class="p">=</span> <span class="k">new</span> <span class="n">FMOD</span><span class="p">.</span><span class="n">CREATESOUNDEXINFO</span><span class="p">();</span>
+<span class="n">exinfo</span><span class="p">.</span><span class="n">cbsize</span> <span class="p">=</span> <span class="n">Marshal</span><span class="p">.</span><span class="n">SizeOf</span><span class="p">(</span><span class="k">typeof</span><span class="p">(</span><span class="n">FMOD</span><span class="p">.</span><span class="n">CREATESOUNDEXINFO</span><span class="p">));</span>
+<span class="n">exinfo</span><span class="p">.</span><span class="n">length</span> <span class="p">=</span> <span class="p">(</span><span class="kt">uint</span><span class="p">)</span><span class="n">bytes</span><span class="p">.</span><span class="n">Length</span><span class="p">;</span>
+
+<span class="n">system</span><span class="p">.</span><span class="n">createSound</span><span class="p">(</span><span class="n">buffer</span><span class="p">,</span> <span class="n">FMOD</span><span class="p">.</span><span class="n">MODE</span><span class="p">.</span><span class="n">OPENMEMORY</span><span class="p">,</span> <span class="k">ref</span> <span class="n">exinfo</span><span class="p">,</span> <span class="k">out</span> <span class="n">sound</span><span class="p">);</span>
+<span class="c1">// The audio data stored by the &quot;buffer&quot; array has been duplicated into FMOD&#39;s buffers, and can now be freed</span>
+<span class="c1">// However, if loading as a stream with FMOD_CREATESTREAM or System::createStream, you must pin &quot;buffer&quot; with GCHandle so that it stays active</span>
+</pre></div>
+
+<div class="highlight language-javascript"><pre><span></span><span class="kd">var</span> <span class="nx">sound</span> <span class="o">=</span> <span class="p">{};</span>
+<span class="kd">var</span> <span class="nx">outval</span> <span class="o">=</span> <span class="p">{};</span>
+<span class="kd">var</span> <span class="nx">buffer</span><span class="p">;</span>
+
+<span class="c1">//</span>
+<span class="c1">// Load your audio data to a Uint8Array and assign it to &quot;buffer&quot; var here </span>
+<span class="c1">//</span>
+
+<span class="c1">// Create extended sound info struct</span>
+<span class="c1">// No need to define cbsize, the struct already knows its own size in JS</span>
+<span class="kd">var</span> <span class="nx">exinfo</span> <span class="o">=</span> <span class="nx">FMOD</span><span class="p">.</span><span class="nx">CREATESOUNDEXINFO</span><span class="p">();</span>
+<span class="nx">exinfo</span><span class="p">.</span><span class="nx">length</span> <span class="o">=</span> <span class="nx">buffer</span><span class="p">.</span><span class="nx">length</span><span class="p">;</span>            <span class="c1">// Length of sound - PCM data in bytes</span>
+
+<span class="nx">system</span><span class="p">.</span><span class="nx">createSound</span><span class="p">(</span><span class="nx">buffer</span><span class="p">.</span><span class="nx">buffer</span><span class="p">,</span> <span class="nx">FMOD</span><span class="p">.</span><span class="nx">OPENMEMORY</span><span class="p">,</span> <span class="nx">exinfo</span><span class="p">,</span> <span class="nx">outval</span><span class="p">);</span>
+<span class="nx">sound</span> <span class="o">=</span> <span class="nx">outval</span><span class="p">.</span><span class="nx">val</span><span class="p">;</span>
+<span class="c1">// The audio data stored in the &quot;buffer&quot; var has been duplicated into FMOD&#39;s buffers, and can now be freed</span>
+<span class="c1">// However, if loading as a stream with FMOD_CREATESTREAM or System::createStream, the memory must stay active, so do not free it!</span>
+</pre></div>
+
+<p><a class="apilink" href="core-api-common.html#fmod_openmemory_point">FMOD_OPENMEMORY_POINT</a> also causes FMOD to interpret the first argument of <a class="apilink" href="core-api-system.html#system_createsound">System::createSound</a> or <a class="apilink" href="core-api-system.html#system_createstream">System::createStream</a> as a pointer to memory instead of a filename. However, unlike <a class="apilink" href="core-api-common.html#fmod_openmemory">FMOD_OPENMEMORY</a>, FMOD will use the memory as is instead of copying it to its own buffers. As a result, you may only free the memory after <a class="apilink" href="core-api-sound.html#sound_release">Sound::release</a> is called. <a class="apilink" href="core-api-system.html#fmod_createsoundexinfo_length">FMOD_CREATESOUNDEXINFO::length</a> is used to specify the length of the sound, specifically the amount of memory in bytes the sound's data occupies.</p>
+<p>
+<div class="language-selector">
+<div class="language-tab" data-language="language-c">C</div>
+<div class="language-tab" data-language="language-cpp">C++</div>
+<div class="language-tab" data-language="language-csharp">C#</div>
+<div class="language-tab" data-language="language-javascript">JS</div>
+</div>
+</p>
+<div class="highlight language-cpp"><pre><span></span><span class="n">FMOD</span><span class="o">::</span><span class="n">Sound</span> <span class="o">*</span><span class="n">sound</span><span class="p">;</span>
+<span class="n">FMOD_CREATESOUNDEXINFO</span> <span class="n">exinfo</span><span class="p">;</span>
+<span class="kt">void</span> <span class="o">*</span><span class="n">buffer</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+<span class="kt">int</span> <span class="n">length</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+
+<span class="c1">//</span>
+<span class="c1">// Load your audio data to the &quot;buffer&quot; pointer here</span>
+<span class="c1">//</span>
+
+<span class="c1">// Create extended sound info struct</span>
+<span class="n">memset</span><span class="p">(</span><span class="o">&amp;</span><span class="n">exinfo</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="k">sizeof</span><span class="p">(</span><span class="n">FMOD_CREATESOUNDEXINFO</span><span class="p">));</span>
+<span class="n">exinfo</span><span class="p">.</span><span class="n">cbsize</span> <span class="o">=</span> <span class="k">sizeof</span><span class="p">(</span><span class="n">FMOD_CREATESOUNDEXINFO</span><span class="p">);</span>     <span class="c1">// Size of the struct</span>
+<span class="n">exinfo</span><span class="p">.</span><span class="n">length</span> <span class="o">=</span> <span class="n">length</span><span class="p">;</span>                             <span class="c1">// Length of sound - PCM data in bytes</span>
+
+<span class="n">system</span><span class="o">-&gt;</span><span class="n">createSound</span><span class="p">((</span><span class="k">const</span> <span class="kt">char</span> <span class="o">*</span><span class="p">)</span><span class="n">buffer</span><span class="p">,</span> <span class="n">FMOD_OPENMEMORY_POINT</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">exinfo</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">sound</span><span class="p">);</span>
+<span class="c1">// As FMOD is using the data stored at the buffer pointer as is, without copying it into its own buffers, the memory cannot be freed until after Sound::release is called</span>
+</pre></div>
+
+<div class="highlight language-c"><pre><span></span><span class="n">FMOD_Sound</span> <span class="o">*</span><span class="n">sound</span><span class="p">;</span>
+<span class="n">FMOD_CREATESOUNDEXINFO</span> <span class="n">exinfo</span><span class="p">;</span>
+<span class="kt">void</span> <span class="o">*</span><span class="n">buffer</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+<span class="kt">int</span> <span class="n">length</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+
+<span class="c1">//</span>
+<span class="c1">// Load your audio data to the &quot;buffer&quot; pointer here</span>
+<span class="c1">//</span>
+
+<span class="c1">// Create extended sound info struct</span>
+<span class="n">memset</span><span class="p">(</span><span class="o">&amp;</span><span class="n">exinfo</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="k">sizeof</span><span class="p">(</span><span class="n">FMOD_CREATESOUNDEXINFO</span><span class="p">));</span>
+<span class="n">exinfo</span><span class="p">.</span><span class="n">cbsize</span> <span class="o">=</span> <span class="k">sizeof</span><span class="p">(</span><span class="n">FMOD_CREATESOUNDEXINFO</span><span class="p">);</span>     <span class="c1">// Size of the struct</span>
+<span class="n">exinfo</span><span class="p">.</span><span class="n">length</span> <span class="o">=</span> <span class="n">length</span><span class="p">;</span>                             <span class="c1">// Length of sound - PCM data in bytes</span>
+
+<span class="n">FMOD_System_CreateSound</span><span class="p">(</span><span class="n">system</span><span class="p">,</span> <span class="p">(</span><span class="k">const</span> <span class="kt">char</span> <span class="o">*</span><span class="p">)</span><span class="n">buffer</span><span class="p">,</span> <span class="n">FMOD_OPENMEMORY_POINT</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">exinfo</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">sound</span><span class="p">);</span>
+<span class="c1">// As FMOD is using the data stored at the buffer pointer as is, without copying it into its own buffers, the memory cannot be freed until after Sound::release is called</span>
+</pre></div>
+
+<div class="highlight language-csharp"><pre><span></span><span class="n">FMOD</span><span class="p">.</span><span class="n">Sound</span> <span class="n">sound</span>
+<span class="n">FMOD</span><span class="p">.</span><span class="n">CREATESOUNDEXINFO</span> <span class="n">exinfo</span><span class="p">;</span>
+<span class="kt">byte</span><span class="p">[]</span> <span class="n">buffer</span><span class="p">;</span>
+<span class="n">GCHandle</span> <span class="n">gch</span><span class="p">;</span>
+
+<span class="c1">//</span>
+<span class="c1">// Load your audio data to the &quot;buffer&quot; array here</span>
+<span class="c1">//</span>
+
+<span class="c1">// Pin data in memory so a pointer to it can be passed to FMOD&#39;s unmanaged code</span>
+<span class="n">gch</span> <span class="p">=</span> <span class="n">GCHandle</span><span class="p">.</span><span class="n">Alloc</span><span class="p">(</span><span class="n">buffer</span><span class="p">,</span> <span class="n">GCHandleType</span><span class="p">.</span><span class="n">Pinned</span><span class="p">);</span>
+
+<span class="c1">// Create extended sound info struct</span>
+<span class="n">exinfo</span> <span class="p">=</span> <span class="k">new</span> <span class="n">FMOD</span><span class="p">.</span><span class="n">CREATESOUNDEXINFO</span><span class="p">();</span>
+<span class="n">exinfo</span><span class="p">.</span><span class="n">cbsize</span> <span class="p">=</span> <span class="n">Marshal</span><span class="p">.</span><span class="n">SizeOf</span><span class="p">(</span><span class="k">typeof</span><span class="p">(</span><span class="n">FMOD</span><span class="p">.</span><span class="n">CREATESOUNDEXINFO</span><span class="p">));</span> <span class="c1">// Size of the struct</span>
+<span class="n">exinfo</span><span class="p">.</span><span class="n">length</span> <span class="p">=</span> <span class="p">(</span><span class="kt">uint</span><span class="p">)</span><span class="n">bytes</span><span class="p">.</span><span class="n">Length</span><span class="p">;</span>                             <span class="c1">// Length of sound - PCM data in bytes</span>
+
+<span class="n">system</span><span class="p">.</span><span class="n">createSound</span><span class="p">(</span><span class="n">gch</span><span class="p">.</span><span class="n">AddrOfPinnedObject</span><span class="p">(),</span> <span class="n">FMOD</span><span class="p">.</span><span class="n">MODE</span><span class="p">.</span><span class="n">OPENMEMORY_POINT</span><span class="p">,</span> <span class="k">ref</span> <span class="n">exinfo</span><span class="p">,</span> <span class="k">out</span> <span class="n">sound</span><span class="p">);</span>
+<span class="c1">// As FMOD is using the data stored at the buffer pointer as is, without copying it into its own buffers, the memory must stay active and pinned</span>
+<span class="c1">// Unpin memory with gch.Free() after Sound::release has been called</span>
+</pre></div>
+
+<div class="admonition language-javascript">
+<p>Not supported for JavaScript.</p>
+</div>
+<h3 id="creating-a-sound-from-pcm-data"><a href="#creating-a-sound-from-pcm-data">4.3.2 Creating a Sound from PCM data</a></h3>
+<p><a class="apilink" href="core-api-common.html#fmod_openraw">FMOD_OPENRAW</a> causes FMOD to ignore the format of the provided audio file, and instead treat it as raw PCM data. Use <a class="apilink" href="core-api-system.html#fmod_createsoundexinfo">FMOD_CREATESOUNDEXINFO</a> to specify the <a href="core-api-system.html#fmod_createsoundexinfo_defaultfrequency">frequency</a>, <a href="core-api-system.html#fmod_createsoundexinfo_numchannels">number of channels</a>, and data <a href="core-api-system.html#fmod_createsoundexinfo_format">format</a> of the file. FMOD expects all raw PCM data to be little endian, and integer PCM data to be signed, in order to play correctly.</p>
+<p>
+<div class="language-selector">
+<div class="language-tab" data-language="language-c">C</div>
+<div class="language-tab" data-language="language-cpp">C++</div>
+<div class="language-tab" data-language="language-csharp">C#</div>
+<div class="language-tab" data-language="language-javascript">JS</div>
+</div>
+</p>
+<div class="highlight language-cpp"><pre><span></span><span class="n">FMOD</span><span class="o">::</span><span class="n">Sound</span> <span class="o">*</span><span class="n">sound</span><span class="p">;</span>
+<span class="n">FMOD_CREATESOUNDEXINFO</span> <span class="n">exinfo</span><span class="p">;</span>
+
+<span class="c1">// Create extended sound info struct</span>
+<span class="n">memset</span><span class="p">(</span><span class="o">&amp;</span><span class="n">exinfo</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="k">sizeof</span><span class="p">(</span><span class="n">FMOD_CREATESOUNDEXINFO</span><span class="p">));</span>
+<span class="n">exinfo</span><span class="p">.</span><span class="n">cbsize</span>           <span class="o">=</span> <span class="k">sizeof</span><span class="p">(</span><span class="n">FMOD_CREATESOUNDEXINFO</span><span class="p">);</span>   <span class="c1">// Size of the struct</span>
+<span class="n">exinfo</span><span class="p">.</span><span class="n">numchannels</span>      <span class="o">=</span> <span class="mi">2</span><span class="p">;</span>                                <span class="c1">// Number of channels in the sound</span>
+<span class="n">exinfo</span><span class="p">.</span><span class="n">defaultfrequency</span> <span class="o">=</span> <span class="mi">44100</span><span class="p">;</span>                            <span class="c1">// Playback rate of sound</span>
+<span class="n">exinfo</span><span class="p">.</span><span class="n">format</span>           <span class="o">=</span> <span class="n">FMOD_SOUND_FORMAT_PCM16</span><span class="p">;</span>          <span class="c1">// Data format of sound</span>
+
+<span class="n">system</span><span class="o">-&gt;</span><span class="n">createSound</span><span class="p">(</span><span class="s">&quot;./Your/File/Path/Here.raw&quot;</span><span class="p">,</span> <span class="n">FMOD_OPENRAW</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">exinfo</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">sound</span><span class="p">);</span>
+</pre></div>
+
+<div class="highlight language-c"><pre><span></span><span class="n">FMOD_Sound</span> <span class="o">*</span><span class="n">sound</span><span class="p">;</span>
+<span class="n">FMOD_CREATESOUNDEXINFO</span> <span class="n">exinfo</span><span class="p">;</span>
+
+<span class="c1">// Create extended sound info struct</span>
+<span class="n">memset</span><span class="p">(</span><span class="o">&amp;</span><span class="n">exinfo</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="k">sizeof</span><span class="p">(</span><span class="n">FMOD_CREATESOUNDEXINFO</span><span class="p">));</span>
+<span class="n">exinfo</span><span class="p">.</span><span class="n">cbsize</span>           <span class="o">=</span> <span class="k">sizeof</span><span class="p">(</span><span class="n">FMOD_CREATESOUNDEXINFO</span><span class="p">);</span>   <span class="c1">// Size of the struct</span>
+<span class="n">exinfo</span><span class="p">.</span><span class="n">numchannels</span>      <span class="o">=</span> <span class="mi">2</span><span class="p">;</span>                                <span class="c1">// Number of channels in the sound</span>
+<span class="n">exinfo</span><span class="p">.</span><span class="n">defaultfrequency</span> <span class="o">=</span> <span class="mi">44100</span><span class="p">;</span>                            <span class="c1">// Default playback rate of sound</span>
+<span class="n">exinfo</span><span class="p">.</span><span class="n">format</span>           <span class="o">=</span> <span class="n">FMOD_SOUND_FORMAT_PCM16</span><span class="p">;</span>          <span class="c1">// Data format of sound</span>
+
+<span class="n">FMOD_System_CreateSound</span><span class="p">(</span><span class="n">system</span><span class="p">,</span> <span class="s">&quot;./Your/File/Path/Here.raw&quot;</span><span class="p">,</span> <span class="n">FMOD_OPENRAW</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">exinfo</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">sound</span><span class="p">);</span>
+</pre></div>
+
+<div class="highlight language-csharp"><pre><span></span><span class="n">FMOD</span><span class="p">.</span><span class="n">Sound</span> <span class="n">sound</span>
+<span class="n">FMOD</span><span class="p">.</span><span class="n">CREATESOUNDEXINFO</span> <span class="n">exinfo</span><span class="p">;</span>
+
+<span class="c1">// Create extended sound info struct</span>
+<span class="n">exinfo</span> <span class="p">=</span> <span class="k">new</span> <span class="n">FMOD</span><span class="p">.</span><span class="n">CREATESOUNDEXINFO</span><span class="p">();</span>
+<span class="n">exinfo</span><span class="p">.</span><span class="n">cbsize</span>           <span class="p">=</span> <span class="n">Marshal</span><span class="p">.</span><span class="n">SizeOf</span><span class="p">(</span><span class="k">typeof</span><span class="p">(</span><span class="n">FMOD</span><span class="p">.</span><span class="n">CREATESOUNDEXINFO</span><span class="p">));</span>  <span class="c1">// Size of the struct</span>
+<span class="n">exinfo</span><span class="p">.</span><span class="n">numchannels</span>      <span class="p">=</span> <span class="m">2</span><span class="p">;</span>                                <span class="c1">// Number of channels in the sound</span>
+<span class="n">exinfo</span><span class="p">.</span><span class="n">defaultfrequency</span> <span class="p">=</span> <span class="m">44100</span><span class="p">;</span>                            <span class="c1">// Default playback rate of sound</span>
+<span class="n">exinfo</span><span class="p">.</span><span class="n">format</span>           <span class="p">=</span> <span class="n">FMOD</span><span class="p">.</span><span class="n">SOUND_FORMAT</span><span class="p">.</span><span class="n">PCM16</span><span class="p">;</span>          <span class="c1">// Data format of sound</span>
+
+<span class="n">system</span><span class="p">.</span><span class="n">createSound</span><span class="p">(</span><span class="s">&quot;./Your/File/Path/Here.raw&quot;</span><span class="p">,</span> <span class="n">FMOD</span><span class="p">.</span><span class="n">MODE</span><span class="p">.</span><span class="n">OPENRAW</span><span class="p">,</span> <span class="k">ref</span> <span class="n">exinfo</span><span class="p">,</span> <span class="k">out</span> <span class="n">sound</span><span class="p">);</span>
+</pre></div>
+
+<div class="highlight language-javascript"><pre><span></span><span class="kd">var</span> <span class="nx">sound</span> <span class="o">=</span> <span class="p">{};</span>
+<span class="kd">var</span> <span class="nx">outval</span> <span class="o">=</span> <span class="p">{};</span>
+<span class="kd">var</span> <span class="nx">exinfo</span> <span class="o">=</span> <span class="nx">FMOD</span><span class="p">.</span><span class="nx">CREATESOUNDEXINFO</span><span class="p">();</span>
+
+<span class="c1">// Create extended sound info struct</span>
+<span class="c1">// No need to define cbsize, the struct already knows its own size in JS</span>
+<span class="nx">exinfo</span><span class="p">.</span><span class="nx">numchannels</span>      <span class="o">=</span> <span class="mi">2</span><span class="p">;</span>                                <span class="c1">// Number of channels in the sound</span>
+<span class="nx">exinfo</span><span class="p">.</span><span class="nx">defaultfrequency</span> <span class="o">=</span> <span class="mi">44100</span><span class="p">;</span>                            <span class="c1">// Default playback rate of sound</span>
+<span class="nx">exinfo</span><span class="p">.</span><span class="nx">format</span>           <span class="o">=</span> <span class="nx">FMOD</span><span class="p">.</span><span class="nx">SOUND_FORMAT</span><span class="p">.</span><span class="nx">PCM16</span><span class="p">;</span>          <span class="c1">// Data format of sound</span>
+
+<span class="nx">system</span><span class="p">.</span><span class="nx">createSound</span><span class="p">(</span><span class="s2">&quot;./Your/File/Path/Here.raw&quot;</span><span class="p">,</span> <span class="nx">FMOD</span><span class="p">.</span><span class="nx">OPENRAW</span><span class="p">,</span> <span class="nx">exinfo</span><span class="p">,</span> <span class="nx">outval</span><span class="p">);</span>
+<span class="nx">sound</span> <span class="o">=</span> <span class="nx">outval</span><span class="p">.</span><span class="nx">val</span><span class="p">;</span>
+</pre></div>
+
+<h3 id="creating-a-sound-by-manually-providing-sample-data"><a href="#creating-a-sound-by-manually-providing-sample-data">4.3.3 Creating a Sound by manually providing sample data</a></h3>
+<p><a class="apilink" href="core-api-common.html#fmod_openuser">FMOD_OPENUSER</a> causes FMOD to ignore the first argument of <a class="apilink" href="core-api-system.html#system_createsound">System::createSound</a> or <a class="apilink" href="core-api-system.html#system_createstream">System::createStream</a>, and instead create a static sample or stream to which you must manually provide audio data. Use <a class="apilink" href="core-api-system.html#fmod_createsoundexinfo">FMOD_CREATESOUNDEXINFO</a> to specify the <a href="core-api-system.html#fmod_createsoundexinfo_defaultfrequency">frequency</a>, <a href="core-api-system.html#fmod_createsoundexinfo_numchannels">number of channels</a>, and data <a href="core-api-system.html#fmod_createsoundexinfo_format">format</a>. You can optionally provide a <a href="core-api-system.html#fmod_createsoundexinfo_pcmreadcallback">read callback</a>, which is used to place your own audio data into FMOD's buffers. If no read callback is provided, the sample will be empty, so <a class="apilink" href="core-api-sound.html#sound_lock">Sound::lock</a> and <a class="apilink" href="core-api-sound.html#sound_unlock">Sound::unlock</a> must be used to provide audio data instead.</p>
+<p>
+<div class="language-selector">
+<div class="language-tab" data-language="language-c">C</div>
+<div class="language-tab" data-language="language-cpp">C++</div>
+<div class="language-tab" data-language="language-csharp">C#</div>
+<div class="language-tab" data-language="language-javascript">JS</div>
+</div>
+</p>
+<div class="highlight language-cpp"><pre><span></span><span class="n">FMOD</span><span class="o">::</span><span class="n">Sound</span> <span class="o">*</span><span class="n">sound</span><span class="p">;</span>
+<span class="n">FMOD_CREATESOUNDEXINFO</span> <span class="n">exinfo</span><span class="p">;</span>
+
+<span class="c1">// Create extended sound info struct</span>
+<span class="n">memset</span><span class="p">(</span><span class="o">&amp;</span><span class="n">exinfo</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="k">sizeof</span><span class="p">(</span><span class="n">FMOD_CREATESOUNDEXINFO</span><span class="p">));</span>
+<span class="n">exinfo</span><span class="p">.</span><span class="n">cbsize</span>           <span class="o">=</span> <span class="k">sizeof</span><span class="p">(</span><span class="n">FMOD_CREATESOUNDEXINFO</span><span class="p">);</span>   <span class="c1">// Size of the struct</span>
+<span class="n">exinfo</span><span class="p">.</span><span class="n">numchannels</span>      <span class="o">=</span> <span class="mi">2</span><span class="p">;</span>                                <span class="c1">// Number of channels in the sound</span>
+<span class="n">exinfo</span><span class="p">.</span><span class="n">defaultfrequency</span> <span class="o">=</span> <span class="mi">44100</span><span class="p">;</span>                            <span class="c1">// Default playback rate of sound</span>
+<span class="n">exinfo</span><span class="p">.</span><span class="n">length</span>           <span class="o">=</span> <span class="n">exinfo</span><span class="p">.</span><span class="n">defaultfrequency</span> <span class="o">*</span> <span class="n">exinfo</span><span class="p">.</span><span class="n">numchannels</span> <span class="o">*</span> <span class="k">sizeof</span><span class="p">(</span><span class="kt">signed</span> <span class="kt">short</span><span class="p">)</span> <span class="o">*</span> <span class="mi">5</span><span class="p">;</span>   <span class="c1">// Length of sound - PCM data in bytes. 5 = seconds</span>
+<span class="n">exinfo</span><span class="p">.</span><span class="n">format</span>           <span class="o">=</span> <span class="n">FMOD_SOUND_FORMAT_PCM16</span><span class="p">;</span>          <span class="c1">// Data format of sound</span>
+<span class="n">exinfo</span><span class="p">.</span><span class="n">pcmreadcallback</span>  <span class="o">=</span> <span class="n">MyReadCallbackFunction</span><span class="p">;</span>           <span class="c1">// To read sound data, you must specify a read callback using the pcmreadcallback field</span>
+<span class="c1">// Alternatively, use Sound::lock and Sound::unlock to submit sample data to the sound when playing it back</span>
+
+<span class="c1">// As sample data is being loaded via callback or Sound::lock and Sound::unlock, pass null or equivalent as first argument</span>
+<span class="n">system</span><span class="o">-&gt;</span><span class="n">createSound</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">FMOD_OPENUSER</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">exinfo</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">sound</span><span class="p">);</span>
+</pre></div>
+
+<div class="highlight language-c"><pre><span></span><span class="n">FMOD_Sound</span> <span class="o">*</span><span class="n">sound</span><span class="p">;</span>
+<span class="n">FMOD_CREATESOUNDEXINFO</span> <span class="n">exinfo</span><span class="p">;</span>
+
+<span class="c1">// Create extended sound info struct</span>
+<span class="n">memset</span><span class="p">(</span><span class="o">&amp;</span><span class="n">exinfo</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="k">sizeof</span><span class="p">(</span><span class="n">FMOD_CREATESOUNDEXINFO</span><span class="p">));</span>
+<span class="n">exinfo</span><span class="p">.</span><span class="n">cbsize</span>           <span class="o">=</span> <span class="k">sizeof</span><span class="p">(</span><span class="n">FMOD_CREATESOUNDEXINFO</span><span class="p">);</span>   <span class="c1">// Size of the struct</span>
+<span class="n">exinfo</span><span class="p">.</span><span class="n">numchannels</span>      <span class="o">=</span> <span class="mi">2</span><span class="p">;</span>                                <span class="c1">// Number of channels in the sound</span>
+<span class="n">exinfo</span><span class="p">.</span><span class="n">defaultfrequency</span> <span class="o">=</span> <span class="mi">44100</span><span class="p">;</span>                            <span class="c1">// Default playback rate of sound</span>
+<span class="n">exinfo</span><span class="p">.</span><span class="n">length</span>           <span class="o">=</span> <span class="n">exinfo</span><span class="p">.</span><span class="n">defaultfrequency</span> <span class="o">*</span> <span class="n">exinfo</span><span class="p">.</span><span class="n">numchannels</span> <span class="o">*</span> <span class="k">sizeof</span><span class="p">(</span><span class="kt">signed</span> <span class="kt">short</span><span class="p">)</span> <span class="o">*</span> <span class="mi">5</span><span class="p">;</span>   <span class="c1">// Length of sound - PCM data in bytes. 5 = seconds</span>
+<span class="n">exinfo</span><span class="p">.</span><span class="n">format</span>           <span class="o">=</span> <span class="n">FMOD_SOUND_FORMAT_PCM16</span><span class="p">;</span>          <span class="c1">// Data format of sound</span>
+<span class="n">exinfo</span><span class="p">.</span><span class="n">pcmreadcallback</span>  <span class="o">=</span> <span class="n">MyReadCallbackFunction</span><span class="p">;</span>           <span class="c1">// To read sound data, you must specify a read callback using the pcmreadcallback field</span>
+<span class="c1">// Alternatively, use Sound::lock and Sound::unlock to submit sample data to the sound when playing it back</span>
+
+<span class="c1">// As sample data is being loaded via callback or Sound::lock and Sound::unlock, pass null or equivalent as second argument</span>
+<span class="n">FMOD_System_CreateSound</span><span class="p">(</span><span class="n">system</span><span class="p">,</span> <span class="nb">NULL</span><span class="p">,</span> <span class="n">FMOD_OPENUSER</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">exinfo</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">sound</span><span class="p">);</span>
+</pre></div>
+
+<div class="highlight language-csharp"><pre><span></span><span class="n">FMOD</span><span class="p">.</span><span class="n">Sound</span> <span class="n">sound</span>
+<span class="n">FMOD</span><span class="p">.</span><span class="n">CREATESOUNDEXINFO</span> <span class="n">exinfo</span><span class="p">;</span>
+
+<span class="c1">// Create extended sound info struct</span>
+<span class="n">exinfo</span> <span class="p">=</span> <span class="k">new</span> <span class="n">FMOD</span><span class="p">.</span><span class="n">CREATESOUNDEXINFO</span><span class="p">();</span>
+<span class="n">exinfo</span><span class="p">.</span><span class="n">cbsize</span>           <span class="p">=</span> <span class="n">Marshal</span><span class="p">.</span><span class="n">SizeOf</span><span class="p">(</span><span class="k">typeof</span><span class="p">(</span><span class="n">FMOD</span><span class="p">.</span><span class="n">CREATESOUNDEXINFO</span><span class="p">));</span>  <span class="c1">// Size of the struct</span>
+<span class="n">exinfo</span><span class="p">.</span><span class="n">numchannels</span>      <span class="p">=</span> <span class="m">2</span><span class="p">;</span>                                <span class="c1">// Number of channels in the sound</span>
+<span class="n">exinfo</span><span class="p">.</span><span class="n">defaultfrequency</span> <span class="p">=</span> <span class="m">44100</span><span class="p">;</span>                            <span class="c1">// Default playback rate of sound</span>
+<span class="n">exinfo</span><span class="p">.</span><span class="n">length</span>           <span class="p">=</span> <span class="n">exinfo</span><span class="p">.</span><span class="n">defaultfrequency</span> <span class="p">*</span> <span class="n">exinfo</span><span class="p">.</span><span class="n">numchannels</span> <span class="p">*</span> <span class="k">sizeof</span><span class="p">(</span><span class="kt">short</span><span class="p">)</span> <span class="p">*</span> <span class="m">5</span><span class="p">;</span>   <span class="c1">// Length of sound - PCM data in bytes. 5 = seconds</span>
+<span class="n">exinfo</span><span class="p">.</span><span class="n">format</span>           <span class="p">=</span> <span class="n">FMOD</span><span class="p">.</span><span class="n">SOUND_FORMAT</span><span class="p">.</span><span class="n">PCM16</span><span class="p">;</span>          <span class="c1">// Data format of sound</span>
+<span class="n">exinfo</span><span class="p">.</span><span class="n">pcmreadcallback</span>  <span class="p">=</span> <span class="n">MyReadCallbackFunction</span><span class="p">;</span>           <span class="c1">// To read sound data, you must specify a read callback using the pcmreadcallback field</span>
+<span class="c1">// Alternatively, use Sound::lock and Sound::unlock to submit sample data to the sound when playing it back</span>
+
+<span class="c1">// As sample data is being loaded via callback or Sound::lock and Sound::unlock, pass null or equivalent as first argument</span>
+<span class="n">system</span><span class="p">.</span><span class="n">createSound</span><span class="p">(</span><span class="s">&quot;&quot;</span><span class="p">,</span> <span class="n">FMOD</span><span class="p">.</span><span class="n">MODE</span><span class="p">.</span><span class="n">OPENUSER</span><span class="p">,</span> <span class="k">ref</span> <span class="n">exinfo</span><span class="p">,</span> <span class="k">out</span> <span class="n">sound</span><span class="p">);</span>
+</pre></div>
+
+<div class="highlight language-javascript"><pre><span></span><span class="kd">var</span> <span class="nx">sound</span> <span class="o">=</span> <span class="p">{};</span>
+<span class="kd">var</span> <span class="nx">outval</span> <span class="o">=</span> <span class="p">{};</span>
+<span class="kd">var</span> <span class="nx">exinfo</span> <span class="o">=</span> <span class="nx">FMOD</span><span class="p">.</span><span class="nx">CREATESOUNDEXINFO</span><span class="p">();</span>
+
+<span class="c1">// Create extended sound info struct</span>
+<span class="c1">// No need to define cbsize, the struct already knows its own size in JS</span>
+<span class="nx">exinfo</span><span class="p">.</span><span class="nx">numchannels</span>      <span class="o">=</span> <span class="mi">2</span><span class="p">;</span>                                <span class="c1">// Number of channels in the sound</span>
+<span class="nx">exinfo</span><span class="p">.</span><span class="nx">defaultfrequency</span> <span class="o">=</span> <span class="mi">44100</span><span class="p">;</span>                            <span class="c1">// Default playback rate of sound</span>
+<span class="nx">exinfo</span><span class="p">.</span><span class="nx">length</span>           <span class="o">=</span> <span class="nx">exinfo</span><span class="p">.</span><span class="nx">defaultfrequency</span> <span class="o">*</span> <span class="nx">exinfo</span><span class="p">.</span><span class="nx">numchannels</span> <span class="o">*</span> <span class="mi">2</span> <span class="o">*</span> <span class="mi">5</span><span class="p">;</span>      <span class="c1">// Length of sound - PCM data in bytes. 2 = sizeof(short) and 5 = seconds</span>
+<span class="nx">exinfo</span><span class="p">.</span><span class="nx">format</span>           <span class="o">=</span> <span class="nx">FMOD</span><span class="p">.</span><span class="nx">SOUND_FORMAT</span><span class="p">.</span><span class="nx">PCM16</span><span class="p">;</span>          <span class="c1">// Data format of sound</span>
+<span class="nx">exinfo</span><span class="p">.</span><span class="nx">pcmreadcallback</span>  <span class="o">=</span> <span class="nx">MyReadCallbackFunction</span><span class="p">;</span>           <span class="c1">// To read sound data, you must specify a read callback using the pcmreadcallback field</span>
+<span class="c1">// Alternatively, use Sound::lock and Sound::unlock to submit sample data to the sound when playing it back</span>
+
+<span class="c1">// As sample data is being loaded via callback or Sound::lock and Sound::unlock, pass null or equivalent as first argument</span>
+<span class="nx">system</span><span class="p">.</span><span class="nx">createSound</span><span class="p">(</span><span class="s2">&quot;&quot;</span><span class="p">,</span> <span class="nx">FMOD</span><span class="p">.</span><span class="nx">OPENUSER</span><span class="p">,</span> <span class="nx">exinfo</span><span class="p">,</span> <span class="nx">outval</span><span class="p">);</span>
+<span class="nx">sound</span> <span class="o">=</span> <span class="nx">outval</span><span class="p">.</span><span class="nx">val</span><span class="p">;</span>
+</pre></div>
+
+<h3 id="creating-the-sound-as-a-streamed-fsb-file"><a href="#creating-the-sound-as-a-streamed-fsb-file">4.3.4 Creating the Sound as a Streamed FSB File</a></h3>
+<p>An FSB file contains subsounds, so if you open it as a stream, you may not want FMOD seeking to the first subsound and wasting time. You can use the initialsubsound member of the <a class="apilink" href="core-api-system.html#fmod_createsoundexinfo">FMOD_CREATESOUNDEXINFO</a> structure to make the non-blocking open seek to the subsound of your choice.</p>
+<div class="highlight language-text"><pre><span></span>FMOD_RESULT result;
+FMOD::Sound *sound;
+FMOD_CREATESOUNDEXINFO exinfo;
+
+memset(&amp;exinfo, 0, sizeof(FMOD_CREATESOUNDEXINFO));
+exinfo.cbsize = sizeof(FMOD_CREATESOUNDEXINFO);
+exinfo.initialsubsound = 1;
+
+result = system-&gt;createStream(&quot;../media/sounds.fsb&quot;, FMOD_NONBLOCKING, &amp;exinfo, &amp;sound);
+ERRCHECK(result);
+</pre></div>
+
+<p>Then get the subsound you wanted with <a class="apilink" href="core-api-sound.html#sound_getsubsound">Sound::getSubSound</a>.</p>
+<h2 id="avoiding-stalls-while-loading-or-releasing-a-sound"><a href="#avoiding-stalls-while-loading-or-releasing-a-sound">4.4 Avoiding Stalls While Loading or Releasing a Sound</a></h2>
+<p>One of the slowest operations is loading a sound. To place a sound load into the background so that it doesn't affect processing in the main application thread, the user can use the <a class="apilink" href="core-api-common.html#fmod_nonblocking">FMOD_NONBLOCKING</a> flag in <a class="apilink" href="core-api-system.html#system_createsound">System::createSound</a> or <a class="apilink" href="core-api-system.html#system_createstream">System::createStream</a>.</p>
+<p>Immediately a sound handle is returned to the user. The status of the sound being loaded can then be checked with <a class="apilink" href="core-api-sound.html#sound_getopenstate">Sound::getOpenState</a>. If a function is called on a sound that is still loading (besides getOpenState), it will typically return <a class="apilink" href="core-api-common.html#fmod_err_notready">FMOD_ERR_NOTREADY</a>. Wait until the sound is ready to play it. The state would be <a class="apilink" href="core-api-sound.html#fmod_openstate_ready">FMOD_OPENSTATE_READY</a>.</p>
+<p>To avoid a stall on a streaming sound when trying to free/release it, check that the state is <a class="apilink" href="core-api-sound.html#fmod_openstate_ready">FMOD_OPENSTATE_READY</a> before calling <a class="apilink" href="core-api-sound.html#sound_release">Sound::release</a>.</p>
+<h2 id="asynchronous-io-and-deferred-file-reading"><a href="#asynchronous-io-and-deferred-file-reading">4.5 Asynchronous I/O and Deferred File Reading</a></h2>
+<p>This tutorial describes how to defer file reading in FMOD so that you don't have to immediately satisfy FMOD's requests for data. This sort of behavior is highly desirable in game streaming engines that do not have access to the data yet, or for when accessing data out of order or in a non sequential fashion would greatly degrade performance. FMOD's asynchronous I/O callbacks will allow you to receive an FMOD read request and defer it to a later time when the game is ready. FMOD uses priorities to notify the game engine how urgent each read request is, as sometimes deferring a music stream read (for example) can result in stuttering audio.</p>
+<h3 id="setup-override-fmods-file-system-with-callbacks"><a href="#setup-override-fmods-file-system-with-callbacks">4.5.1 Setup : Override FMOD's file system with callbacks</a></h3>
+<p>The idea is that you are wanting to override the file I/O that FMOD normally performs internally. You may have done this before with the System::setFileSystem by overriding the following callbacks:</p>
+<div class="highlight language-text"><pre><span></span>FMOD_FILE_OPENCALLBACK  useropen
+FMOD_FILE_CLOSECALLBACK  userclose
+FMOD_FILE_READCALLBACK  userread
+FMOD_FILE_SEEKCALLBACK  userseek
+</pre></div>
+
+<p>The normal behavior here is that you would need to satisfy FMOD's read and seek requests immediately in a blocking fashion.<br />
+In the open callback, you open your internal file handle and return it to FMOD, along with the file size.<br />
+You would have to set all callbacks or file system override would not work. Any callback that is null in the above callback list will cause FMOD to use the default internal system and ignore your callbacks. All callbacks must be set.</p>
+<p>With async I/O, there are 2 new callbacks which you can use to replace the 'userread' and 'userseek' callbacks:</p>
+<div class="highlight language-text"><pre><span></span>FMOD_FILE_ASYNCREADCALLBACK  userasyncread
+FMOD_FILE_ASYNCCANCELCALLBACK  userasynccancel
+</pre></div>
+
+<p>If these callbacks are set, the 'userread' and 'userseek' callbacks are made redundant. You can of course keep 'userread' and 'userseek' defined if you want to switch between the 2 systems for some reason, but when 'userasyncread' is defined, the normal read/seek callbacks will never be called.</p>
+<h3 id="defining-the-basics-opening-and-closing-the-file-handle"><a href="#defining-the-basics-opening-and-closing-the-file-handle">4.5.2 Defining the basics - opening and closing the file handle.</a></h3>
+<p>Before we start, we'll just define the open and close callback. A very simple implementation using stdio is provided below:</p>
+<div class="highlight language-text"><pre><span></span>FMOD_RESULT F_CALLBACK myopen(const char *name, unsigned int *filesize, void **handle, void **userdata)
+{
+    if (name)
+    {
+        FILE *fp;
+
+        fp = fopen(name, &quot;rb&quot;);
+        if (!fp)
+        {
+            return FMOD_ERR_FILE_NOTFOUND;
+        }
+
+        fseek(fp, 0, SEEK_END);
+        *filesize = ftell(fp);
+        fseek(fp, 0, SEEK_SET);
+
+        *userdata = (void *)0x12345678;
+        *handle = fp;
+    }
+
+    return FMOD_OK;
+}
+
+FMOD_RESULT F_CALLBACK myclose(void *handle, void *userdata)
+{
+    if (!handle)
+    {
+        return FMOD_ERR_INVALID_PARAM;
+    }
+
+    fclose((FILE *)handle);
+
+    return FMOD_OK;
+}
+</pre></div>
+
+<h3 id="defining-userasyncread"><a href="#defining-userasyncread">4.5.3 Defining 'userasyncread'</a></h3>
+<p>The idea for asynchronous reading, is that FMOD will request data (note, possibly from any thread - so be wary of thread safety in your code!), but you don't have to give the data to FMOD immediately. You can return from the callback without giving FMOD any data. This is deferred I/O.</p>
+<p>For example, here is a definition of an async read callback:</p>
+<div class="highlight language-text"><pre><span></span>FMOD_RESULT F_CALLBACK myasyncread(FMOD_ASYNCREADINFO *info, void *userdata)
+{
+    return PutReadRequestOntoQueue(info);
+}
+</pre></div>
+
+<p>Note that we didnt actually do any read here. You can return immediately and FMOD will internally wait until the read request is satisfied. Note that if FMOD decides to wait from the main thread (which it will do often), then you cannot satisfy the queue from the main thread, you will get a deadlock. Just put the request onto a queue. We'll discuss how to let FMOD know that the data is ready in the next section.</p>
+<p>There are a few things to consider here:</p>
+<ul>
+<li>The callback could come from any thread inside FMOD's system. Usually this means FMOD's streaming thread, FMOD's file I/O thread, the main thread, or the <a class="apilink" href="core-api-common.html#fmod_nonblocking">FMOD_NONBLOCKING</a> thread. Be thread safe! Use criticalsections around linked list/queue operations to avoid corruption of data.</li>
+<li>Return code. This is usually a fatal, non disk related error such as not being able to add to the queue. This could be an out of memory error for example. Use <a class="apilink" href="core-api-common.html#fmod_err_memory">FMOD_ERR_MEMORY</a> as the return value if this is the case. Return <a class="apilink" href="core-api-common.html#fmod_ok">FMOD_OK</a> in normal cases. It normally won't be a return code related to a disk error. You have to set the 'result' code in the <a class="apilink" href="core-api-system.html#fmod_asyncreadinfo">FMOD_ASYNCREADINFO</a> structure to let FMOD know about a file based error.</li>
+<li>Be wary that your queued command may need to be cancelled if the user decides to release the FMOD resource that is using that file, such as a sound. See the next section about myasynccancel in that case.</li>
+<li>The <a class="apilink" href="core-api-system.html#fmod_asyncreadinfo">FMOD_ASYNCREADINFO</a> structure is where you fill in the data requested by FMOD. See below for a more detailed description of this structure and what is required to complete the read. </li>
+</ul>
+<h3 id="defining-userasynccancel"><a href="#defining-userasynccancel">4.5.4 Defining 'userasynccancel'</a></h3>
+<p>If you have queued up a lot of read requests, and have not satisfied them yet, then it is possible that the user may want to release a sound before the request has been fulfilled (ie Sound::release is called).<br />
+In that case FMOD will call the async cancel callback to let you cancel any operations you may have pending, that are related to this file.</p>
+<div class="highlight language-text"><pre><span></span>FMOD_RESULT F_CALLBACK myasynccancel(void *handle, void *userdata)
+{
+    return SearchQueueForFileHandleAndRemove(info);
+}
+</pre></div>
+
+<p>Note that the above callback implementation will search through our internal linked list (in a thread safe fashion), removing any requests from the queue so that they don't get processed after the Sound is released. If it is in the middle of reading, then the callback will wait until the read is finished and then return.<br />
+Do not return while a read is happening, or before a read happens, as the memory for the read destination will be freed and the deferred read will read into an invalid pointer.</p>
+<h3 id="filling-out-the-fmod_asyncreadinfo-structure-when-performing-a-deferred-read"><a href="#filling-out-the-fmod_asyncreadinfo-structure-when-performing-a-deferred-read">4.5.5 Filling out the FMOD_ASYNCREADINFO structure when performing a deferred read</a></h3>
+<p>The <a class="apilink" href="core-api-system.html#fmod_asyncreadinfo">FMOD_ASYNCREADINFO</a> is the structure you will pass to your deferred I/O system, and will be the structure that you read and fill out when fulfilling the requests.</p>
+<p>The structure exposes the features of the async read system. These are:</p>
+<ul>
+<li>Priority is supported. FMOD will let the user know if the read is not important, mildly important, or extremely important. This will allow the user to reshuffle the queue to make important reads happen before non important reads.</li>
+<li>Read completion is signalled by simply setting the 'result' code of <a class="apilink" href="core-api-system.html#fmod_asyncreadinfo">FMOD_ASYNCREADINFO</a>.</li>
+<li>Memory does not need to be copied anywhere, you can read directly into FMOD's pointers which point directly to the internal file buffers.</li>
+<li>You do not have to give FMOD all of the data, you can give a partial read result to the callback and FMOD will most likely just issue another read request later with a smaller byte value. </li>
+</ul>
+<div class="highlight language-text"><pre><span></span>typedef struct {
+  void *  handle;
+  unsigned int  offset;
+  unsigned int  sizebytes;
+  int  priority;
+  void *  buffer;
+  unsigned int  bytesread;
+  FMOD_RESULT  result;
+  void *  userdata;
+} FMOD_ASYNCREADINFO;
+</pre></div>
+
+<p>The first 4 members (<strong>handle</strong>, <strong>offset</strong>, <strong>sizebytes</strong>, <strong>priority</strong>) are read only values, which tell you about the file handle in question, where in the file it wants to read from (so no seek callbacks required!) and how many bytes it wants. The priority value tells you how important the read is as discussed previously.</p>
+<p>The next 3 members (<strong>buffer</strong>, <strong>bytesread</strong> and <strong>result</strong>) are values you will fill in, and to let FMOD know that you have read the data.<br />
+Read your file data into <strong>buffer</strong>. <strong>sizebytes</strong> is how much you should be reading. <strong>bytesread</strong> is how much you actually read (this could be less than sizebytes). <br />
+If you hit the 'end of file' condition and need to return less bytes than were requested - set bytesread to less than sizebytes, and then set the result to <a class="apilink" href="core-api-common.html#fmod_err_file_eof">FMOD_ERR_FILE_EOF</a>.</p>
+<div class="admonition warning">
+<p>Set the result last! Do not set the <strong>result</strong> before setting the <strong>bytesread</strong> value and reading the data into buffer. This is because the initial value for result is going to be <a class="apilink" href="core-api-common.html#fmod_err_notready">FMOD_ERR_NOTREADY</a>. When you set the value to <a class="apilink" href="core-api-common.html#fmod_ok">FMOD_OK</a> (or an appropriate error code) FMOD immediately sees this as an indication to continue, so if the <strong>bytesread</strong> or <strong>buffer</strong> contents are not ready you will get corruption, errors, or unexpected behavior. To prevent this, make setting result the last thing you do before finishing your queue process, after setting <strong>bytesread</strong> and filling in <strong>buffer</strong>.</p>
+</div>
+<h3 id="threading-issues-read-priorities"><a href="#threading-issues-read-priorities">4.5.6 Threading issues &amp; read priorities</a></h3>
+<p>As mentioned earlier in this tutorial, FMOD can call the read callback from various different threads, so it is common sense to protect your I/O system from operations happening simultaneously from different threads.</p>
+<p>A system that would use FMOD's async I/O feature would most likely be running in its own thread. This is so the blocking wait loops in FMOD's loading calls are not forever waiting for data because the user can't provide it to FMOD.<br />
+If the system runs in another thread, it can detect the queue insert, and process the data while FMOD is waiting.</p>
+<p>It is actually possible to complete the read as if it wasn't deferred, and do a direct file read into the buffer and set sizebytes/result values from the FMOD async read callback. This is a possible way to reduce delays for extremely urgent FMOD reads. </p>
+<p>Currently there are 3 different categories of read priority.</p>
+<ul>
+<li>0 = low priority. These reads are usually blocking style reads that come from a user load command, and there are no real negative side effects of delaying the read except that the load function takes longer. These reads are going to be issued from a System::createSound call for example.</li>
+<li>50 = medium priority. These reads are important, and usually come from the FMOD stream system. They can be delayed, but not for too long. If the delay is too long, then audio streams will starve, and possibly stutter. If you need to delay the read longer, the FMOD file buffer size can be increased with System::setStreamBufferSize</li>
+<li>100 = high priority. Currently the highest priority read issued by FMOD is when an audio stream loops. It must internally flush the stream buffer after a seek to loop start, and do so before the stream 'decode buffer' (the PCM double-buffer that the stream decoder decodes into) loops around and starts stuttering (this is a different buffer to the previously mentioned stream buffer. That one contains compressed file data. The decode buffer contains decompressed PCM data). The decode buffer is usually small so it is important to get the read done fast, but the user can also increase these buffers with <a class="apilink" href="core-api-system.html#fmod_createsoundexinfo_decodebuffersize">FMOD_CREATESOUNDEXINFO::decodebuffersize</a>. <a class="apilink" href="core-api-system.html#fmod_advancedsettings_defaultdecodebuffersize">FMOD_ADVANCEDSETTINGS::defaultDecodeBufferSize</a> can also be used to set all future decode buffer sizes for all streams without having to set it every time, and is going to be used for the Event System because decode buffer size is not something you can set for events individually. </li>
+</ul>
+<h2 id="supported-file-formats"><a href="#supported-file-formats">4.6 Supported File Formats</a></h2>
+<p>We recommend using the .fsb file format for most purposes.</p>
+<p>The Core API also has native/built in code to support many file formats out of the box. WAV, MP3 and Ogg Vorbis are supported by default, but many more obscure formats like AIFF, FLAC and others. Sequenced formats that are played back in realtime with a real time sequencer, are included. MIDI/MOD/S3M/XM/IT are examples of these. A more comprehensive list can be found in the <a class="apilink" href="core-api-sound.html#fmod_sound_type">FMOD_SOUND_TYPE</a> list.</p>
+<p>In addition, the Core API also has support for user-created file format plug-ins. You can create callbacks for FMOD to call when <a class="apilink" href="core-api-system.html#system_createsound">System::createSound</a> or <a class="apilink" href="core-api-system.html#system_createstream">System::createStream</a> is executed, or when the decoding engine is asking for data. Plug-ins can be created inline with the application, or compiled as a stand-alone dynamic library (ie .dll or .so). See the <a class="apilink" href="core-api-system.html#system_registercodec">System::registerCodec</a> documentation for more.</p></div>
+
+<p class="manual-footer">FMOD Engine User Manual 2.03.14 (2026-05-28). &copy; 2026 Firelight Technologies Pty Ltd.</p>
+</div>
+</body>
+</html>
+

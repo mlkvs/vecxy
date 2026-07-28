@@ -1,0 +1,78 @@
+<html>
+<head>
+<title>Troubleshooting</title>
+<link rel="stylesheet" href="style/docs.css">
+<link rel="stylesheet" href="style/code_highlight.css">
+<script type="text/javascript" src="scripts/language-selector.js"></script></head>
+<body>
+<div class="docs-body">
+<div class="manual-toc">
+<p>FMOD Engine User Manual 2.03</p>
+<ul>
+<li><a href="welcome.html">Welcome to the FMOD Engine</a></li>
+<li><a href="core-api-concepts.html">Core API Key Concepts</a></li>
+<li><a href="running-the-core-api.html">Core API Getting Started</a></li>
+<li><a href="loading-and-playing-sounds-in-the-core-api.html">Core API Loading and Playing Sounds</a></li>
+<li><a href="spatializing-sounds-in-the-core-api.html">Core API Spatializing Sounds</a></li>
+<li><a href="mixing-and-routing-in-the-core-api.html">Core API Mixing and Routing</a></li>
+<li><a href="using-dsp-effects-in-the-core-api.html">Core API Using DSP Effects</a></li>
+<li><a href="effects-reference.html">Core API Effect Reference</a></li>
+<li><a href="managing-resources-in-the-core-api.html">Core API Managing Resources</a></li>
+<li><a href="advanced-core-api-topics.html">Core API Advanced Topics</a></li>
+<li><a href="core-api.html">Core API Reference</a></li>
+<li><a href="studio-api-getting-started.html">Studio API Getting Started</a></li>
+<li><a href="studio-guide.html">Studio API Guide</a></li>
+<li><a href="studio-api-3d-events.html">Studio API 3D Events</a></li>
+<li><a href="studio-api-threads.html">Studio API Threads</a></li>
+<li><a href="studio-api.html">Studio API Reference</a></li>
+<li><a href="platforms.html">Platform Details</a></li>
+<li><a href="dsp-plugin-api-guide.html">Plug-in DSP API Guide</a></li>
+<li><a href="plugin-api.html">Plug-in API Reference</a></li>
+<li><a href="fsbank-api.html">FSBank API Reference</a></li>
+<li class="manual-current-chapter manual-active-chapter"><a href="troubleshooting.html">Troubleshooting</a><ul>
+<li><a href="#audio-becomes-crackly-or-distorted-over-time">Audio becomes crackly or distorted over time</a></li>
+<li><a href="#the-fmod-engine-cannot-find-events-or-buses-with-strings">The FMOD Engine cannot find events or buses with strings</a></li>
+<li><a href="#an-error-is-being-returned-from-an-fmod-function-and-i-need-more-detail">An error is being returned from an FMOD function and I need more detail</a></li>
+<li><a href="#my-audio-device-does-not-change-automatically">My audio device does not change automatically</a></li>
+<li><a href="#pointers-returned-by-the-fmod-engine-are-behaving-strangely">Pointers returned by the FMOD Engine are behaving strangely</a><ul>
+<li><a href="#studio-api-types">Studio API Types</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li><a href="glossary.html">Glossary</a></li>
+</ul>
+</div>
+<div class="manual-content api">
+<h1>21. Troubleshooting</h1>
+<p>This chapter lists a number of common issues that can be encountered while working with the Core API and Studio API, along with techniques for overcoming them.</p>
+<p>If you encounter a problem, and none of the techniques listed in this chapter help, post a question on the <a href="https://qa.fmod.com/">FMOD Forums</a> for advice and support.</p>
+<h2 id="audio-becomes-crackly-or-distorted-over-time"><a href="#audio-becomes-crackly-or-distorted-over-time">21.1 Audio becomes crackly or distorted over time</a></h2>
+<p>If you are finding the output of your application is starting to crackle or become distorted when playing for a long time, it is likely there are too many processes using up CPU usage. This can be due to too many large complex events playing at once, too many expensive <a href="glossary.html#dsp">DSPs</a> in use such as <a href="effects-reference.html#convolution-reverb">convolution reverbs</a>, or an excessive build up of events.</p>
+<p>To visualize the audio CPU and memory usage of your application, you can record a <a href="https://fmod.com/docs/2.03/studio/profiling.html">Live Update</a> profiler session in your <a href="glossary.html#fmod-studio">FMOD Studio</a> project, or if using the Core API only, utilize the <a href="glossary.html#core-api-profiler-tool">FMOD Profiler</a> provided with the API installation. This will assist in tracking down exactly where the resources are being used.</p>
+<p>For Studio API users, some common issues that can cause a build up of events are:</p>
+<ul>
+<li>The event has the <a href="https://fmod.com/docs/2.03/studio/event-macro-controls-reference.html#persistent">Persistent Event Macro</a> property enabled. Persistent events need to be stopped with <a class="apilink" href="studio-api-eventinstance.html#studio_eventinstance_stop">Studio::EventInstance::stop()</a> </li>
+<li>The event has no natural end, with transitions and loops being used in the timeline logic track. Events that do not naturally end need to be stopped with <a class="apilink" href="studio-api-eventinstance.html#studio_eventinstance_stop">Studio::EventInstance::stop()</a></li>
+</ul>
+<h2 id="the-fmod-engine-cannot-find-events-or-buses-with-strings"><a href="#the-fmod-engine-cannot-find-events-or-buses-with-strings">21.2 The FMOD Engine cannot find events or buses with strings</a></h2>
+<p>This usually happens because the <code>.strings.bank</code> file has not been loaded. The error <a class="apilink" href="core-api-common.html#fmod_err_event_notfound">FMOD_ERR_EVENT_NOTFOUND</a> would be logged to the game engine's debug logger. The <code>.strings.bank</code> file includes all the metadata required to look up events, buses, snapshots, and VCAs during runtime.</p>
+<p>Refer to <a href="https://fmod.com/docs/2.03/studio/getting-events-into-your-game.html#what-building-creates">What Building Creates</a> in the <a href="https://fmod.com/docs/2.03/studio">FMOD Studio User Manual</a>, for more information on what a <code>strings.bank</code> file contains.</p>
+<h2 id="an-error-is-being-returned-from-an-fmod-function-and-i-need-more-detail"><a href="#an-error-is-being-returned-from-an-fmod-function-and-i-need-more-detail">21.3 An error is being returned from an FMOD function and I need more detail</a></h2>
+<p>All Core API and Studio API functions return a <a class="apilink" href="core-api-common.html#fmod_result">FMOD_RESULT</a>. This result is <a class="apilink" href="core-api-common.html#fmod_ok">FMOD_OK</a> if the function works as expected, or an error error code describing the problem. You can find a list of all possible errors in the documentation for <a class="apilink" href="core-api-common.html#fmod_result">FMOD_RESULT</a>.</p>
+<p>If further debugging is required, you can initialize the Studio API or Core API using the logging or "L" version of the respective library, i.e.: <code>fmodstudioL.dll</code> or <code>fmodL.dll</code>. To modify the amount of logging or the way it is displayed, see <a class="apilink" href="core-api-common.html#debug_initialize">Debug_Initialize</a>.</p>
+<h2 id="my-audio-device-does-not-change-automatically"><a href="#my-audio-device-does-not-change-automatically">21.4 My audio device does not change automatically</a></h2>
+<p>FMOD has an <a href="advanced-core-api-topics.html#detecting-audio-devices">automatic device switching</a> feature which is enabled by default.</p>
+<p>A reason for this not to work is that an <a class="apilink" href="core-api-system.html#fmod_system_callback_devicelistchanged">FMOD_SYSTEM_CALLBACK_DEVICELISTCHANGED</a> callback has been registered. This callback disables the automatic device switching feature on purpose, as it assumes you will be controlling which device gets selected in the callback.</p>
+<h2 id="pointers-returned-by-the-fmod-engine-are-behaving-strangely"><a href="#pointers-returned-by-the-fmod-engine-are-behaving-strangely">21.5 Pointers returned by the FMOD Engine are behaving strangely</a></h2>
+<p>The <a href="glossary.html#studio-api">Studio API</a> and <a href="glossary.html#core-api">Core API</a> return pointers to types. Some of these types are actually implemented as an underlying handle, but represent the handle data as a pointer type. For information about specific objects' underlying representation and lifetimes, see the <a href="mixing-and-routing-in-the-core-api.html#channel-groups-and-routing">Channel Groups and Routing</a> section of the <a href="mixing-and-routing-in-the-core-api.html">Core API Mixing and Routing</a> chapter, the <a href="running-the-core-api.html#initializing-the-core-api">Initializing the Core API</a> section of the <a href="running-the-core-api.html#initializing-the-core-api">Core API Getting Started</a> chapter, and the <a href="#studio-api-types">Studio API Types</a> section of this chapter.</p>
+<p>All FMOD types, whether they are represented internally via pointer or handle, look like a pointer type. No matter the type, a null pointer can never be returned as a valid result, but it is not safe to assume anything else about the pointer value. Do not assume that the pointer value falls in any particular address range, or that it has any zero bits in the bottom of the pointer value address.</p>
+<p>All FMOD types are equivalent for both the C and C++ API. It is possible to cast between the appropriate types by re-interpreting the pointer type directly.</p>
+<h3 id="studio-api-types"><a href="#studio-api-types">21.5.1 Studio API Types</a></h3>
+<p>Studio API types are returned as pointers, but actually consist of packed handle data. If the underlying type has been destroyed then the API returns <a class="apilink" href="core-api-common.html#fmod_err_invalid_handle">FMOD_ERR_INVALID_HANDLE</a>. An example of this would be unloading a Studio::Bank and then referencing a Studio::EventDescription belonging to that bank.</p></div>
+
+<p class="manual-footer">FMOD Engine User Manual 2.03.14 (2026-05-28). &copy; 2026 Firelight Technologies Pty Ltd.</p>
+</div>
+</body>
+</html>
+

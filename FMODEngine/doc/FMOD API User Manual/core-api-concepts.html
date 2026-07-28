@@ -1,0 +1,116 @@
+<html>
+<head>
+<title>Core API Key Concepts</title>
+<link rel="stylesheet" href="style/docs.css">
+<link rel="stylesheet" href="style/code_highlight.css">
+<script type="text/javascript" src="scripts/language-selector.js"></script></head>
+<body>
+<div class="docs-body">
+<div class="manual-toc">
+<p>FMOD Engine User Manual 2.03</p>
+<ul>
+<li><a href="welcome.html">Welcome to the FMOD Engine</a></li>
+<li class="manual-current-chapter manual-active-chapter"><a href="core-api-concepts.html">Core API Key Concepts</a><ul>
+<li><a href="#the-core-api-and-the-fmod-engine">The Core API and the FMOD Engine</a></li>
+<li><a href="#the-system-object">The System Object</a></li>
+<li><a href="#sounds">Sounds</a></li>
+<li><a href="#channels">Channels</a><ul>
+<li><a href="#channel-virtualization">Channel Virtualization</a></li>
+</ul>
+</li>
+<li><a href="#channel-groups">Channel Groups</a></li>
+<li><a href="#dsp-units">DSP Units</a></li>
+<li><a href="#fmod-sound-banks">FMOD Sound Banks</a></li>
+<li><a href="#3d-sounds-and-channels">3D Sounds and Channels</a></li>
+<li><a href="#streams">Streams</a></li>
+<li><a href="#audio-devices">Audio Devices</a></li>
+</ul>
+</li>
+<li><a href="running-the-core-api.html">Core API Getting Started</a></li>
+<li><a href="loading-and-playing-sounds-in-the-core-api.html">Core API Loading and Playing Sounds</a></li>
+<li><a href="spatializing-sounds-in-the-core-api.html">Core API Spatializing Sounds</a></li>
+<li><a href="mixing-and-routing-in-the-core-api.html">Core API Mixing and Routing</a></li>
+<li><a href="using-dsp-effects-in-the-core-api.html">Core API Using DSP Effects</a></li>
+<li><a href="effects-reference.html">Core API Effect Reference</a></li>
+<li><a href="managing-resources-in-the-core-api.html">Core API Managing Resources</a></li>
+<li><a href="advanced-core-api-topics.html">Core API Advanced Topics</a></li>
+<li><a href="core-api.html">Core API Reference</a></li>
+<li><a href="studio-api-getting-started.html">Studio API Getting Started</a></li>
+<li><a href="studio-guide.html">Studio API Guide</a></li>
+<li><a href="studio-api-3d-events.html">Studio API 3D Events</a></li>
+<li><a href="studio-api-threads.html">Studio API Threads</a></li>
+<li><a href="studio-api.html">Studio API Reference</a></li>
+<li><a href="platforms.html">Platform Details</a></li>
+<li><a href="dsp-plugin-api-guide.html">Plug-in DSP API Guide</a></li>
+<li><a href="plugin-api.html">Plug-in API Reference</a></li>
+<li><a href="fsbank-api.html">FSBank API Reference</a></li>
+<li><a href="troubleshooting.html">Troubleshooting</a></li>
+<li><a href="glossary.html">Glossary</a></li>
+</ul>
+</div>
+<div class="manual-content api">
+<h1>2. Core API Key Concepts</h1>
+<p>The <a href="glossary.html#core-api">Core API</a> is a programmer API that allows the manipulation of low-level audio primitives, and is the backbone of the <a href="glossary.html#fmod-studio">FMOD Engine</a>.</p>
+<p>While the <a href="glossary.html#studio-api">Studio API</a> is easy to use and well-suited to most game projects, the Core API is both more powerful and more flexible. This makes it useful for games with unusual and strict audio requirements that do not perfectly fit into the Studio API's paradigm of events and buses. In addition, even games made using the Studio API can benefit from a solid knowledge of the Core API, as the Core API is the foundation upon which the Studio API is built.</p>
+<p>This chapter introduces several essential FMOD Core API concepts. Understanding these concepts and how they interact is key to understanding how best to use the Core API to develop adaptive game audio.</p>
+<p>This chapter is designed to be read before proceeding on to the rest of this manual, as the concepts introduced here come up frequently in later chapters.</p>
+<h2 id="the-core-api-and-the-fmod-engine"><a href="#the-core-api-and-the-fmod-engine">2.1 The Core API and the FMOD Engine</a></h2>
+<p>The <a href="glossary.html#fmod-engine">FMOD Engine</a> is a runtime library for playing adaptive audio in games. It consists of two APIs: <a href="glossary.html#studio-api">FMOD Studio API</a>, and the <a href="glossary.html#core-api">FMOD Core API</a>.</p>
+<p>The FMOD Core API allows audio programmers to create audio content without using FMOD Studio, and to interact with the FMOD Engine's underlying mechanisms. This makes it more powerful and flexible than the FMOD Studio API.</p>
+<p>The FMOD Studio API can load and play <a href="glossary.html#bank-file">.bank files</a> created in FMOD Studio, an application that allows sound designers and composers to create adaptive audio content for games. This makes it less flexible than the FMOD Core API, but easier to use, especially for sound designers with limited audio programming experience and audio programmers with limited experience of sound design.</p>
+<p><a href="glossary.html#fmod-for-unity">FMOD for Unity</a> and <a href="glossary.html#fmod-for-unreal-engine">FMOD for Unreal Engine</a> are packaged software integrations of the FMOD Engine for use in Unity and Unreal Engine games. Each package includes a copy of the FMOD Engine that is automatically installed along with the integration.</p>
+<p><a href="glossary.html#version">FMOD version numbers</a> are split into three parts, in the format: <em>productVersion.majorVersion.minorVersion.</em></p>
+<h2 id="the-system-object"><a href="#the-system-object">2.2 The System Object</a></h2>
+<p>The FMOD <a href="glossary.html#system">system object</a> is the heart of the <a href="glossary.html#fmod-engine">FMOD Engine</a>, the key mechanism that all other <a href="glossary.html#core-api">Core API</a> features depend on to work. This means that before your game can do anything else with the Core API, the system object needs to be created. Outside of exceptional circumstances, you only ever need one FMOD system object to handle all the audio in your game. Most games therefore create a system object when the game is launched, and then only destroy that system object when the player quits the game.</p>
+<p>For information about getting your game ready to play audio with the FMOD Core API, see the <a href="running-the-core-api.html">Running the Core API</a> chapter. For more information about the system object, see <a href="core-api-system.html">System</a> subchapter of the <a href="core-api.html">Core API Reference</a> chapter.</p>
+<h2 id="sounds"><a href="#sounds">2.3 Sounds</a></h2>
+<p>A <a href="glossary.html#sound">sound</a> is a piece of sample data that's loaded or buffered into memory, ready to be played. Sounds are created using <a href="core-api-system.html#system_createstream">System::createStream</a> or <a href="core-api-system.html#system_createsound">System::createSound</a>, which also lets you choose the <a href="glossary.html#loading-mode">loading mode</a> to be used for that sound.</p>
+<p>Once a sound is loaded, you can play it with <a href="core-api-system.html#system_playsound">System::playSound</a>. This creates a <a href="glossary.html#channel">channel</a> that plays the sound's sample data.</p>
+<p>For more information about loading and playing sounds, see the <a href="loading-and-playing-sounds-in-the-core-api.html">Loading and Playing Sounds in the Core API</a> chapter. For reference information about sounds, see the <a href="core-api-sound.html">Sound</a> subchapter of the <a href="core-api.html">Core API Reference</a> chapter.</p>
+<h2 id="channels"><a href="#channels">2.4 Channels</a></h2>
+<p>A <a href="glossary.html#channel">channel</a> can be thought of as a single "voice" in your game's mix. Each channel is the source of an audio signal, which it routes into the <a href="glossary.html#dsp-graph">DSP graph</a> to be mixed.</p>
+<p>Provided the <a href="glossary.html#sound">sound</a> isn't a <a href="glossary.html#stream">stream</a>, you can play multiple channels based on the same sound contemporaneously, without needing to create multiple instances of that sound. Calling <code>System::playSound</code> again while one or more channels based on that sound is already playing creates and plays a new channel based on that sound, without stopping the already-playing channels. This allows you to save resources by only keeping one copy of a sound in memory, no matter how many instances of that sound you need to play.</p>
+<p>If a sound is a stream (which is to say, if it was created by with <code>System::createStream</code> or by calling <code>System::createSound</code> with FMOD_CREATESTREAM), calling <code>System::playSound</code> while a channel based on that sound is already playing instead causes it to restart. If you want to play multiple instances of a streaming sound's sample data, you can do so by creating multiple sounds based on the same sample data, and playing each one separately.</p>
+<p>For more information about channels, see the <a href="core-api-channel.html">Channel</a> subchapter of the <a href="core-api.html">Core API Reference</a> chapter.</p>
+<h3 id="channel-virtualization"><a href="#channel-virtualization">2.4.1 Channel Virtualization</a></h3>
+<p>Channels don't necessarily consume resources while they're playing. If a channel falls silent, or if it's the quietest channel when there are too many channels playing, it can be "virtualized." Virtualized channels are abstracted away so that they don't consume resources; if they subsequently become loud enough that they should be audible, or if the number of playing channels drops back down below the limit, they stop being virtual and resume playing as if they had never stopped. Because channels are only virtualized if they're silent or quieter than all other non-virtual channels, this normally has no apparent effect on how the game sounds, but helps save a lot of resources.</p>
+<p>For more information about virtualization, see the <a href="managing-resources-in-the-core-api.html#virtual-voice-system">Virtual Voice System</a> section of the <a href="managing-resources-in-the-core-api.html">Managing Resources in the Core API</a> chapter.</p>
+<h2 id="channel-groups"><a href="#channel-groups">2.5 Channel Groups</a></h2>
+<p>A <a href="glossary.html#channel-group">channel group</a> functions as a container for <a href="glossary.html#channel">channels</a> and other channel groups. Each channel group creates a submix of the <a href="glossary.html#signal">signals</a> output by the channels and channel groups it contains. This means that you can treat channel groups like buses, routing other channels and channel groups into them in order to better control your mix, and putting DSPs on them to process and modify their submixes.</p>
+<p>While it is possible to put <a href="glossary.html#dsp">DSPs</a> onto channels, it's usually more resource-efficient to put them onto channel groups, as doing so allows a single DSP unit to process the submixed output of multiple channels.</p>
+<p>For more information about channel groups, see the <a href="core-api-channelgroup.html">ChannelGroup</a> section of the <a href="core-api.html">Core API Reference</a> chapter.</p>
+<h2 id="dsp-units"><a href="#dsp-units">2.6 DSP Units</a></h2>
+<p>A <a href="glossary.html#dsp">DSP</a> (or Digital Signal Processor) unit takes PCM audio input and transforms it to create PCM audio output. DSPs are sometimes called <a href="glossary.html#effect">effects</a>.</p>
+<p>Commonly-used DSPs include the <a href="effects-reference.html#pan">panner</a>, which is used to spatialize and pan signals, and the <a href="effects-reference.html#fader">fader</a>, which is used to adjust volume.</p>
+<p>DSPs are usually applied to <a href="glossary.html#channel-group">channel groups</a> in order to modify their submixes in various ways, though they can also be applied to <a href="glossary.html#channel">channels</a>. Multiple DSPs can be applied to the same channel group or channel.</p>
+<p>For more information about using DSPs, see the <a href="using-dsp-effects-in-the-core-api.html">Using DSP Effects in the Core API</a> chapter. For more information about specific DSPs, see the <a href="effects-reference.html">Effects Reference</a> chapter.</p>
+<h2 id="fmod-sound-banks"><a href="#fmod-sound-banks">2.7 FMOD Sound Banks</a></h2>
+<p>While the FMOD Core API can play loose audio files in <a href="core-api-sound.html#fmod_sound_type">a variety of formats</a>, it can also load and play <a href="glossary.html#fsb">.fsb files</a>. .fsb files, also known as FMOD sound banks, are a container format optimized for loading and playing <a href="glossary.html#sound">sounds</a> in games. You can create FSB files for your game by using the fsbank.exe and fsbankcl.exe applications that comes included with the FMOD Engine.</p>
+<p>.fsb files provide a number of benefits over other audio file formats, including:</p>
+<ul>
+<li><strong>No-seek loading.</strong> FSB loading supports three continuous file reads: A main header read, a <span class="dead-link" href="glossary.html#sub-sound">sub-sound</span class="dead-link"> metadata read, and a raw audio data read.</li>
+<li><strong>Memory points.</strong> An FSB can be loaded into memory and simply 'pointed to' so that FMOD uses the memory where it is, and does not allocate any extra memory. See <a class="apilink" href="core-api-common.html#fmod_openmemory_point">FMOD_OPENMEMORY_POINT</a>.</li>
+<li><strong>Low memory overhead.</strong> A lot of file formats contain fluff such as tags and metadata. FSB stores information in compressed, bit packed formats with minimal overhead for optimum efficiency.</li>
+<li><strong>Multiple sounds in one file.</strong> Thousands of sounds can be stored inside one .fsb file, and selected by the API function <a class="apilink" href="core-api-sound.html#sound_getsubsound">Sound::getSubSound</a>. Because a single .fsb file can include the sample data used by multiple different sounds, .fsb files can also function as loading units for your game's sample data. As loading an .fsb file that contains the sample data for multiple different sounds requires involves less overhead than loading the sample data for all of those sounds individually, this saves resources in any situation where multiple different sounds' sample data would need to be loaded at the same time.</li>
+<li><strong>Efficient Ogg Vorbis.</strong> FSB strips out the 'Ogg' and keeps the 'Vorbis'. This means that one codebook can be shared between all sounds, saving megabytes of memory compared to loading .ogg files individually.</li>
+<li><strong>FADPCM codec support.</strong> The FMOD Engine supports a very efficient ADPCM variant called FADPCM. This variant is many times faster than a standard ADPCM decoder as it does not require branching, and is therefore very efficient on mobile devices. The quality is also far superior than most ADPCM variants, and lacks the 'hiss' notable in those formats.</li>
+</ul>
+<p>For more information about FMOD sound banks, see the <a href="loading-and-playing-sounds-in-the-core-api.html#supported-file-formats">Supported File Formats</a> section of the <a href="loading-and-playing-sounds-in-the-core-api.html">Loading and Playing Sounds in the Core API</a> chapter.</p>
+<h2 id="3d-sounds-and-channels"><a href="#3d-sounds-and-channels">2.8 3D Sounds and Channels</a></h2>
+<p>A 3D <a href="glossary.html#channel">channel</a> or 3D <a href="glossary.html#channel-group">channel group</a> is created with the <a href="core-api-common.html#fmod_3d">FMOD_3D</a> flag. This flag allows a channel or channel group to have a defined position, orientation, and velocity in 3D space, set by <a href="core-api-channelcontrol.html#channelcontrol_set3dattributes">ChannelControl::set3DAttributes</a>. These 3D attributes can be used by <a href="glossary.html#dsp">DSPs</a> on that channel or channel group, allowing them to process the signal of that channel or channel group in different ways depending on the 3D attributes' values. The most common reason for making a channel or channel group 3D is to spatialize it with a <a href="effects-reference.html#pan">panner effect</a>, panning and attenuating the <a href="glossary.html#signal">signal</a> to make it seem to come from a specific direction and distance.</p>
+<p><a href="glossary.html#sound">Sounds</a> can be set to 2D or 3D as well, by specifying the FMOD_3D flag when creating them with <a href="core-api-system.html#system_createsound">System::createSound</a>. In most cases, this isn't strictly necessary - you can make any channel 2D or 3D, regardless of which of those the sound is - but setting a sound to be 2D or 3D makes that the default for all channels based on that sound.</p>
+<h2 id="streams"><a href="#streams">2.9 Streams</a></h2>
+<p><a href="glossary.html#stream">Streaming</a> is a way of playing sound without having to load the entire audio asset to be played into memory first. Instead, the sample data is loaded piecemeal into a ring buffer. Each piece of the sample data is loaded into the buffer shortly before it is played and overwritten again as soon as it has finished playing, ensuring that only a tiny amount of the stream's sample data is stored in memory at any given time.</p>
+<p>The <a href="glossary.html#fmod-engine">FMOD Engine</a> supports streaming from file, memory, user callbacks, and http/shoutcast/icecast sources.</p>
+<p>Streaming <a href="glossary.html#sound">sounds</a> are created using <a href="core-api-system.html#system_createstream">System::createStream</a> or by adding the <code>FMOD_CREATESTREAM</code> flag to <a href="core-api-system.html#system_createsound">System::createSound</a>. Each streaming sound plays exactly one instance of its associated sample data. To play multiple instances of the same piece of sample data as streams, you must open and play a stream multiple times. Each such opened stream is its own sound.</p>
+<p>Streaming sounds are mostly used for music and dialogue, though they may be used for other sounds as well.</p>
+<h2 id="audio-devices"><a href="#audio-devices">2.10 Audio Devices</a></h2>
+<p>An audio device is any piece of hardware that accepts an <a href="glossary.html#signal">audio signal</a> and behaves differently according to the signal it receives.</p>
+<p>Most audio devices are designed to produce sound: Speakers, headphones, controller speakers, VoIP headsets, and so on. Some audio devices instead use the audio signals they receive for other purposes. For example, the vibrators in some controllers accept audio data and modulate the intensity and frequency of their vibration based on the data they receive.</p>
+<p>The <a href="glossary.html#core-api">Core API</a> is capable of outputting audio signals to audio devices.</p></div>
+
+<p class="manual-footer">FMOD Engine User Manual 2.03.14 (2026-05-28). &copy; 2026 Firelight Technologies Pty Ltd.</p>
+</div>
+</body>
+</html>
+

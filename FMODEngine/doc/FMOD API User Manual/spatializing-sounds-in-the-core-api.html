@@ -1,0 +1,299 @@
+<html>
+<head>
+<title>Core API Spatializing Sounds</title>
+<link rel="stylesheet" href="style/docs.css">
+<link rel="stylesheet" href="style/code_highlight.css">
+<script type="text/javascript" src="scripts/language-selector.js"></script></head>
+<body>
+<div class="docs-body">
+<div class="manual-toc">
+<p>FMOD Engine User Manual 2.03</p>
+<ul>
+<li><a href="welcome.html">Welcome to the FMOD Engine</a></li>
+<li><a href="core-api-concepts.html">Core API Key Concepts</a></li>
+<li><a href="running-the-core-api.html">Core API Getting Started</a></li>
+<li><a href="loading-and-playing-sounds-in-the-core-api.html">Core API Loading and Playing Sounds</a></li>
+<li class="manual-current-chapter manual-active-chapter"><a href="spatializing-sounds-in-the-core-api.html">Core API Spatializing Sounds</a><ul>
+<li><a href="#speaker-and-output-modes">Speaker and Output Modes</a></li>
+<li><a href="#loading-sounds-as-3d">Loading Sounds as 3D</a></li>
+<li><a href="#distance-models">Distance Models</a><ul>
+<li><a href="#inverse">Inverse</a></li>
+<li><a href="#inverse-tapered">Inverse Tapered</a></li>
+<li><a href="#linear-and-linear-squared">Linear and Linear Squared</a></li>
+<li><a href="#custom">Custom</a></li>
+</ul>
+</li>
+<li><a href="#speaker-channel-formats">Speaker Channel Formats</a></li>
+<li><a href="#advanced-global-3d-settings">Advanced Global 3D Settings</a></li>
+<li><a href="#advanced-3d-techniques">Advanced 3D Techniques</a></li>
+<li><a href="#controlling-a-spatializer-dsp">Controlling a Spatializer DSP</a><ul>
+<li><a href="#velocity">Velocity</a></li>
+<li><a href="#orientation-and-left-handed-vs-right-handed-coordinate-systems">Orientation and left-handed vs right-handed coordinate systems</a></li>
+<li><a href="#split-screen-multiple-listeners">Split Screen / Multiple Listeners</a></li>
+<li><a href="#stereo-and-multi-channel-audio">Stereo and Multi-channel Audio</a></li>
+</ul>
+</li>
+<li><a href="#spatial-audio">Spatial Audio</a><ul>
+<li><a href="#channel-based-approach">Channel based approach</a></li>
+<li><a href="#object-based-approach">Object based approach</a></li>
+<li><a href="#third-party-plug-ins">Third Party Plug-ins</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li><a href="mixing-and-routing-in-the-core-api.html">Core API Mixing and Routing</a></li>
+<li><a href="using-dsp-effects-in-the-core-api.html">Core API Using DSP Effects</a></li>
+<li><a href="effects-reference.html">Core API Effect Reference</a></li>
+<li><a href="managing-resources-in-the-core-api.html">Core API Managing Resources</a></li>
+<li><a href="advanced-core-api-topics.html">Core API Advanced Topics</a></li>
+<li><a href="core-api.html">Core API Reference</a></li>
+<li><a href="studio-api-getting-started.html">Studio API Getting Started</a></li>
+<li><a href="studio-guide.html">Studio API Guide</a></li>
+<li><a href="studio-api-3d-events.html">Studio API 3D Events</a></li>
+<li><a href="studio-api-threads.html">Studio API Threads</a></li>
+<li><a href="studio-api.html">Studio API Reference</a></li>
+<li><a href="platforms.html">Platform Details</a></li>
+<li><a href="dsp-plugin-api-guide.html">Plug-in DSP API Guide</a></li>
+<li><a href="plugin-api.html">Plug-in API Reference</a></li>
+<li><a href="fsbank-api.html">FSBank API Reference</a></li>
+<li><a href="troubleshooting.html">Troubleshooting</a></li>
+<li><a href="glossary.html">Glossary</a></li>
+</ul>
+</div>
+<div class="manual-content api">
+<h1>5. Core API Spatializing Sounds</h1>
+<p>This chapter will introduce you to using 3D sound with the <a href="glossary.html#core-api">Core API</a>. With it, you can easily implement interactive 3D audio and have access to features such as 5.1 or 7.1 speaker output, automatic attenuation, doppler, and more advanced psychoacoustic 3D audio techniques.</p>
+<p>For information specific to the <a href="glossary.html#studio-api">Studio API</a> and <a href="glossary.html#fmod-studio">FMOD Studio</a> events, see the <a href="studio-api-3d-events.html">Studio API 3D Events</a> chapter.</p>
+<h3 id="speaker-and-output-modes"><a href="#speaker-and-output-modes">5.0.1 Speaker and Output Modes</a></h3>
+<p>You do not need to set the speaker mode for FMOD. Any sound using <a class="apilink" href="core-api-common.html#fmod_3d">FMOD_3D</a> is automatically positioned in a surround speaker system. As long as the player's sound card supports it, and their operating system speaker settings are correct, their audio device will be able to output the sound in 5.1 or 7.1.</p>
+<h3 id="loading-sounds-as-3d"><a href="#loading-sounds-as-3d">5.0.2 Loading Sounds as 3D</a></h3>
+<p>When loading a sound or sound bank, the sound must be created with <a class="apilink" href="core-api-system.html#system_createsound">System::createSound</a> or <a class="apilink" href="core-api-system.html#system_createstream">System::createStream</a> using the FMOD_3D flag. ie.</p>
+<div class="highlight language-text"><pre><span></span>result = system-&gt;createSound(&quot;../media/drumloop.wav&quot;, FMOD_3D, 0, &amp;sound);
+if (result != FMOD_OK)
+{
+    HandleError(result);
+}
+</pre></div>
+
+<p>It is generally best not to try and switch between 3D and 2D at all, if you want though, you can change the <a class="apilink" href="core-api-sound.html">Sound</a> or <a class="apilink" href="core-api-channel.html">Channel</a>'s mode to <a class="apilink" href="core-api-common.html#fmod_3d_headrelative">FMOD_3D_HEADRELATIVE</a> at runtime which places the sound always relative to the listener, effectively sounding 2D as it will always follow the listener as the listener moves around.</p>
+<h3 id="distance-models"><a href="#distance-models">5.0.3 Distance Models</a></h3>
+<p>A major part of spatialization is attenuating the volume of a channel based on its distance from the listener. The FMOD Engine supports multiple different models for how this should occur.</p>
+<h4 id="inverse"><a href="#inverse">Inverse</a></h4>
+<p>This is the default FMOD 3D distance model. All sounds naturally attenuate (fade out) in the real world using an inverse distance attenuation. The flag to set to this mode is <a class="apilink" href="core-api-common.html#fmod_3d_inverserolloff">FMOD_3D_INVERSEROLLOFF</a> but if you're loading a sound you don't need to set this because it is the default. It is more for the purpose or resetting the mode back to the original if you set it to <a class="apilink" href="core-api-common.html#fmod_3d_linearrolloff">FMOD_3D_LINEARROLLOFF</a> at some later stage.</p>
+<p>When FMOD uses this model, 'mindistance' of a <a class="apilink" href="core-api-sound.html">Sound</a> / <a class="apilink" href="core-api-channel.html">Channel</a>, is the distance that the sound starts to attenuate from. This can simulate the sound being smaller or larger. By default, for every doubling of this mindistance, the sound volume will halve. This roll-off rate can be changed with <a class="apilink" href="core-api-system.html#system_set3dsettings">System::set3DSettings</a>.</p>
+<p>As an example of relative sound sizes, we can compare a bee and a jumbo jet. At only a meter or 2 away from a bee we will probably not hear it any more. In contrast, a jet will be heard from hundreds of meters away. In this case we might set the bee's mindistance to 0.1 meters. After a few meters it should fall silent. The jumbo jet's mindistance could be set to 50 meters. This could take many hundreds of meters of distance between listener and sound before it falls silent. In this case we now have a more realistic representation of the loudness of the sound, even though each wave file has a fully normalized 16bit waveform within. (ie if you played them in 2D they would both be the same volume).</p>
+<p>The 'maxdistance' does not affect the rate of roll-off, it simply means the distance where the sound stops attenuating. Don't set the maxdistance to a low number unless you want it to artificially stop attenuating. This is usually not wanted. Leave it at its default of 10000.0.</p>
+<h4 id="inverse-tapered"><a href="#inverse-tapered">Inverse Tapered</a></h4>
+<p>This is a combination of the inverse and linear-square roll-off models. At shorter distances where inverse roll-off would provide greater attenuation, it functions as inverse roll-off mode; then at greater distances where linear-square roll-off mode would provide greater attenuation, it uses that roll-off mode instead. For this roll-off mode, distance values greater than mindistance are scaled according to the <a href="core-api-system.html#system_set3dsettings">rolloffscale</a>. Inverse tapered roll-off mode approximates realistic behavior while still guaranteeing the sound attenuates to silence at maxdistance.</p>
+<h4 id="linear-and-linear-squared"><a href="#linear-and-linear-squared">Linear and Linear Squared</a></h4>
+<p>These are alternative distance models, also available in the FMOD Engine. To use them, add the <a class="apilink" href="core-api-common.html#fmod_3d_linearrolloff">FMOD_3D_LINEARROLLOFF</a> or <a class="apilink" href="core-api-common.html#fmod_3d_linearsquarerolloff">FMOD_3D_LINEARSQUAREROLLOFF</a> flag to <a class="apilink" href="core-api-system.html#system_createsound">System::createSound</a> or <a class="apilink" href="core-api-sound.html#sound_setmode">Sound::setMode</a> / <a class="apilink" href="core-api-channelcontrol.html#channelcontrol_setmode">ChannelControl::setMode</a>. While less realistic, these models are more game programmer-friendly, as they result in the attenuation fading linearly between 'mindistance' and 'maxdistance'. In these modes, the mindistance is the same as it is in the inverse model (i.e.: the minimum distance before the sound starts to attenuate), but the maxdistance is the point where the volume = 0 due to 3D distance. The attenuation in-between those two points is linear or linear squared, depending on which model is selected.</p>
+<h4 id="custom"><a href="#custom">Custom</a></h4>
+<p>Custom roll-off allows a <a class="apilink" href="core-api-system.html#fmod_3d_rolloff_callback">FMOD_3D_ROLLOFF_CALLBACK</a> to be set that allows you to calculate how the volume roll-off happens. If a callback is not convenient, the Core API also allows an array of points that are linearly interpolated between, to denote a 'curve', using <a class="apilink" href="core-api-channelcontrol.html#channelcontrol_set3dcustomrolloff">ChannelControl::set3DCustomRolloff</a>.</p>
+<h3 id="speaker-channel-formats"><a href="#speaker-channel-formats">5.0.4 Speaker Channel Formats</a></h3>
+<p>If the player's sound card supports it, any sound using <a class="apilink" href="core-api-common.html#fmod_3d">FMOD_3D</a> is automatically positioned in a surround speaker system, so you do not need to set the speaker mode for FMOD. Provided the player has correctly set their operating system's speaker settings, their audio device will be able to output the audio in 5.1 or 7.1.</p>
+<h3 id="advanced-global-3d-settings"><a href="#advanced-global-3d-settings">5.0.5 Advanced Global 3D Settings</a></h3>
+<p>There are three configurable settings in the FMOD Engine that affect all 3D sounds. These are:</p>
+<ul>
+<li><strong>Doppler factor.</strong> This is used to exaggerate or minimize the doppler effect.</li>
+<li><strong>Distance factor.</strong> This multiplies the langth of the distance units used by the FMOD Engine, allowing you to use distance units that match those used in your game (e.g.: centimeters, feet, meters, yards). </li>
+<li><strong>Roll-off scale.</strong> This affects 3D sounds that use roll-off modes other than FMOD_3D_CUSTOMROLLOFF, and controls how quickly such sounds attenuate as distance increases.</li>
+</ul>
+<p>All three settings can be set with <a class="apilink" href="core-api-system.html#system_set3dsettings">System::set3DSettings</a>. In most games, there is no need to set them.</p>
+<h3 id="advanced-3d-techniques"><a href="#advanced-3d-techniques">5.0.6 Advanced 3D Techniques</a></h3>
+<p>While spatialization is often enough on its own, some games benefit from more complex 3D behavior. Here's a few ideas.</p>
+<ul>
+<li><strong>Occlusion.</strong> A <a class="apilink" href="core-api-sound.html">Sound</a>'s underlying <a class="apilink" href="core-api-channel.html">Channel</a>s or <a class="apilink" href="core-api-channelgroup.html">ChannelGroup</a>s can have lowpass filtering applied to them to simulate sound going through walls or being muffled by large objects.</li>
+<li><strong>3D Reverb Zones for reverb panning.</strong> For more information, see the <a href="advanced-core-api-topics.html#3d-reverbs">3D Reverbs</a> section of the <a href="advanced-core-api-topics.html">Advanced Core API Topics</a> chapter. Reverb can also be occluded to not go through walls or objects.</li>
+<li><strong>Polygon based geometry occlusion.</strong> Add polygon data to FMOD's geometry engine, and FMOD will automatically occlude sound in realtime using raycasting. See more about this in the <a href="advanced-core-api-topics.html#3d-polygon-based-geometry-occlusion">3D Polygon based geometry occlusion</a> section of the <a href="advanced-core-api-topics.html">Advanced Core API Topics</a> chapter.</li>
+<li><strong>Morphing between 2D and 3D with multi-channel audio formats.</strong> <a class="apilink" href="core-api-channel.html">Channel</a>s can be a point source, or be morphed by the user into 2D audio, which is great for distance based envelopment. The closer a <a class="apilink" href="core-api-channel.html">Channel</a> is, the more it can spread into the other speakers, rather than flipping from one side to the other as it pans from one side to the other. See <a class="apilink" href="core-api-channelcontrol.html#channelcontrol_set3dlevel">ChannelControl::set3DLevel</a> for the function that lets the user change this mix.</li>
+<li><strong>Stereo and multi-channel audio formats can be used for 3D audio.</strong> Typically, a mono audio format is used for 3D audio, but multi-channel audio formats can be used to give extra impact. By default, multi-channel sample data is collapsed into a mono point source. To 'spread' the multiple channels use <a class="apilink" href="core-api-channelcontrol.html#channelcontrol_set3dspread">ChannelControl::set3DSpread</a>. This can give a more spatial effect for a sound that is coming from a certain direction. A subtle spread of sound in the distance may give the impression of being more effectively spatialized as if it were reflecting off nearby surfaces, or being 'big' and emitting different parts of the sound in different directions.</li>
+<li><strong>Spatialization plug-in support.</strong> 3rd party VR audio plug-ins can be used to give more realistic panning over headphones.</li>
+</ul>
+<h2 id="controlling-a-spatializer-dsp"><a href="#controlling-a-spatializer-dsp">5.1 Controlling a Spatializer DSP</a></h2>
+<p>Controlling a spatializer <a href="glossary.html#dsp">DSP</a> using the <a href="glossary.html#core-api">Core API</a> requires setting the data parameter associated with 3D attributes for the <a class="apilink" href="core-api-channel.html">Channel</a>. This is a data parameter of type <a class="apilink" href="plugin-api-dsp.html#fmod_dsp_parameter_data_type_3dattributes">FMOD_DSP_PARAMETER_DATA_TYPE_3DATTRIBUTES</a> or <a class="apilink" href="plugin-api-dsp.html#fmod_dsp_parameter_data_type_3dattributes_multi">FMOD_DSP_PARAMETER_DATA_TYPE_3DATTRIBUTES_MULTI</a>. When using the Core API <a class="apilink" href="core-api-system.html">System</a>, you must set this DSP parameter explicitly. To do this, use <a class="apilink" href="core-api-channelcontrol.html#channelcontrol_set3dattributes">ChannelControl::set3DAttributes</a> with the handle that was returned from <a class="apilink" href="core-api-system.html#system_playsound">System::playSound</a> for the channel. If 3D positioning of a <a class="apilink" href="core-api-channelgroup.html">ChannelGroup</a> instead, set the <a class="apilink" href="core-api-channelgroup.html">ChannelGroup</a> to be 3D once with <a class="apilink" href="core-api-channelcontrol.html#channelcontrol_setmode">ChannelControl::setMode</a>, then call <a class="apilink" href="core-api-channelcontrol.html#channelcontrol_set3dattributes">ChannelControl::set3DAttributes</a> for that channel group.</p>
+<p>Because the effect of a spatializer DSP depends on the position of the channel or channel group relative to the listener, it is also necessary to update the 3D attributes of the listener once per frame with <a class="apilink" href="core-api-system.html#system_set3dlistenerattributes">System::set3DListenerAttributes</a>.</p>
+<p>Call <a class="apilink" href="core-api-system.html#system_update">System::update</a> once per frame so the 3D calculations can update based on the positions and other attributes.</p>
+<p>This method works with our <a href="effects-reference.html#pan">pan</a> DSP, the <a href="effects-reference.html#object-panner">object panner</a> DSP, the Resonance Source and Soundfield spatializers, and any other third party plug-ins that make use of the FMOD spatializers.</p>
+<p>Attributes must use a coordinate system with the positive Y axis being up and the positive X axis being right (left-handed coordinate system). FMOD converts passed in coordinates from right-handed to left-handed for the plug-in if the System is initialized with the <a class="apilink" href="core-api-system.html#fmod_init_3d_righthanded">FMOD_INIT_3D_RIGHTHANDED</a> flag.</p>
+<p>The absolute data for the <a class="apilink" href="plugin-api-dsp.html#fmod_dsp_parameter_3dattributes">FMOD_DSP_PARAMETER_3DATTRIBUTES</a> is straightforward, however the relative part requires some work to calculate.</p>
+<div class="highlight language-text"><pre><span></span>/*
+    This code supposes the availability of a maths library with basic support for 3D and 4D vectors and 4x4 matrices:
+
+    // 3D vector
+    class Vec3f
+    {
+    public:
+        float x, y, z;
+
+        // Initialize x, y &amp; z from the corresponding elements of FMOD_VECTOR
+        Vec3f(const FMOD_VECTOR &amp;v);
+    };
+
+    // 4D vector
+    class Vec4f
+    {
+    public:
+        float x, y, z, w;
+
+        Vec4f(const Vec3f &amp;v, float w);
+
+        // Initialize x, y &amp; z from the corresponding elements of FMOD_VECTOR
+        Vec4f(const FMOD_VECTOR &amp;v, float w);
+
+        // Copy x, y &amp; z to the corresponding elements of FMOD_VECTOR
+        void toFMOD(FMOD_VECTOR &amp;v);
+    };
+
+    // 4x4 matrix
+    class Matrix44f
+    {
+    public:
+        Vec4f X, Y, Z, W;
+    };
+
+    // 3D Vector cross product
+    Vec3f crossProduct(const Vec3f &amp;a, const Vec3f &amp;b);
+
+    // 4D Vector addition
+    Vec4f operator+(const Vec4f &amp;a, const Vec4f &amp;b);
+
+    // 4D Vector subtraction
+    Vec4f operator-(const Vec4f&amp; a, const Vec4f&amp; b);
+
+    // Matrix multiplication m * v
+    Vec4f operator*(const Matrix44f &amp;m, const Vec4f &amp;v);
+
+    // 4x4 Matrix inverse
+    Matrix44f inverse(const Matrix44f &amp;m);
+*/
+
+void calculatePannerAttributes(const FMOD_3D_ATTRIBUTES &amp;listenerAttributes, const FMOD_3D_ATTRIBUTES &amp;emitterAttributes, FMOD_DSP_PARAMETER_3DATTRIBUTES &amp;pannerAttributes)
+{
+    // pannerAttributes.relative is the emitter position and orientation transformed into the listener&#39;s space:
+
+    // First we need the 3D transformation for the listener.
+    Vec3f right = crossProduct(listenerAttributes.up, listenerAttributes.forward);
+
+    Matrix44f listenerTransform;
+    listenerTransform.X = Vec4f(right, 0.0f);
+    listenerTransform.Y = Vec4f(listenerAttributes.up, 0.0f);
+    listenerTransform.Z = Vec4f(listenerAttributes.forward, 0.0f);
+    listenerTransform.W = Vec4f(listenerAttributes.position, 1.0f);
+
+    // Now we use the inverse of the listener&#39;s 3D transformation to transform the emitter attributes into the listener&#39;s space:
+    Matrix44f invListenerTransform = inverse(listenerTransform);
+
+    Vec4f position = invListenerTransform * Vec4f(emitterAttributes.position, 1.0f);
+
+    // Setting the w component of the 4D vector to zero means the matrix multiplication will only rotate the vector.
+    Vec4f forward = invListenerTransform * Vec4f(emitterAttributes.forward, 0.0f);
+    Vec4f up = invListenerTransform * Vec4f(emitterAttributes.up, 0.0f);
+    Vec4f velocity = invListenerTransform * (Vec4f(emitterAttributes.velocity, 0.0f) - Vec4f(listenerAttributes.velocity, 0.0f));
+
+    // We are now done computing the relative attributes.
+    position.toFMOD(pannerAttributes.relative.position);
+    forward.toFMOD(pannerAttributes.relative.forward);
+    up.toFMOD(pannerAttributes.relative.up);
+    velocity.toFMOD(pannerAttributes.relative.velocity);
+
+    // pannerAttributes.absolute is simply the emitter position and orientation:
+    pannerAttributes.absolute = emitterAttributes;
+}
+</pre></div>
+
+<p>When using <a class="apilink" href="plugin-api-dsp.html#fmod_dsp_parameter_3dattributes_multi">FMOD_DSP_PARAMETER_3DATTRIBUTES_MULTI</a>, you must call <code>calculatePannerAttributes</code> for each listener, filling in the appropriate listener attributes.</p>
+<p>Set this on the DSP by using <a class="apilink" href="core-api-dsp.html#dsp_setparameterdata">DSP::setParameterData</a> with the index of the <a class="apilink" href="plugin-api-dsp.html#fmod_dsp_parameter_data_type_3dattributes">FMOD_DSP_PARAMETER_DATA_TYPE_3DATTRIBUTES</a>. You will need to check with the author of the DSP for the structure index. Pass the data into the DSP using <a class="apilink" href="core-api-dsp.html#dsp_setparameterdata">DSP::setParameterData</a> with the index of the 3D Attributes, <a class="apilink" href="plugin-api-dsp.html#fmod_dsp_parameter_data_type_3dattributes">FMOD_DSP_PARAMETER_DATA_TYPE_3DATTRIBUTES</a> or <a class="apilink" href="plugin-api-dsp.html#fmod_dsp_parameter_data_type_3dattributes_multi">FMOD_DSP_PARAMETER_DATA_TYPE_3DATTRIBUTES_MULTI</a>.</p>
+<p>The following is an example of a typical game's audio loop that uses <a class="apilink" href="core-api-system.html#system_update">System::update</a> to update the 3D attributes of channels and listeners, as well as the FMOD channel management system, once per frame.</p>
+<div class="highlight language-text"><pre><span></span>do
+{
+    UpdateGame();       // here the game is updated and the sources would be moved with channel-&gt;set3DAttibutes.
+
+    system-&gt;set3DListenerAttributes(0, &amp;listener_pos, &amp;listener_vel, &amp;listener_forward, &amp;listener_up);     // update &#39;ears&#39;
+
+    system-&gt;update();   // needed to update 3d engine, once per frame.
+
+} while (gamerunning);
+</pre></div>
+
+<p>Most games usually take the position, velocity and orientation from the camera's vectors and matrix.</p>
+<h3 id="velocity"><a href="#velocity">5.1.1 Velocity</a></h3>
+<p>Velocity is only required if you want doppler effects. If you do not, you can pass 0 or NULL to both <a class="apilink" href="core-api-system.html#system_set3dlistenerattributes">System::set3DListenerAttributes</a> and <a class="apilink" href="core-api-channelcontrol.html#channelcontrol_set3dattributes">ChannelControl::set3DAttributes</a> for the velocity parameter, and no doppler effect will be heard.</p>
+<p>It is important that the velocity passed to the FMOD Engine is in meters per second and not meters per frame. To get the correct velocity vector, use a method such as calculating it using vectors from your game's physics code. Don't just subtract the last frame's position from the current position, as this is affected by framerate, meaning that the higher the framerate the smaller the position deltas and thus the smaller the doppler effect, which is incorrect.</p>
+<p>If the only way you can get the velocity is to subtract this and last frame's position vectors, then remember to time adjust them from meters per frame back up to meters per second. This is done simply by scaling the difference vector obtained by subtracting the two position vectors, by one over the frame time delta.</p>
+<p>Here is an example.</p>
+<div class="highlight language-text"><pre><span></span>velx = (posx-lastposx) * 1000 / timedelta;
+velz = (posy-lastposy) * 1000 / timedelta;
+velz = (posz-lastposz) * 1000 / timedelta;
+</pre></div>
+
+<p><code>timedelta</code> is the time since the last frame in milliseconds. This can be obtained with functions such as timeGetTime(). So at 60fps, the <code>timedelta</code> would be 16.67ms. if the source moved 0.1 meters in this time, the actual velocity in meters per second would be:</p>
+<div class="highlight language-text"><pre><span></span>vel = 0.1 * 1000 / 16.67 = 6 meters per second.
+</pre></div>
+
+<p>Similarly, if we only have half the framerate of 30fps, then subtracting position deltas will gives us twice the distance that it would at 60fps (so it would have moved 0.2 meters this time).</p>
+<div class="highlight language-text"><pre><span></span>vel = 0.2 * 1000 / 33.33 = 6 meters per second.
+</pre></div>
+
+<h3 id="orientation-and-left-handed-vs-right-handed-coordinate-systems"><a href="#orientation-and-left-handed-vs-right-handed-coordinate-systems">5.1.2 Orientation and left-handed vs right-handed coordinate systems</a></h3>
+<p>Getting the correct orientation set up is essential if you want the source to move around you in 3D space.</p>
+<p>By default, FMOD uses a left-handed coordinate system. If you are using a right-handed coordinate system then FMOD must be initialized by passing <a class="apilink" href="core-api-system.html#fmod_init_3d_righthanded">FMOD_INIT_3D_RIGHTHANDED</a> to <a class="apilink" href="core-api-system.html#system_init">System::init</a>. In either case FMOD requires that the positive Y axis is up and the positive X axis is right, if your coordinate system uses a different convention then you must rotate your vectors into FMOD's space before passing them to FMOD.</p>
+<p>Note for plug-in writers: FMOD always uses a left-handed coordinate system when passing 3D data to plug-ins. This coordinate system is fixed to use +X = right, +Y = up, +Z = forward. When the system is initialised to use right-handed coordinates FMOD will flip the Z component of vectors before passing them to plug-ins.</p>
+<h3 id="split-screen-multiple-listeners"><a href="#split-screen-multiple-listeners">5.1.3 Split Screen / Multiple Listeners</a></h3>
+<p>Some games have a split screen mode, where different sections of the screen represent cameras in different locations. As the listener is almost always positioned in the same location as the camera, this means that the FMOD Engine has to be able to handle more than one listener at once. This is handled by using <a class="apilink" href="core-api-system.html#system_set3dnumlisteners">System::set3DNumListeners</a> and <a class="apilink" href="core-api-system.html#system_set3dlistenerattributes">System::set3DListenerAttributes</a>.</p>
+<p>For example, if you have two player split screen, <a class="apilink" href="core-api-system.html#system_set3dnumlisteners">System::set3DNumListeners</a> would be set to two. When updating the positions of the listener, for each 'camera' or 'listener' call <a class="apilink" href="core-api-system.html#system_set3dlistenerattributes">System::set3DListenerAttributes</a> with 0 as the listener number of the first camera, and 1 for the listener number of the second camera. </p>
+<p>When using multiple listeners in the Core API, 3D <a class="apilink" href="core-api-channel.html">Channel</a>s have the following behavior:</p>
+<ul>
+<li><strong>All doppler is disabled.</strong> This is because one listener might be going towards the sound, and another listener might be going away from the sound. To avoid confusion, the doppler is simply turned off.</li>
+<li><strong>All audio is mono.</strong> If to one listener the sound should be coming out of the left speaker, and to another listener it should be coming out of the right speaker, there will be a conflict, and more confusion, so all sounds are simply panned to the middle. This removes confusion.</li>
+<li><strong>Each sound is played only once as it would with a single player game, instead of a different instance of the sound being played for each listener.</strong> This saves voice and CPU resources. The sound's effective audibility is determined by the closest listener to the sound, which makes sense, as the sound should be the loudest to the nearest listener, and more distant listeners would not have any impact on the volume.</li>
+</ul>
+<h3 id="stereo-and-multi-channel-audio"><a href="#stereo-and-multi-channel-audio">5.1.4 Stereo and Multi-channel Audio</a></h3>
+<p>A stereo sound, when played as 3d, is split into two mono voices internally which are separately 3D positionable. Multi-channel audio formats are also supported, so an eight channel sound (for example) allocates 8 mono voices internally in FMOD. To rotate the left and right part of a stereo 3D sound in 3D space, use the <a class="apilink" href="core-api-channelcontrol.html#channelcontrol_set3dspread">ChannelControl::set3DSpread</a> function. By default, the subchannels position themselves in the same place, therefore sounding 'mono'.</p>
+<h2 id="spatial-audio"><a href="#spatial-audio">5.2 Spatial Audio</a></h2>
+<p>Historically, audio spatialization (the process of taking an audio file and making it sound "in the world") has been all about positioning sound in speakers arranged on a horizontal plane. This arrangement is often seen in the form of 5.1 or 7.1 surround. With the advancement of VR technology, however, more emphasis has been put on making sound as immersive as the visuals. This is achieved by more advanced processing of the <a href="glossary.html#signal">audio signals</a> for the traditional horizontal plane as well as the introduction of height spatialization. This has given the rise of the term "spatial audio" which focuses on this more realistic approach to spatialization.</p>
+<p>Within FMOD there are several ways you can achieve a more immersive spatialization experience, depending on your target platform some may or may not apply. The following sections outline a few general approaches with specific implementation details contained within.</p>
+<h3 id="channel-based-approach"><a href="#channel-based-approach">5.2.1 Channel based approach</a></h3>
+<p>The most traditional way to approach spatialization is by panning signal into virtual speakers, so with the introduction of 7.1.4 (7 horizontal plane speakers, 1 sub-woofer, 4 roof speakers) you can do just this.</p>
+<ul>
+<li>Set your <a href="core-api-system.html">FMOD::System</a> to the appropriate speaker mode by calling <code>System::setSoftwareFormat(0, FMOD_SPEAKERMODE_7POINT1POINT4, 0)</code>.</li>
+<li>Select an output mode capable of rendering 7.1.4 content <code>System::setOutput(FMOD_OUTPUTTYPE_WINSONIC)</code>.</li>
+</ul>
+<p>You can now <a class="apilink" href="core-api-system.html#system_createsound">System::createSound</a> and <a class="apilink" href="core-api-system.html#system_playsound">System::playSound</a> content authored as 7.1.4. If you have the necessary sound system setup (i.e. Dolby Atmos) you will hear the sound play back including the ceiling speakers. If you have a headphone based setup (i.e. Windows Sonic for Headphones or Dolby Atmos for Headphones) you will hear an approximation of ceiling speakers.</p>
+<p>To take an existing horizontal plane signal and push it into the ceiling plane you can create an FMOD spatializer and adjust the height controls.</p>
+<ul>
+<li>Create the spatializer with <code>System::createDSPByType(FMOD_DSP_TYPE_PAN)</code>.</li>
+<li>Add it to an <a class="apilink" href="core-api-channel.html">Channel</a> or <a class="apilink" href="core-api-channelgroup.html">ChannelGroup</a> with <a class="apilink" href="core-api-channelcontrol.html#channelcontrol_adddsp">ChannelControl::addDSP</a>.</li>
+<li>Control the height by setting <a class="apilink" href="core-api-common-dsp-effects.html#fmod_dsp_pan_2d_height_blend">FMOD_DSP_PAN_2D_HEIGHT_BLEND</a> via <a class="apilink" href="core-api-dsp.html#dsp_setparameterfloat">DSP::setParameterFloat</a>.</li>
+</ul>
+<p>Not only will this let you blend to the 0.0.4 ceiling speakers by setting the value between 0.0 and 1.0, it will also let you blend from the 0.0.4 ceiling speakers to the ground plane 7.1.0 by setting the value between 0.0 and -1.0.</p>
+<p>The <a class="apilink" href="core-api-system.html#fmod_outputtype_winsonic">FMOD_OUTPUTTYPE_WINSONIC</a> plug-in supports 7.1.4 output available on Windows, UWP, Xbox One and Xbox Series X|S. Also, the <a class="apilink" href="core-api-system.html#fmod_outputtype_phase">FMOD_OUTPUTTYPE_PHASE</a> plug-in supports 7.1.4 output for iOS devices. Other platforms will fold 7.1.4 down to 7.1.</p>
+<h3 id="object-based-approach"><a href="#object-based-approach">5.2.2 Object based approach</a></h3>
+<p>To get more discrete spatialization of an <a href="glossary.html#signal">audio signal</a> you can use the FMOD object spatializer, so named because the audio signal is packaged with the spatialization information (position, orientation, etc) and sent to an object mixer. Often used to highlight important sounds with strong localization to add interest to a scene, usually used in-conjunction with the channel based approach, be that 7.1.4 or even simply 5.1 / 7.1.</p>
+<ul>
+<li>Set your FMOD::System to an object ready output plug-in by calling <code>System::setOutput(FMOD_OUTPUTTYPE_WINSONIC)</code> or <code>System::setOutput(FMOD_OUTPUTTYPE_AUDIO3D)</code> or <code>System::setOutput(FMOD_OUTPUTTYPE_AUDIOOUT)</code> or <code>System::setOutput(FMOD_OUTPUTTYPE_PHASE)</code>.</li>
+<li>Create an object spatializer with <code>System::createDSPByType(FMOD_DSP_TYPE_OBJECTPAN)</code>.</li>
+<li>Provide 3D position information with <a class="apilink" href="core-api-common-dsp-effects.html#fmod_dsp_objectpan_3d_position">FMOD_DSP_OBJECTPAN_3D_POSITION</a> via <a class="apilink" href="core-api-dsp.html#dsp_setparameterdata">DSP::setParameterData</a>.</li>
+</ul>
+<p>There is no limit to how many <a class="apilink" href="core-api-common-dsp-effects.html#fmod_dsp_type_objectpan">FMOD_DSP_TYPE_OBJECTPAN</a> <a href="glossary.html#dsp">DSPs</a> you can create, however there is a limit to how many can be processed at a time. This limit is flexible, and varies from platform to platform. When there are more object spatializers in use than there are available resources for, FMOD virtualizes the least significant sounds by processing with a traditional channel based mix.</p>
+<p>An important consideration, when using object spatializers, is signal flow. Unlike most DSPs, after the signal enters an object spatializer DSP it is sent out to the object mixer. Regardless of whether the object mixer is a software library or a physical piece of hardware, the result is that you no longer have access to that signal. Any processing you would like to perform on that signal must therefore be accomplished before it enters the object spatializer DSP. Despite this, to assist mixing, the object spatializer automatically applies any "downstream" <a class="apilink" href="core-api-channelgroup.html">ChannelGroup</a> volume settings.</p>
+<p>Object spatialization is available via the following output plug-ins:</p>
+<ul>
+<li><a class="apilink" href="core-api-system.html#fmod_outputtype_winsonic">FMOD_OUTPUTTYPE_WINSONIC</a> for Windows, UWP, Xbox One and Xbox Series X|S</li>
+<li><a class="apilink" href="core-api-system.html#fmod_outputtype_audio3d">FMOD_OUTPUTTYPE_AUDIO3D</a> for PS4 with PS VR breakout box</li>
+<li><a class="apilink" href="core-api-system.html#fmod_outputtype_audioout">FMOD_OUTPUTTYPE_AUDIOOUT</a> for PS5</li>
+</ul>
+<p>Other output plug-ins will emulate object spatialization using traditional channel based panning.</p>
+<h3 id="third-party-plug-ins"><a href="#third-party-plug-ins">5.2.3 Third Party Plug-ins</a></h3>
+<p>In addition to the built-in channel and object based approaches there are third party plug-ins available that can assist too. The FMOD DSP plug-in API (see <a class="apilink" href="plugin-api-dsp.html#fmod_dsp_description">FMOD_DSP_DESCRIPTION</a>) allows any developer to produce an interface for their spatial audio technology and provide it across all FMOD platforms. Additionally the FMOD output plug-in API (see <a class="apilink" href="plugin-api-output.html#fmod_output_description">FMOD_OUTPUT_DESCRIPTION</a>) allows developers to implement a renderer for the FMOD object spatializer extending the functionality to more platforms and more technologies.</p>
+<p>Some examples of publicly-available third-party plug-ins:</p>
+<ul>
+<li><strong>Resonance Audio Spatializer.</strong> The Resonance Audio cross-platform suite of plug-ins comes bundled with FMOD. Resonance Audio offers a "Source" plug-in which behaves much like the FMOD object spatializer, in that audio is sent out to an object mixer, however the final signal returns as binaural output at the "Listener" plug-in. Resonance Audio also offers a "Soundfield" plug-in for playing back first order Ambisonic sound fields. For more details about the usage of Resonance Audio please check out the <a href="https://resonance-audio.github.io/resonance-audio/develop/fmod/getting-started.html">user guide</a>.</li>
+<li><strong>Oculus Spatializer.</strong> Another cross-platform suite of spatial audio plug-ins is that offered by Oculus as part of their Audio SDK. You can find instructions and downloads for these available on their <a href="https://developer.oculus.com/documentation/native/audio-osp-fmod-overview">website</a>.</li>
+<li><strong>Steam Audio.</strong> Valve Software offers another cross-platform suite of spatial audio plug-ins as part of their Steam Audio SDK. You can find getting started information available on their <a href="https://valvesoftware.github.io/steam-audio/doc/fmod">website</a> with downloads on <a href="https://github.com/ValveSoftware/steam-audio/releases">GitHub</a>.</li>
+</ul></div>
+
+<p class="manual-footer">FMOD Engine User Manual 2.03.14 (2026-05-28). &copy; 2026 Firelight Technologies Pty Ltd.</p>
+</div>
+</body>
+</html>
+
