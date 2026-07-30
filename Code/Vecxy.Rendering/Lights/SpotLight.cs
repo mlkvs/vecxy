@@ -3,7 +3,7 @@ using Vecxy.Scene;
 
 namespace Vecxy.Rendering;
 
-public sealed class SpotLight : Light
+public sealed class SpotLight : ALight
 {
     private float _innerConeAngle;
     private float _outerConeAngle = MathF.PI / 4.0f;

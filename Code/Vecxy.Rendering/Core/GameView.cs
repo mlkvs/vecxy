@@ -1,23 +1,6 @@
 using System.Numerics;
 namespace Vecxy.Rendering;
 
-public enum ERenderPhase : byte
-{
-    Background,
-    Opaque,
-    Transparent,
-    Overlay
-}
-
-public interface IRenderTarget
-{
-    int Width { get; }
-    int Height { get; }
-
-    void Bind(GraphicsDevice device);
-    void Present();
-}
-
 public sealed class GameView
 {
     private readonly List<RenderItem> _items = [];
@@ -66,30 +49,5 @@ public sealed class GameView
         }
 
         _items.Clear();
-    }
-}
-
-public sealed class RenderItem
-{
-    public ERenderPhase Phase { get; set; }
-    public Mesh Mesh { get; }
-    public Material Material { get; }
-    public Matrix4x4 Transform { get; set; }
-    public bool Enabled { get; set; } = true;
-
-    internal RenderItem(
-        ERenderPhase phase,
-        Mesh mesh,
-        Material material,
-        Matrix4x4 transform)
-    {
-        Phase = phase;
-        Mesh = mesh;
-        Material = material;
-        Transform = transform;
-    }
-
-    internal void ReleaseMaterial()
-    {
     }
 }

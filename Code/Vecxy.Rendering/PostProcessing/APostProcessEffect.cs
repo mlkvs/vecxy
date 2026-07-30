@@ -1,20 +1,6 @@
-using System.Numerics;
 using Vecxy.Assets;
 
 namespace Vecxy.Rendering;
-
-public readonly record struct PostProcessContext(
-    Vector2 Resolution,
-    float Time,
-    Camera Camera);
-
-public abstract class APostProcessConfig : IYamlConfig
-{
-    public bool Enabled { get; set; } = true;
-    public int Order { get; set; }
-
-    public abstract void Validate(string path);
-}
 
 public abstract class APostProcessEffect : IDisposable
 {
@@ -55,8 +41,7 @@ public abstract class APostProcessEffect : IDisposable
     }
 }
 
-public abstract class APostProcessEffect<TConfig> : APostProcessEffect
-    where TConfig : APostProcessConfig
+public abstract class APostProcessEffect<TConfig> : APostProcessEffect where TConfig : APostProcessConfig
 {
     private readonly TConfig _defaults;
     private ConfigRef<TConfig>? _config;

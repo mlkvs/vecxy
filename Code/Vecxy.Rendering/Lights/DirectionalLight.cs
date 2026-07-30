@@ -3,7 +3,7 @@ using Vecxy.Scene;
 
 namespace Vecxy.Rendering;
 
-public sealed class DirectionalLight : Light
+public sealed class DirectionalLight : ALight
 {
     public override void OnGizmos(ISceneGizmoDrawer gizmos)
     {

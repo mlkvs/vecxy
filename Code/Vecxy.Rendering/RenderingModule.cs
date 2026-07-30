@@ -24,8 +24,6 @@ public interface IRenderer
     Mesh CreateQuad();
 }
 
-public sealed class RenderingSceneSystem : ASceneSystem;
-
 public interface ISceneInstantiator
 {
     SceneObject InstantiateModel(
@@ -78,14 +76,6 @@ public sealed class RenderingModule(
                 typeof(IMeshResolver),
                 typeof(IRenderOverlayStage)
             ];
-
-        public override void RegisterGlobal(ContainerBuilder builder)
-        {
-            builder
-                .RegisterType<RenderingSceneSystem>()
-                .As<ISceneSystem>()
-                .SingleInstance();
-        }
 
         protected override void RegisterModule(
             ContainerBuilder builder)
@@ -164,8 +154,6 @@ public sealed class RenderingModule(
 
     public void OnInitialize()
     {
-        assets.RegisterImporter<Model>(new ModelImporter());
-        assets.RegisterImporter<Material>(new MaterialImporter());
         _litShader = assets.Load<ShaderAsset>("Shaders/Lit.glsl");
         _skyboxShader = assets.Load<ShaderAsset>("Shaders/Skybox.glsl");
         _copyPostShader = assets.Load<ShaderAsset>("Shaders/PostProcessing/Copy.glsl");

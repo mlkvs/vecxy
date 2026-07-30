@@ -8,4 +8,11 @@
       <ProjectReference Include="..\Vecxy.Rendering\Vecxy.Rendering.csproj" />
       <ProjectReference Include="..\Vecxy.Scene\Vecxy.Scene.csproj" />
     </ItemGroup>
+    
+    <ItemGroup>
+        <Content Include="Assets\**\*">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+            <TargetPath>Assets\%(RecursiveDir)%(Filename)%(Extension)</TargetPath>
+        </Content>
+    </ItemGroup>
 </Project>

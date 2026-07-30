@@ -3,12 +3,6 @@ using Vecxy.Scene;
 
 namespace Vecxy.Rendering;
 
-public enum ECameraProjection : byte
-{
-    Perspective,
-    Orthographic
-}
-
 public sealed class Camera : AComponent
 {
     private float _fieldOfView = 60.0f;
@@ -16,8 +10,7 @@ public sealed class Camera : AComponent
     private float _farPlane = 1000.0f;
     private float _orthographicSize = 5.0f;
 
-    public ECameraProjection Projection { get; set; } =
-        ECameraProjection.Perspective;
+    public ECameraProjection Projection { get; set; } = ECameraProjection.Perspective;
 
     public float FieldOfView
     {
@@ -127,9 +120,7 @@ public sealed class Camera : AComponent
         };
     }
 
-    private static Matrix4x4 CreatePerspectiveProjection(
-        float fieldOfView,
-        float aspectRatio,
+    private static Matrix4x4 CreatePerspectiveProjection(float fieldOfView, float aspectRatio,
         float nearPlane,
         float farPlane)
     {
@@ -144,18 +135,16 @@ public sealed class Camera : AComponent
             0.0f, 0.0f, 2.0f * farPlane * nearPlane / depth, 0.0f);
     }
 
-    private static Matrix4x4 CreateOrthographicProjection(
-        float width,
-        float height,
-        float nearPlane,
-        float farPlane)
+    private static Matrix4x4 CreateOrthographicProjection(float width, float height, float nearPlane, float farPlane)
     {
         var depth = farPlane - nearPlane;
 
-        return new Matrix4x4(
+        return new Matrix4x4
+        (
             2.0f / width, 0.0f, 0.0f, 0.0f,
             0.0f, 2.0f / height, 0.0f, 0.0f,
             0.0f, 0.0f, -2.0f / depth, 0.0f,
-            0.0f, 0.0f, -(farPlane + nearPlane) / depth, 1.0f);
+            0.0f, 0.0f, -(farPlane + nearPlane) / depth, 1.0f
+        );
     }
 }

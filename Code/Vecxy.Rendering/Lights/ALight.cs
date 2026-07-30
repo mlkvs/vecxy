@@ -3,7 +3,7 @@ using Vecxy.Scene;
 
 namespace Vecxy.Rendering;
 
-public abstract class Light : AComponent
+public abstract class ALight : AComponent
 {
     private Vector3 _color = Vector3.One;
     private float _intensity = 1.0f;

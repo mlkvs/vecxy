@@ -15,21 +15,13 @@ public sealed class PostProcessing : AComponent
 
     public IReadOnlyList<APostProcessEffect> CustomEffects => _customEffects;
 
-    public PostProcessing()
-    {
-    }
-
-    public PostProcessing(
-        IConfigProvider configs,
-        string basePath = "PostProcessing")
+    public PostProcessing(IConfigProvider configs, string basePath = "PostProcessing")
     {
         ArgumentNullException.ThrowIfNull(configs);
         ConfigureBuiltIns(configs, basePath);
     }
 
-    public void ConfigureBuiltIns(
-        IConfigProvider configs,
-        string basePath = "PostProcessing")
+    public void ConfigureBuiltIns(IConfigProvider configs, string basePath = "PostProcessing")
     {
         ObjectDisposedException.ThrowIf(IsDestroyed, this);
         ArgumentNullException.ThrowIfNull(configs);

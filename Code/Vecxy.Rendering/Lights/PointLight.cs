@@ -3,7 +3,7 @@ using Vecxy.Scene;
 
 namespace Vecxy.Rendering;
 
-public sealed class PointLight : Light
+public sealed class PointLight : ALight
 {
     public override void OnGizmos(ISceneGizmoDrawer gizmos)
     {

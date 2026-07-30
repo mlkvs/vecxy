@@ -2271,7 +2271,7 @@ public sealed class EditorModule(
             return MathF.Max(0.001f, value);
         }
 
-        if (target is Light &&
+        if (target is ALight &&
             property.Name is "Range" or "Intensity")
         {
             return MathF.Max(0.0f, value);
