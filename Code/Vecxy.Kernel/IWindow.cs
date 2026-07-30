@@ -30,6 +30,7 @@ public interface IWindow : IDisposable
     void PollEvents();
     void MakeCurrent();
     void SwapBuffers();
+    void Close();
     void ToggleFullscreen();
     void SetCursorCaptured(bool captured);
     nint GetProcAddress(string name);

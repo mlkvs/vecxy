@@ -114,6 +114,8 @@ public sealed class Window : IWindow
 
     public void MakeCurrent() => _instance.GLContext?.MakeCurrent();
 
+    public void Close() => _instance.Close();
+
     public void ToggleFullscreen()
     {
         if (_isFullscreen)

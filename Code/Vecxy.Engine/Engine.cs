@@ -11,6 +11,8 @@ public sealed class Engine : IDisposable
     {
         public IWindow.Options Window = new();
         public int TargetFrameRate { get; init; } = 60;
+        public bool Headless { get; init; }
+        public Action<ContainerBuilder>? ConfigureServices { get; init; }
     }
 
     private readonly Options _options;
@@ -37,7 +39,9 @@ public sealed class Engine : IDisposable
         _layerDefinitions = layerDefinitions;
         _layerDefinitionTrees = FlattenLayerDefinitions(layerDefinitions);
 
-        _window = new Window(options.Window);
+        _window = options.Headless
+            ? new HeadlessWindow(options.Window)
+            : new Window(options.Window);
 
         var builder = new ContainerBuilder();
 
@@ -48,6 +52,8 @@ public sealed class Engine : IDisposable
         builder.RegisterInstance(_options)
             .AsSelf()
             .SingleInstance();
+
+        _options.ConfigureServices?.Invoke(builder);
 
         foreach (var definitions in _layerDefinitionTrees)
         {
@@ -82,6 +88,14 @@ public sealed class Engine : IDisposable
         {
             _isRunning = false;
         }
+    }
+
+    public void Stop()
+    {
+        if (_disposed)
+            return;
+
+        _window.Close();
     }
 
     private void CreateLayerScopes()

@@ -76,7 +76,7 @@ public sealed class EditorModule(
     private EditorLayoutConfig _editorLayout =
         EditorLayoutConfig.CreateDefault();
     private bool _initialized;
-    private bool _overlayVisible;
+    private bool _overlayVisible = true;
     private bool _dockLayoutDirty;
     private int _lastWindowWidth;
     private int _lastWindowHeight;
