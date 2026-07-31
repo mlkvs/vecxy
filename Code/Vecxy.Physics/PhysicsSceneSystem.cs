@@ -11,7 +11,7 @@ namespace Vecxy.Physics;
 
 public sealed class PhysicsSceneSystem : ASceneSystem
 {
-    private readonly Dictionary<Scene.Scene, SceneRuntime> _runtimes = [];
+    private readonly Dictionary<Scene.SceneInstance, SceneRuntime> _runtimes = [];
     private PhysicsSettings _settings = PhysicsSettings.Default;
     private PhysicsSettings? _pendingSettings;
 
@@ -38,17 +38,17 @@ public sealed class PhysicsSceneSystem : ASceneSystem
         _pendingSettings = settings;
     }
 
-    public override void OnSceneAttached(Scene.Scene scene)
+    public override void OnSceneAttached(Scene.SceneInstance sceneInstance)
     {
-        if (_runtimes.ContainsKey(scene))
+        if (_runtimes.ContainsKey(sceneInstance))
             return;
 
-        _runtimes.Add(scene, new SceneRuntime(scene, _settings));
+        _runtimes.Add(sceneInstance, new SceneRuntime(sceneInstance, _settings));
     }
 
-    public override void OnSceneDetached(Scene.Scene scene)
+    public override void OnSceneDetached(Scene.SceneInstance sceneInstance)
     {
-        if (!_runtimes.Remove(scene, out var runtime))
+        if (!_runtimes.Remove(sceneInstance, out var runtime))
             return;
 
         runtime.Dispose();
@@ -56,7 +56,7 @@ public sealed class PhysicsSceneSystem : ASceneSystem
 
     public override void OnObjectAdded(SceneObject sceneObject)
     {
-        var runtime = GetRuntime(sceneObject.Scene);
+        var runtime = GetRuntime(sceneObject.SceneInstance);
         EnqueueOrApply(
             runtime,
             new StructuralChange(
@@ -67,7 +67,7 @@ public sealed class PhysicsSceneSystem : ASceneSystem
 
     public override void OnObjectRemoved(SceneObject sceneObject)
     {
-        if (!TryGetRuntime(sceneObject.Scene, out var runtime))
+        if (!TryGetRuntime(sceneObject.SceneInstance, out var runtime))
             return;
 
         EnqueueOrApply(
@@ -85,7 +85,7 @@ public sealed class PhysicsSceneSystem : ASceneSystem
         if (component is not Collider and not RigidBody)
             return;
 
-        var runtime = GetRuntime(sceneObject.Scene);
+        var runtime = GetRuntime(sceneObject.SceneInstance);
         EnqueueOrApply(
             runtime,
             new StructuralChange(
@@ -101,7 +101,7 @@ public sealed class PhysicsSceneSystem : ASceneSystem
         if (component is not Collider and not RigidBody)
             return;
 
-        if (!TryGetRuntime(sceneObject.Scene, out var runtime))
+        if (!TryGetRuntime(sceneObject.SceneInstance, out var runtime))
             return;
 
         EnqueueOrApply(
@@ -112,9 +112,9 @@ public sealed class PhysicsSceneSystem : ASceneSystem
                 component));
     }
 
-    public override void Update(Scene.Scene scene, float deltaTime)
+    public override void Update(Scene.SceneInstance sceneInstance, float deltaTime)
     {
-        if (!TryGetRuntime(scene, out var runtime))
+        if (!TryGetRuntime(sceneInstance, out var runtime))
             return;
 
         ApplyPendingSettings();
@@ -135,7 +135,7 @@ public sealed class PhysicsSceneSystem : ASceneSystem
             while (runtime.Accumulator >= _settings.FixedDeltaTime &&
                    steps < _settings.MaxSubSteps)
             {
-                scene.ProcessFixedUpdate(_settings.FixedDeltaTime);
+                sceneInstance.ProcessFixedUpdate(_settings.FixedDeltaTime);
                 FlushStructuralChanges(runtime);
                 SynchronizeBodies(runtime);
                 PushTransformsToPhysics(runtime);
@@ -207,7 +207,7 @@ public sealed class PhysicsSceneSystem : ASceneSystem
     }
 
     public bool Raycast(
-        Scene.Scene scene,
+        Scene.SceneInstance sceneInstance,
         Vector3 origin,
         Vector3 direction,
         float maxDistance,
@@ -216,7 +216,7 @@ public sealed class PhysicsSceneSystem : ASceneSystem
     {
         hit = default;
 
-        if (!TryGetRuntime(scene, out var runtime) ||
+        if (!TryGetRuntime(sceneInstance, out var runtime) ||
             maxDistance <= 0.0f ||
             direction.LengthSquared() <= float.Epsilon)
         {
@@ -283,7 +283,7 @@ public sealed class PhysicsSceneSystem : ASceneSystem
         ArgumentNullException.ThrowIfNull(rigidBody);
 
         if (rigidBody.SceneObject is not { } sceneObject ||
-            !TryGetRuntime(sceneObject.Scene, out var runtime))
+            !TryGetRuntime(sceneObject.SceneInstance, out var runtime))
         {
             return;
         }
@@ -1196,20 +1196,20 @@ public sealed class PhysicsSceneSystem : ASceneSystem
         }
     }
 
-    private SceneRuntime GetRuntime(Scene.Scene scene)
+    private SceneRuntime GetRuntime(Scene.SceneInstance sceneInstance)
     {
-        if (_runtimes.TryGetValue(scene, out var runtime))
+        if (_runtimes.TryGetValue(sceneInstance, out var runtime))
             return runtime;
 
-        runtime = new SceneRuntime(scene, _settings);
-        _runtimes.Add(scene, runtime);
+        runtime = new SceneRuntime(sceneInstance, _settings);
+        _runtimes.Add(sceneInstance, runtime);
         return runtime;
     }
 
     private bool TryGetRuntime(
-        Scene.Scene scene,
+        Scene.SceneInstance sceneInstance,
         out SceneRuntime runtime) =>
-        _runtimes.TryGetValue(scene, out runtime!);
+        _runtimes.TryGetValue(sceneInstance, out runtime!);
 
     private enum EStructuralChange : byte
     {
@@ -1441,10 +1441,10 @@ public sealed class PhysicsSceneSystem : ASceneSystem
     private sealed class SceneRuntime : IDisposable
     {
         public SceneRuntime(
-            Scene.Scene scene,
+            Scene.SceneInstance sceneInstance,
             PhysicsSettings settings)
         {
-            Scene = scene;
+            SceneInstance = sceneInstance;
             CollisionLayers = settings.CollisionLayers;
             World = new World
             {
@@ -1459,7 +1459,7 @@ public sealed class PhysicsSceneSystem : ASceneSystem
             World.NarrowPhaseFilter = new NarrowPhaseFilter(this);
         }
 
-        public Scene.Scene Scene { get; }
+        public Scene.SceneInstance SceneInstance { get; }
         public World World { get; }
         public PhysicsCollisionLayers CollisionLayers { get; set; }
         public Dictionary<SceneObject, BodyBinding> BodiesByObject { get; } = [];

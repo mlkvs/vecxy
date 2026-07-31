@@ -10,8 +10,8 @@ public abstract class AComponent
 
     public SceneObject? SceneObject { get; internal set; }
 
-    public Scene Scene =>
-        SceneObject?.Scene
+    public SceneInstance SceneInstance =>
+        SceneObject?.SceneInstance
         ?? throw new InvalidOperationException(
             "Component is not attached to a scene object.");
 

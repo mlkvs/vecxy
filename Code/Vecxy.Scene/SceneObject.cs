@@ -14,7 +14,7 @@ public sealed class SceneObject
 
     public readonly int Id;
 
-    public Scene Scene { get; }
+    public SceneInstance SceneInstance { get; }
 
     public string Name { get; set; }
 
@@ -49,12 +49,12 @@ public sealed class SceneObject
         }
     }
 
-    internal SceneObject(Scene scene, string name, bool isStatic = false)
+    internal SceneObject(SceneInstance sceneInstance, string name, bool isStatic = false)
     {
         Id = Count++;
         IsStatic = isStatic;
         
-        Scene = scene;
+        SceneInstance = sceneInstance;
         Name = name;
 
         Transform = new Transform();
@@ -93,7 +93,7 @@ public sealed class SceneObject
         if (_active)
             component.Activate(ownerEnabled: true);
         
-        foreach (var system in Scene.Systems)
+        foreach (var system in SceneInstance.Systems)
         {
             system.OnComponentAdded(this, component);
         }
@@ -106,7 +106,7 @@ public sealed class SceneObject
         bool? isStatic = null)
     {
         ThrowIfDestroyed();
-        var child = Scene.CreateObject(name, isStatic ?? IsStatic);
+        var child = SceneInstance.CreateObject(name, isStatic ?? IsStatic);
         child.SetParent(this, worldPositionStays: false);
         return child;
     }
@@ -124,7 +124,7 @@ public sealed class SceneObject
         {
             parent.ThrowIfDestroyed();
 
-            if (!ReferenceEquals(parent.Scene, Scene))
+            if (!ReferenceEquals(parent.SceneInstance, SceneInstance))
                 throw new InvalidOperationException(
                     "Parent belongs to another scene.");
 
@@ -282,7 +282,7 @@ public sealed class SceneObject
                 throw new InvalidOperationException(
                     "Transform cannot be removed.");
 
-            foreach (var system in Scene.Systems)
+            foreach (var system in SceneInstance.Systems)
             {
                 system.OnComponentRemoved(this, component);
             }
@@ -309,7 +309,7 @@ public sealed class SceneObject
             throw new InvalidOperationException(
                 "Transform cannot be removed.");
 
-        foreach (var system in Scene.Systems)
+        foreach (var system in SceneInstance.Systems)
         {
             system.OnComponentRemoved(this, component);
         }
@@ -324,7 +324,7 @@ public sealed class SceneObject
         if (_destroyed || _destroying)
             return;
 
-        Scene.DestroyObject(this);
+        SceneInstance.DestroyObject(this);
     }
 
     internal void Activate()
@@ -398,7 +398,7 @@ public sealed class SceneObject
         {
             var component = _components[index];
             
-            foreach (var system in Scene.Systems)
+            foreach (var system in SceneInstance.Systems)
             {
                 system.OnComponentRemoved(this, component);
             }
@@ -425,7 +425,7 @@ public sealed class SceneObject
     private void RefreshActiveState()
     {
         var shouldBeActive =
-            Scene.IsActive &&
+            SceneInstance.IsActive &&
             _enabled &&
             (Parent?.IsActive ?? true);
 

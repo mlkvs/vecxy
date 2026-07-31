@@ -81,7 +81,7 @@ public sealed class EditorModule(
     private int _lastWindowWidth;
     private int _lastWindowHeight;
     private SceneObject? _selectedSceneObject;
-    private Vecxy.Scene.Scene? _selectedScene;
+    private Vecxy.Scene.SceneInstance? _selectedScene;
     private IConfigRef? _selectedConfig;
     private int _selectedConfigVersion = -1;
     private object? _selectedConfigValue;
@@ -777,30 +777,30 @@ public sealed class EditorModule(
         ImGui.End();
     }
 
-    private void DrawSceneNode(Vecxy.Scene.Scene scene)
+    private void DrawSceneNode(Vecxy.Scene.SceneInstance sceneInstance)
     {
-        var isActive = ReferenceEquals(scenes.ActiveScene, scene);
+        var isActive = ReferenceEquals(scenes.ActiveScene, sceneInstance);
         var label = isActive
-            ? $"● {scene.Name}##scene_{scene.GetHashCode()}"
-            : $"○ {scene.Name}##scene_{scene.GetHashCode()}";
+            ? $"● {sceneInstance.GetType().FullName}##scene_{sceneInstance.GetHashCode()}"
+            : $"○ {sceneInstance.GetType().FullName}##scene_{sceneInstance.GetHashCode()}";
 
         var flags =
             ImGuiTreeNodeFlags.OpenOnArrow |
             ImGuiTreeNodeFlags.OpenOnDoubleClick |
-            (_selectedScene == scene ? ImGuiTreeNodeFlags.Selected : ImGuiTreeNodeFlags.None) |
-            (scene.RootObjects.Any()
+            (_selectedScene == sceneInstance ? ImGuiTreeNodeFlags.Selected : ImGuiTreeNodeFlags.None) |
+            (sceneInstance.RootObjects.Any()
                 ? ImGuiTreeNodeFlags.None
                 : ImGuiTreeNodeFlags.Leaf);
 
         var opened = ImGui.TreeNodeEx(label, flags);
         if (ImGui.IsItemClicked())
-            SelectScene(scene);
+            SelectScene(sceneInstance);
 
-        if (ImGui.BeginPopupContextItem($"scene_context_{scene.GetHashCode()}"))
+        if (ImGui.BeginPopupContextItem($"scene_context_{sceneInstance.GetHashCode()}"))
         {
             if (ImGui.MenuItem("Create Empty"))
             {
-                var sceneObject = scene.CreateObject("SceneObject");
+                var sceneObject = sceneInstance.CreateObject("SceneObject");
                 SelectSceneObject(sceneObject);
             }
 
@@ -810,7 +810,7 @@ public sealed class EditorModule(
         if (!opened)
             return;
 
-        foreach (var root in scene.RootObjects)
+        foreach (var root in sceneInstance.RootObjects)
             DrawHierarchyNode(root);
 
         ImGui.TreePop();
@@ -890,7 +890,7 @@ public sealed class EditorModule(
 
         if (_selectedSceneObject is null ||
             _selectedSceneObject.IsDestroyed ||
-            !ReferenceEquals(_selectedSceneObject.Scene, scenes.ActiveScene))
+            !ReferenceEquals(_selectedSceneObject.SceneInstance, scenes.ActiveScene))
         {
             _selectedSceneObject = null;
             ImGui.TextDisabled("Nothing selected");
@@ -902,13 +902,13 @@ public sealed class EditorModule(
         ImGui.End();
     }
 
-    private void DrawSceneInspector(Vecxy.Scene.Scene scene)
+    private void DrawSceneInspector(Vecxy.Scene.SceneInstance sceneInstance)
     {
-        ImGui.Text($"Scene: {scene.Name}");
+        ImGui.Text($"Scene: {sceneInstance.GetType().FullName}");
         ImGui.Separator();
 
         if (ImGui.CollapsingHeader("Lighting", ImGuiTreeNodeFlags.DefaultOpen))
-            DrawSceneLightingInspector(scene.Lighting);
+            DrawSceneLightingInspector(sceneInstance.Lighting);
     }
 
     private static void DrawSceneLightingInspector(
@@ -1767,7 +1767,7 @@ public sealed class EditorModule(
                 return;
 
             var parent = sceneObject.Parent;
-            var scene = sceneObject.Scene;
+            var scene = sceneObject.SceneInstance;
             sceneObject.Destroy();
 
             if (parent is not null && !parent.IsDestroyed)
@@ -1854,7 +1854,7 @@ public sealed class EditorModule(
                 property.CanRead &&
                 property.GetCustomAttribute<EditorIgnoreAttribute>() is null &&
                 property.Name is not nameof(AComponent.Enabled) &&
-                property.Name is not nameof(AComponent.Scene) &&
+                property.Name is not nameof(AComponent.SceneInstance) &&
                 property.Name is not nameof(AComponent.SceneObject) &&
                 property.Name is not nameof(AComponent.Transform) &&
                 property.Name is not nameof(AComponent.IsActive) &&
@@ -2352,9 +2352,9 @@ public sealed class EditorModule(
             eulerDegrees.Z * degToRad);
     }
 
-    private void SelectScene(Vecxy.Scene.Scene scene)
+    private void SelectScene(Vecxy.Scene.SceneInstance sceneInstance)
     {
-        _selectedScene = scene;
+        _selectedScene = sceneInstance;
         _selectedSceneObject = null;
         _selectedConfig = null;
         _selectedConfigVersion = -1;
@@ -2439,7 +2439,7 @@ public sealed class EditorModule(
         gizmos.Clear();
     }
 
-    private static Camera? FindActiveCamera(Vecxy.Scene.Scene? scene)
+    private static Camera? FindActiveCamera(Vecxy.Scene.SceneInstance? scene)
     {
         if (scene is null)
             return null;

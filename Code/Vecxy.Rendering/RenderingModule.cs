@@ -24,15 +24,6 @@ public interface IRenderer
     Mesh CreateQuad();
 }
 
-public interface ISceneInstantiator
-{
-    SceneObject InstantiateModel(
-        Vecxy.Scene.Scene scene,
-        Model model,
-        string? name = null,
-        Material? fallbackMaterial = null);
-}
-
 public interface IMeshResolver
 {
     IReadOnlyList<Mesh> GetMeshes(Model model, int meshIndex);
@@ -58,7 +49,6 @@ public sealed class RenderingModule(
         IModule.IUpdatable,
         IModule.IRenderable,
         IRenderer,
-        ISceneInstantiator,
         IMeshResolver,
         IRenderOverlayStage
 {
@@ -72,7 +62,6 @@ public sealed class RenderingModule(
         protected override IReadOnlyList<Type> Exports =>
             [
                 typeof(IRenderer),
-                typeof(ISceneInstantiator),
                 typeof(IMeshResolver),
                 typeof(IRenderOverlayStage)
             ];
@@ -308,18 +297,18 @@ public sealed class RenderingModule(
     }
 
     public SceneObject InstantiateModel(
-        Vecxy.Scene.Scene scene,
+        Vecxy.Scene.SceneInstance sceneInstance,
         Model model,
         string? name = null,
         Material? fallbackMaterial = null)
     {
-        ArgumentNullException.ThrowIfNull(scene);
+        ArgumentNullException.ThrowIfNull(sceneInstance);
         ArgumentNullException.ThrowIfNull(model);
         var rootName = string.IsNullOrWhiteSpace(name)
             ? Path.GetFileNameWithoutExtension(
                 model.Source.Metadata.Path)
             : name;
-        var root = scene.CreateObject(rootName);
+        var root = sceneInstance.CreateObject(rootName);
 
         try
         {
@@ -353,7 +342,7 @@ public sealed class RenderingModule(
         foreach (var rootNode in model.RootNodes)
         {
             SpawnNode(
-                root.Scene,
+                root.SceneInstance,
                 root,
                 model,
                 fallbackMaterial,
@@ -362,14 +351,14 @@ public sealed class RenderingModule(
     }
 
     private void SpawnNode(
-        Vecxy.Scene.Scene scene,
+        Vecxy.Scene.SceneInstance sceneInstance,
         SceneObject parent,
         Model model,
         Material? fallbackMaterial,
         int nodeIndex)
     {
         var node = model.Nodes[nodeIndex];
-        var sceneObject = scene.CreateObject(node.Name);
+        var sceneObject = sceneInstance.CreateObject(node.Name);
         sceneObject.SetParent(
             parent,
             worldPositionStays: false);
@@ -400,7 +389,7 @@ public sealed class RenderingModule(
                      primitiveIndex++)
                 {
                     var primitiveObject =
-                        scene.CreateObject(
+                        sceneInstance.CreateObject(
                             $"{node.Name} Primitive {primitiveIndex}");
                     primitiveObject.SetParent(
                         sceneObject,
@@ -461,7 +450,7 @@ public sealed class RenderingModule(
         foreach (var childIndex in node.Children)
         {
             SpawnNode(
-                scene,
+                sceneInstance,
                 sceneObject,
                 model,
                 fallbackMaterial,
@@ -971,24 +960,24 @@ public sealed class RenderingModule(
     }
 
     private static SceneLighting CollectLighting(
-        Vecxy.Scene.Scene scene)
+        Vecxy.Scene.SceneInstance sceneInstance)
     {
         var pointLights = new List<PointLightData>(MaxPointLights);
         var spotLights = new List<SpotLightData>(MaxSpotLights);
         var directionalLights =
             new List<DirectionalLightData>(MaxDirectionalLights);
         var global = new GlobalLightingData(
-            scene.Lighting.AmbientSkyColor,
-            scene.Lighting.AmbientGroundColor,
-            scene.Lighting.AmbientIntensity,
-            scene.Lighting.DirectLightIntensityScale,
-            scene.Lighting.SpecularStrength,
-            scene.Lighting.Exposure);
-        FogData? fog = scene.Lighting.Fog.Enabled
-            ? CreateFogData(scene.Lighting.Fog)
+            sceneInstance.Lighting.AmbientSkyColor,
+            sceneInstance.Lighting.AmbientGroundColor,
+            sceneInstance.Lighting.AmbientIntensity,
+            sceneInstance.Lighting.DirectLightIntensityScale,
+            sceneInstance.Lighting.SpecularStrength,
+            sceneInstance.Lighting.Exposure);
+        FogData? fog = sceneInstance.Lighting.Fog.Enabled
+            ? CreateFogData(sceneInstance.Lighting.Fog)
             : null;
 
-        foreach (var sceneObject in scene.Objects)
+        foreach (var sceneObject in sceneInstance.Objects)
         {
             if (!sceneObject.IsActive)
                 continue;

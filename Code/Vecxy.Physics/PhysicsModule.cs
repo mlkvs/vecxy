@@ -115,7 +115,7 @@ public sealed class PhysicsModule(
     {
         hit = default;
 
-        var scene = ignoreSceneObject?.Scene ?? scenes.ActiveScene;
+        var scene = ignoreSceneObject?.SceneInstance ?? scenes.ActiveScene;
         
         return scene is not null &&
                physicsSceneSystem.Raycast(

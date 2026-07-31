@@ -4,7 +4,7 @@
  *  - Mode: Single / Additive
  *  - Load / Unload Resources
  */
-public sealed class Scene
+public sealed class SceneInstance
 {
     private readonly List<SceneObject> _objects = [];
     private readonly List<SceneObject> _pendingDestroy = [];
@@ -13,8 +13,10 @@ public sealed class Scene
     private bool _active;
     private bool _updating;
     private bool _systemsDetached;
+    
+    private bool _loaded;
 
-    public string Name { get; }
+    public IScene Scene { get; }
 
     public SceneLightingSettings Lighting { get; } = new();
 
@@ -27,9 +29,40 @@ public sealed class Scene
     
     public IEnumerable<ISceneSystem> Systems => _systems;
 
-    public Scene(string name = "Scene")
+    internal SceneInstance(IScene scene)
     {
-        Name = name;
+        ArgumentNullException.ThrowIfNull(scene);
+
+        Scene = scene;
+    }
+    
+    internal void Load()
+    {
+        if (_loaded)
+            return;
+    
+        Scene.OnLoad(this);
+        _loaded = true;
+    }
+    
+    internal void Unload()
+    {
+        if (!_loaded)
+            return;
+    
+        Deactivate();
+    
+        Scene.OnUnload(this);
+    
+        foreach (var sceneObject in RootObjects.ToArray().Reverse())
+        {
+            DestroyObjectImmediately(sceneObject);
+        }
+    
+        FlushDestroyedObjects();
+        DetachSystems();
+    
+        _loaded = false;
     }
 
     public void RegisterSystem(ISceneSystem system)
@@ -78,7 +111,7 @@ public sealed class Scene
         bool isStatic = false)
     {
         if (_systemsDetached)
-            throw new ObjectDisposedException(nameof(Scene));
+            throw new ObjectDisposedException(nameof(SceneInstance));
 
         var sceneObject = new SceneObject(this, name, isStatic);
 
@@ -102,7 +135,7 @@ public sealed class Scene
     {
         ArgumentNullException.ThrowIfNull(sceneObject);
 
-        if (!ReferenceEquals(sceneObject.Scene, this))
+        if (!ReferenceEquals(sceneObject.SceneInstance, this))
             throw new InvalidOperationException("Scene object belongs to another scene.");
 
         if (sceneObject.IsDestroyed || sceneObject.IsDestroying)
