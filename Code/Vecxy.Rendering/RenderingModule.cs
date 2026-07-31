@@ -978,12 +978,12 @@ public sealed class RenderingModule(
         var directionalLights =
             new List<DirectionalLightData>(MaxDirectionalLights);
         var global = new GlobalLightingData(
-            scene.Lighting.Global.AmbientSkyColor,
-            scene.Lighting.Global.AmbientGroundColor,
-            scene.Lighting.Global.AmbientIntensity,
-            scene.Lighting.Global.DirectLightIntensityScale,
-            scene.Lighting.Global.SpecularStrength,
-            scene.Lighting.Global.Exposure);
+            scene.Lighting.AmbientSkyColor,
+            scene.Lighting.AmbientGroundColor,
+            scene.Lighting.AmbientIntensity,
+            scene.Lighting.DirectLightIntensityScale,
+            scene.Lighting.SpecularStrength,
+            scene.Lighting.Exposure);
         FogData? fog = scene.Lighting.Fog.Enabled
             ? CreateFogData(scene.Lighting.Fog)
             : null;

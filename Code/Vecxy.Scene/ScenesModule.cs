@@ -1,4 +1,5 @@
 ﻿using Autofac;
+using Vecxy.Assets;
 using Vecxy.Kernel;
 
 namespace Vecxy.Scene;
@@ -17,7 +18,9 @@ public interface ISceneFactory
     Scene Create();
 }
 
-public sealed class ScenesModule(IEnumerable<ISceneSystem> systems) : 
+public sealed class ScenesModule(
+    IEnumerable<ISceneSystem> systems,
+    IConfigProvider config) :
     IModule, 
     IModule.IUpdatable,
     ISceneManager,
@@ -45,12 +48,17 @@ public sealed class ScenesModule(IEnumerable<ISceneSystem> systems) :
     public Scene? ActiveScene => _activeScene;
     public IReadOnlyList<Scene> LoadedScenes => _loadedScenes;
 
+    private ConfigRef<SkyboxConfig>? _skyboxConfig;
+
     public void OnInitialize()
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
 
         if (_initialized)
             return;
+
+        config.Register<SkyboxConfig>();
+        _skyboxConfig = config.LoadConfig<SkyboxConfig>("SkyBox/Skybox.yaml");
 
         _initialized = true;
         _activeScene?.Activate();
@@ -63,6 +71,11 @@ public sealed class ScenesModule(IEnumerable<ISceneSystem> systems) :
         foreach (var system in systems)
         {
             scene.RegisterSystem(system);
+        }
+
+        if (_skyboxConfig?.TryGetValue(out var skyboxConfig) == true)
+        {
+            scene.Lighting.Skybox.ApplyConfig(skyboxConfig);
         }
 
         _createdScenes.Add(scene);
@@ -137,6 +150,8 @@ public sealed class ScenesModule(IEnumerable<ISceneSystem> systems) :
         _activeScene = null;
         _loadedScenes.Clear();
         _createdScenes.Clear();
+        _skyboxConfig?.Dispose();
+        _skyboxConfig = null;
 
         _initialized = false;
     }

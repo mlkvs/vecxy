@@ -1,0 +1,9 @@
+shader: Shaders/Lit.glsl
+
+parameters:
+  uColor:
+    color: [1, 1, 1, 1]
+  uTexture:
+    texture: Textures/T_Quad_White_64.png
+  uTint:
+    color: [ 1, 1, 1, 1 ]

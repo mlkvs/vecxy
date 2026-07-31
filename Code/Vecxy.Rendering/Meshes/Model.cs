@@ -7,7 +7,7 @@ public sealed class Model : IDisposable
     private readonly AssetRef<ModelAsset> _source;
     private bool _disposed;
 
-    internal Model(AssetRef<ModelAsset> source)
+    public Model(AssetRef<ModelAsset> source)
     {
         ArgumentNullException.ThrowIfNull(source);
         _source = source.Acquire();

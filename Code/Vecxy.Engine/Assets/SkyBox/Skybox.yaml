@@ -1,0 +1,10 @@
+enabled: true
+positiveX: SkyBox/cubemap/px.png
+negativeX: SkyBox/cubemap/nx.png
+positiveY: SkyBox/cubemap/py.png
+negativeY: SkyBox/cubemap/ny.png
+positiveZ: SkyBox/cubemap/pz.png
+negativeZ: SkyBox/cubemap/nz.png
+tint: [1, 1, 1]
+rotation: [0, 0, 0]
+exposure: 0.5

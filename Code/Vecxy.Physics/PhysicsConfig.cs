@@ -22,43 +22,43 @@ public sealed class PhysicsConfig : IYamlConfig
     public int SolverIterations { get; set; } = 6;
     public int SolverRelaxationIterations { get; set; } = 2;
 
-    public void Validate(string path)
+    public void Validate()
     {
         if (!float.IsFinite(FixedUpdateRate) ||
             FixedUpdateRate is <= 0.0f or > 1000.0f)
         {
             throw new InvalidDataException(
-                $"Physics config '{path}' has invalid fixedUpdateRate.");
+                $"Physics config has invalid fixedUpdateRate.");
         }
 
         if (MaxSubSteps is < 1 or > 64)
         {
             throw new InvalidDataException(
-                $"Physics config '{path}' has invalid maxSubSteps.");
+                $"Physics config has invalid maxSubSteps.");
         }
 
         if (!float.IsFinite(MaxFrameDelta) ||
             MaxFrameDelta <= 0.0f)
         {
             throw new InvalidDataException(
-                $"Physics config '{path}' has invalid maxFrameDelta.");
+                $"Physics config has invalid maxFrameDelta.");
         }
 
         if (Gravity is not { Length: 3 } ||
             Gravity.Any(value => !float.IsFinite(value)))
         {
             throw new InvalidDataException(
-                $"Physics config '{path}' must contain a finite gravity vector.");
+                $"Physics config  must contain a finite gravity vector.");
         }
 
         if (SolverIterations is < 1 or > 64 ||
             SolverRelaxationIterations is < 0 or > 64)
         {
             throw new InvalidDataException(
-                $"Physics config '{path}' has invalid solver iterations.");
+                $"Physics config has invalid solver iterations.");
         }
 
-        BuildCollisionLayers(path);
+        BuildCollisionLayers();
     }
 
     public PhysicsSettings ToSettings() => new(
@@ -70,14 +70,14 @@ public sealed class PhysicsConfig : IYamlConfig
         InterpolationEnabled,
         SolverIterations,
         SolverRelaxationIterations,
-        BuildCollisionLayers("Physics configuration"));
+        BuildCollisionLayers());
 
-    private PhysicsCollisionLayers BuildCollisionLayers(string path)
+    private PhysicsCollisionLayers BuildCollisionLayers()
     {
         if (CollisionLayers is null || CollisionLayers.Count == 0)
         {
             throw new InvalidDataException(
-                $"Physics config '{path}' must define collisionLayers.");
+                $"Physics config  must define collisionLayers.");
         }
 
         var definitions = new Dictionary<
@@ -92,44 +92,44 @@ public sealed class PhysicsConfig : IYamlConfig
                 !string.Equals(name, name.Trim(), StringComparison.Ordinal))
             {
                 throw new InvalidDataException(
-                    $"Physics config '{path}' contains an invalid collision layer name.");
+                    $"Physics config contains an invalid collision layer name.");
             }
 
             if (definition is null)
             {
                 throw new InvalidDataException(
-                    $"Physics config '{path}' has no definition for collision layer '{name}'.");
+                    $"Physics config has no definition for collision layer '{name}'.");
             }
 
             if (!definitions.TryAdd(name, definition))
             {
                 throw new InvalidDataException(
-                    $"Physics config '{path}' contains duplicate collision layer '{name}'.");
+                    $"Physics config  contains duplicate collision layer '{name}'.");
             }
 
             if (definition.Index is < 0 or > 31)
             {
                 throw new InvalidDataException(
-                    $"Physics config '{path}' collision layer '{name}' must use an index from 0 to 31.");
+                    $"Physics config collision layer '{name}' must use an index from 0 to 31.");
             }
 
             if (!indexes.Add(definition.Index))
             {
                 throw new InvalidDataException(
-                    $"Physics config '{path}' reuses collision layer index {definition.Index}.");
+                    $"Physics config reuses collision layer index {definition.Index}.");
             }
 
             if (definition.CollidesWith is null)
             {
                 throw new InvalidDataException(
-                    $"Physics config '{path}' collision layer '{name}' must define collidesWith.");
+                    $"Physics config collision layer '{name}' must define collidesWith.");
             }
         }
 
         if (!definitions.ContainsKey(PhysicsCollisionLayers.DefaultLayerName))
         {
             throw new InvalidDataException(
-                $"Physics config '{path}' must define the '{PhysicsCollisionLayers.DefaultLayerName}' collision layer.");
+                $"Physics config  must define the '{PhysicsCollisionLayers.DefaultLayerName}' collision layer.");
         }
 
         var resolved = new Dictionary<string, PhysicsLayer>(
@@ -147,13 +147,13 @@ public sealed class PhysicsConfig : IYamlConfig
                     !definitions.TryGetValue(targetName, out var target))
                 {
                     throw new InvalidDataException(
-                        $"Physics config '{path}' collision layer '{name}' references unknown layer '{targetName}'.");
+                        $"Physics config collision layer '{name}' references unknown layer '{targetName}'.");
                 }
 
                 if (!targets.Add(targetName))
                 {
                     throw new InvalidDataException(
-                        $"Physics config '{path}' collision layer '{name}' contains duplicate collidesWith entry '{targetName}'.");
+                        $"Physics config  collision layer '{name}' contains duplicate collidesWith entry '{targetName}'.");
                 }
 
                 mask |= 1u << target.Index;
@@ -174,7 +174,7 @@ public sealed class PhysicsConfig : IYamlConfig
                         StringComparer.OrdinalIgnoreCase))
                 {
                     throw new InvalidDataException(
-                        $"Physics config '{path}' collision matrix is not symmetric: '{name}' collides with '{targetName}', but the reverse relation is missing.");
+                        $"Physics config collision matrix is not symmetric: '{name}' collides with '{targetName}', but the reverse relation is missing.");
                 }
             }
         }

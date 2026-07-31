@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using YamlDotNet.Serialization;
 using YamlDotNet.Serialization.NamingConventions;
 using Vecxy.Diagnostics;
@@ -6,7 +7,7 @@ namespace Vecxy.Assets;
 
 public interface IYamlConfig
 {
-    void Validate(string path);
+    void Validate();
 }
 
 public interface IConfigProvider
@@ -173,7 +174,15 @@ internal static class YamlConfigSerializer
                     ?? throw new InvalidDataException(
                         $"Config is empty: {path}");
 
-        value.Validate(path);
+        try
+        {
+            value.Validate();
+        }
+        catch (Exception e)
+        {
+            throw new ValidationException($"Config '{path}' no validate!", e);
+        }
+       
         return value;
     }
 }

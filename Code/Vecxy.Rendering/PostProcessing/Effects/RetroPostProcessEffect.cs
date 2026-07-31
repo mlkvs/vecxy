@@ -9,30 +9,30 @@ public sealed class RetroPostProcessConfig : APostProcessConfig
     public float WarpStrength { get; set; }
     public float DriftStrength { get; set; }
 
-    public override void Validate(string path)
+    public override void Validate()
     {
         if (PixelWidth <= 0)
         {
             throw new InvalidDataException(
-                $"Retro post process config '{path}' must have positive pixelWidth.");
+                $"Retro post process config must have positive pixelWidth.");
         }
 
         if (JitterStrength < 0.0f)
         {
             throw new InvalidDataException(
-                $"Retro post process config '{path}' cannot have negative jitterStrength.");
+                $"Retro post process config cannot have negative jitterStrength.");
         }
 
         if (WarpStrength < 0.0f)
         {
             throw new InvalidDataException(
-                $"Retro post process config '{path}' cannot have negative warpStrength.");
+                $"Retro post process config cannot have negative warpStrength.");
         }
 
         if (DriftStrength < 0.0f)
         {
             throw new InvalidDataException(
-                $"Retro post process config '{path}' cannot have negative driftStrength.");
+                $"Retro post process config cannot have negative driftStrength.");
         }
     }
 }

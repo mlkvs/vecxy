@@ -917,7 +917,7 @@ public sealed class EditorModule(
         if (ImGui.CollapsingHeader("Global", ImGuiTreeNodeFlags.DefaultOpen))
         {
             DrawObjectProperties(
-                lighting.Global,
+                lighting,
                 "scene_lighting_global");
         }
 
@@ -2277,7 +2277,7 @@ public sealed class EditorModule(
             return MathF.Max(0.0f, value);
         }
 
-        if (target is SceneGlobalLightingSettings &&
+        if (target is SceneLightingSettings &&
             property.Name is
                 "AmbientIntensity" or
                 "DirectLightIntensityScale" or

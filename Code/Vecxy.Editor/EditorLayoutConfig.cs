@@ -40,22 +40,22 @@ public sealed class EditorLayoutConfig : IYamlConfig
         ActiveTabs.TryGetValue(dockArea, out var activeWindow) &&
         string.Equals(activeWindow, windowName, StringComparison.Ordinal);
 
-    public void Validate(string path)
+    public void Validate()
     {
-        Splits.Validate(path);
+        Splits.Validate();
 
         foreach (var windowName in RequiredWindows)
         {
             if (!Windows.TryGetValue(windowName, out var window))
             {
                 throw new InvalidDataException(
-                    $"Editor layout '{path}' does not contain window '{windowName}'.");
+                    $"Editor layout does not contain window '{windowName}'.");
             }
 
             if (!DockAreas.Contains(window.Dock))
             {
                 throw new InvalidDataException(
-                    $"Editor layout '{path}' assigns unknown dock area '{window.Dock}' to '{windowName}'.");
+                    $"Editor layout assigns unknown dock area '{window.Dock}' to '{windowName}'.");
             }
         }
 
@@ -64,14 +64,14 @@ public sealed class EditorLayoutConfig : IYamlConfig
             if (!DockAreas.Contains(dockArea))
             {
                 throw new InvalidDataException(
-                    $"Editor layout '{path}' contains unknown active tab area '{dockArea}'.");
+                    $"Editor layout contains unknown active tab area '{dockArea}'.");
             }
 
             if (!Windows.TryGetValue(windowName, out var window) ||
                 !string.Equals(window.Dock, dockArea, StringComparison.Ordinal))
             {
                 throw new InvalidDataException(
-                    $"Editor layout '{path}' selects '{windowName}' for dock area '{dockArea}', but the window is not assigned there.");
+                    $"Editor layout selects '{windowName}' for dock area '{dockArea}', but the window is not assigned there.");
             }
         }
     }
@@ -107,23 +107,22 @@ public sealed class EditorLayoutSplits
     public float BottomHeight { get; set; } = 0.20f;
     public float TopHeight { get; set; } = 0.12f;
 
-    public void Validate(string path)
+    public void Validate()
     {
-        ValidateRatio(LeftWidth, nameof(LeftWidth), path);
-        ValidateRatio(RightWidth, nameof(RightWidth), path);
-        ValidateRatio(BottomHeight, nameof(BottomHeight), path);
-        ValidateRatio(TopHeight, nameof(TopHeight), path);
+        ValidateRatio(LeftWidth, nameof(LeftWidth));
+        ValidateRatio(RightWidth, nameof(RightWidth));
+        ValidateRatio(BottomHeight, nameof(BottomHeight));
+        ValidateRatio(TopHeight, nameof(TopHeight));
     }
 
     private static void ValidateRatio(
         float value,
-        string name,
-        string path)
+        string name)
     {
         if (value <= 0.0f || value >= 0.9f)
         {
             throw new InvalidDataException(
-                $"Editor layout '{path}' has invalid split ratio '{name}': {value}.");
+                $"Editor layout has invalid split ratio '{name}': {value}.");
         }
     }
 }

@@ -1,0 +1,35 @@
+splits:
+  leftWidth: 0.19
+  rightWidth: 0.28
+  bottomHeight: 0.20
+  topHeight: 0.12
+
+windows:
+  GameView:
+    dock: center
+    visible: true
+  Hierarchy:
+    dock: left
+    visible: true
+  Inspector:
+    dock: right
+    visible: true
+  Configs:
+    dock: bottom
+    visible: true
+  Rendering Statistics:
+    dock: top
+    visible: false
+  Render Settings:
+    dock: right
+    visible: true
+  Debug Console:
+    dock: bottom
+    visible: true
+
+activeTabs:
+  left: Hierarchy
+  center: GameView
+  right: Inspector
+  bottom: Debug Console
+  top: Rendering Statistics

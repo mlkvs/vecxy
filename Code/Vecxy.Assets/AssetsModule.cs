@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
@@ -226,7 +227,15 @@ public sealed class AssetsModule :
                 $"Config '{config.Path}' does not implement IYamlConfig.");
         }
 
-        yamlConfig.Validate(config.Path);
+        try
+        {
+            yamlConfig.Validate();
+        }
+        catch (Exception e)
+        {
+            throw new ValidationException($"Config '{config.Path}' no validate!", e);
+        }
+       
 
         var fullPath = Path.Combine(AssetsDirectory, config.Path);
         Directory.CreateDirectory(Path.GetDirectoryName(fullPath)!);

@@ -7,5 +7,5 @@ public abstract class APostProcessConfig : IYamlConfig
     public bool Enabled { get; set; } = true;
     public int Order { get; set; }
 
-    public abstract void Validate(string path);
+    public abstract void Validate();
 }
