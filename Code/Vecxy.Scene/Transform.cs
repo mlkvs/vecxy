@@ -181,13 +181,13 @@ public sealed class Transform : AComponent
     }
 
     public Vector3 Forward =>
-        Vector3.Normalize(Vector3.Transform(-Vector3.UnitZ, WorldRotation));
+        TransformWorldDirection(-Vector3.UnitZ, "forward");
 
     public Vector3 Right =>
-        Vector3.Normalize(Vector3.Transform(Vector3.UnitX, WorldRotation));
+        TransformWorldDirection(Vector3.UnitX, "right");
 
     public Vector3 Up =>
-        Vector3.Normalize(Vector3.Transform(Vector3.UnitY, WorldRotation));
+        TransformWorldDirection(Vector3.UnitY, "up");
 
     public void Translate(Vector3 translation, bool worldSpace = false)
     {
@@ -270,6 +270,22 @@ public sealed class Transform : AComponent
         }
 
         rotation = NormalizeRotation(rotation);
+    }
+
+    private Vector3 TransformWorldDirection(
+        Vector3 localDirection,
+        string directionName)
+    {
+        var direction =
+            Vector3.TransformNormal(localDirection, WorldMatrix);
+
+        if (direction.LengthSquared() <= float.Epsilon)
+        {
+            throw new InvalidOperationException(
+                $"World transform collapses the {directionName} direction.");
+        }
+
+        return Vector3.Normalize(direction);
     }
 
     private static Quaternion NormalizeRotation(Quaternion rotation)

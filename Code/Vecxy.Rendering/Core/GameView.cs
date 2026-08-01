@@ -10,10 +10,14 @@ public sealed class GameView
     public bool Enabled { get; set; } = true;
 
     internal IReadOnlyList<RenderItem> Items => _items;
+    internal bool UsesGameOutputTarget { get; }
 
-    internal GameView(IRenderTarget target)
+    internal GameView(
+        IRenderTarget target,
+        bool usesGameOutputTarget = false)
     {
         Target = target;
+        UsesGameOutputTarget = usesGameOutputTarget;
     }
 
     public RenderItem Submit(

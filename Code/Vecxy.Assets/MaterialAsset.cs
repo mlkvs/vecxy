@@ -12,15 +12,57 @@ public enum EMaterialSurface : byte
     Transparent
 }
 
+public enum ETextureFilter : byte
+{
+    Nearest,
+    Linear
+}
+
+public enum ETextureWrap : byte
+{
+    Repeat,
+    Clamp
+}
+
+public readonly record struct TextureSamplerState(
+    ETextureFilter MinFilter,
+    ETextureFilter MagFilter,
+    ETextureWrap WrapU,
+    ETextureWrap WrapV)
+{
+    public static TextureSamplerState Default { get; } =
+        new(
+            ETextureFilter.Nearest,
+            ETextureFilter.Nearest,
+            ETextureWrap.Repeat,
+            ETextureWrap.Repeat);
+
+    public static TextureSamplerState PointClamp { get; } =
+        new(
+            ETextureFilter.Nearest,
+            ETextureFilter.Nearest,
+            ETextureWrap.Clamp,
+            ETextureWrap.Clamp);
+}
+
 public abstract record MaterialParameter;
 
 public sealed record TextureMaterialParameter(
     AssetRef<TextureAsset> Texture,
     Vector2 Tiling,
-    Vector2 Offset) : MaterialParameter
+    Vector2 Offset,
+    TextureSamplerState Sampler) : MaterialParameter
 {
     public TextureMaterialParameter(AssetRef<TextureAsset> texture)
-        : this(texture, Vector2.One, Vector2.Zero)
+        : this(texture, Vector2.One, Vector2.Zero, TextureSamplerState.Default)
+    {
+    }
+
+    public TextureMaterialParameter(
+        AssetRef<TextureAsset> texture,
+        Vector2 tiling,
+        Vector2 offset)
+        : this(texture, tiling, offset, TextureSamplerState.Default)
     {
     }
 }
@@ -28,10 +70,19 @@ public sealed record TextureMaterialParameter(
 public sealed record EmbeddedTextureMaterialParameter(
     TextureAsset Texture,
     Vector2 Tiling,
-    Vector2 Offset) : MaterialParameter
+    Vector2 Offset,
+    TextureSamplerState Sampler) : MaterialParameter
 {
     public EmbeddedTextureMaterialParameter(TextureAsset texture)
-        : this(texture, Vector2.One, Vector2.Zero)
+        : this(texture, Vector2.One, Vector2.Zero, TextureSamplerState.Default)
+    {
+    }
+
+    public EmbeddedTextureMaterialParameter(
+        TextureAsset texture,
+        Vector2 tiling,
+        Vector2 offset)
+        : this(texture, tiling, offset, TextureSamplerState.Default)
     {
     }
 }
@@ -170,7 +221,12 @@ public sealed class MaterialAssetImporter : IAssetImporter<MaterialAsset>
                     Vector2.Zero,
                     "offset",
                     name,
-                    materialPath));
+                    materialPath),
+                new TextureSamplerState(
+                    descriptor.MinFilter ?? descriptor.Filter,
+                    descriptor.MagFilter ?? descriptor.Filter,
+                    descriptor.WrapU ?? descriptor.Wrap,
+                    descriptor.WrapV ?? descriptor.Wrap));
         }
 
         if (descriptor.Color is not null)
@@ -237,5 +293,11 @@ public sealed class MaterialAssetImporter : IAssetImporter<MaterialAsset>
         public float? Float { get; init; }
         public List<float>? Tiling { get; init; }
         public List<float>? Offset { get; init; }
+        public ETextureFilter Filter { get; init; } = ETextureFilter.Nearest;
+        public ETextureFilter? MinFilter { get; init; }
+        public ETextureFilter? MagFilter { get; init; }
+        public ETextureWrap Wrap { get; init; } = ETextureWrap.Repeat;
+        public ETextureWrap? WrapU { get; init; }
+        public ETextureWrap? WrapV { get; init; }
     }
 }

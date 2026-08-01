@@ -1,6 +1,5 @@
 using JetBrains.Annotations;
 using Vecxy.Assets;
-using Vecxy.Audio;
 using Vecxy.Input;
 using Vecxy.Kernel;
 using Vecxy.Physics;

@@ -13,6 +13,9 @@ public interface ISceneManager
     SceneInstance LoadScene<TScene>()
         where TScene : class, IScene;
 
+    SceneInstance LoadSceneAdditive<TScene>()
+        where TScene : class, IScene;
+
     void SetActiveScene(SceneInstance sceneInstance);
 
     void UnloadScene(SceneInstance sceneInstance);
@@ -83,6 +86,18 @@ public sealed class ScenesModule(
     public SceneInstance LoadScene<TScene>()
         where TScene : class, IScene
     {
+        return LoadScene<TScene>(makeActive: true);
+    }
+
+    public SceneInstance LoadSceneAdditive<TScene>()
+        where TScene : class, IScene
+    {
+        return LoadScene<TScene>(makeActive: false);
+    }
+
+    private SceneInstance LoadScene<TScene>(bool makeActive)
+        where TScene : class, IScene
+    {
         ObjectDisposedException.ThrowIf(_disposed, this);
 
         if (!_initialized)
@@ -97,6 +112,9 @@ public sealed class ScenesModule(
                 sceneType,
                 out var existingInstance))
         {
+            if (makeActive)
+                SetActiveScene(existingInstance);
+
             return existingInstance;
         }
 
@@ -112,7 +130,8 @@ public sealed class ScenesModule(
             foreach (var system in _systems)
                 sceneInstance.RegisterSystem(system);
 
-            if (_skyboxConfig?.TryGetValue(out var skyboxConfig) == true)
+            if (_skyboxConfig?.TryGetValue(out var skyboxConfig) == true &&
+                skyboxConfig is not null)
                 sceneInstance.Lighting.Skybox.ApplyConfig(skyboxConfig);
 
             sceneInstance.Load();
@@ -121,7 +140,8 @@ public sealed class ScenesModule(
             _sceneScopes.Add(sceneInstance, sceneScope);
             _loadedScenes.Add(sceneInstance);
             
-            SetActiveScene(sceneInstance);
+            if (makeActive)
+                SetActiveScene(sceneInstance);
 
             return sceneInstance;
         }

@@ -1,3 +1,4 @@
+using System.Numerics;
 using Vecxy.Kernel;
 
 namespace Vecxy.Engine;
@@ -6,6 +7,8 @@ internal sealed class HeadlessWindow(IWindow.Options options) : IWindow
 {
     public int Width { get; } = Math.Max(1, options.Width);
     public int Height { get; } = Math.Max(1, options.Height);
+    public int ClientWidth => Width;
+    public int ClientHeight => Height;
 
     public bool IsRunning { get; private set; }
     public bool IsFullscreen { get; private set; }
@@ -49,6 +52,10 @@ internal sealed class HeadlessWindow(IWindow.Options options) : IWindow
     {
         IsCursorCaptured = captured;
     }
+
+    public Vector2 ClientToFramebuffer(Vector2 position) => position;
+
+    public Vector2 FramebufferToClient(Vector2 position) => position;
 
     public nint GetProcAddress(string name) => 0;
 

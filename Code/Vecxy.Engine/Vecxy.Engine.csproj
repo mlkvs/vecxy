@@ -1,7 +1,12 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+      <TargetFramework></TargetFramework>
+      <TargetFrameworks>net10.0;net10.0-android</TargetFrameworks>
+    </PropertyGroup>
+
     <ItemGroup>
       <ProjectReference Include="..\Vecxy.Assets\Vecxy.Assets.csproj" />
-      <ProjectReference Include="..\Vecxy.Audio\Vecxy.Audio.csproj" />
+      <ProjectReference Include="..\Vecxy.Audio\Vecxy.Audio.csproj" Condition="'$(TargetPlatformIdentifier)' != 'android'" />
       <ProjectReference Include="..\Vecxy.Input\Vecxy.Input.csproj" />
       <ProjectReference Include="..\Vecxy.Kernel\Vecxy.Kernel.csproj" />
       <ProjectReference Include="..\Vecxy.Physics\Vecxy.Physics.csproj" />
@@ -10,7 +15,7 @@
     </ItemGroup>
     
     <ItemGroup>
-        <Content Include="Assets\**\*">
+        <Content Include="Assets\**\*" Condition="'$(TargetPlatformIdentifier)' != 'android'">
             <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
             <TargetPath>Assets\%(RecursiveDir)%(Filename)%(Extension)</TargetPath>
         </Content>

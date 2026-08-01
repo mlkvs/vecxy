@@ -10,9 +10,40 @@ public sealed class TextureAsset
 
     internal TextureAsset(int width, int height, byte[] pixels)
     {
+        if (width <= 0)
+            throw new ArgumentOutOfRangeException(nameof(width));
+        if (height <= 0)
+            throw new ArgumentOutOfRangeException(nameof(height));
+        ArgumentNullException.ThrowIfNull(pixels);
+        if (pixels.Length != checked(width * height * 4))
+        {
+            throw new ArgumentException(
+                "Texture pixels must contain exactly four channels per pixel.",
+                nameof(pixels));
+        }
+
         Width = width;
         Height = height;
         Pixels = pixels;
+    }
+
+    /// <summary>
+    /// Reads an RGBA pixel. Coordinates use image-space orientation:
+    /// (0, 0) is the top-left source pixel.
+    /// </summary>
+    public Color32 GetPixel(int x, int y)
+    {
+        if ((uint)x >= (uint)Width)
+            throw new ArgumentOutOfRangeException(nameof(x));
+        if ((uint)y >= (uint)Height)
+            throw new ArgumentOutOfRangeException(nameof(y));
+
+        var index = checked((y * Width + x) * 4);
+        return new Color32(
+            Pixels[index],
+            Pixels[index + 1],
+            Pixels[index + 2],
+            Pixels[index + 3]);
     }
 }
 

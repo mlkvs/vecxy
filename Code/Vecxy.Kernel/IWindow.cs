@@ -1,3 +1,5 @@
+using System.Numerics;
+
 namespace Vecxy.Kernel;
 
 
@@ -15,6 +17,8 @@ public interface IWindow : IDisposable
     
     int Width { get; }
     int Height { get; }
+    int ClientWidth { get; }
+    int ClientHeight { get; }
 
     bool IsRunning { get; }
     bool IsFullscreen { get; }
@@ -33,5 +37,7 @@ public interface IWindow : IDisposable
     void Close();
     void ToggleFullscreen();
     void SetCursorCaptured(bool captured);
+    Vector2 ClientToFramebuffer(Vector2 position);
+    Vector2 FramebufferToClient(Vector2 position);
     nint GetProcAddress(string name);
 }

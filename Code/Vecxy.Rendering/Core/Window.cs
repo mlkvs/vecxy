@@ -7,13 +7,17 @@ namespace Vecxy.Rendering;
 
 public sealed class Window : IWindow
 {
+#if !ANDROID
     public Silk.NET.Windowing.IWindow NativeWindow => _instance;
+#endif
     public IInputContext InputContext =>
         _input ?? throw new InvalidOperationException(
             "Window input is not initialized.");
 
     public int Width => _instance.FramebufferSize.X;
     public int Height => _instance.FramebufferSize.Y;
+    public int ClientWidth => _instance.Size.X;
+    public int ClientHeight => _instance.Size.Y;
 
     public bool IsRunning => _initialized && !_instance.IsClosing;
     public bool IsFullscreen => _isFullscreen;
@@ -25,18 +29,39 @@ public sealed class Window : IWindow
     public event Action<IWindow.MouseMoveEvent>? MouseMoved;
     public event Action<IWindow.MouseWheelEvent>? MouseWheelChanged;
 
+#if ANDROID
+    private readonly Silk.NET.Windowing.IView _instance;
+#else
     private readonly Silk.NET.Windowing.IWindow _instance;
+#endif
     private IInputContext? _input;
     private IMouse? _primaryMouse;
     private Vector2D<int> _windowedSize;
+#if !ANDROID
     private Vector2D<int> _windowedPosition;
     private WindowState _windowedState = WindowState.Normal;
+#endif
 
     private bool _initialized;
     private bool _isFullscreen;
 
     public Window(IWindow.Options options)
     {
+#if ANDROID
+        var viewOptions = ViewOptions.Default;
+        viewOptions.API = new GraphicsAPI
+        (
+            ContextAPI.OpenGLES,
+            ContextProfile.Core,
+            ContextFlags.Default,
+            new APIVersion(3, 0)
+        );
+        viewOptions.ShouldSwapAutomatically = false;
+
+        _instance = Silk.NET.Windowing.Window.GetView(viewOptions);
+        _windowedSize = new Vector2D<int>(options.Width, options.Height);
+        _isFullscreen = true;
+#else
         var wOptions = WindowOptions.Default;
 
         wOptions.Title = options.Title;
@@ -52,8 +77,10 @@ public sealed class Window : IWindow
 
         _instance = CreateWindow(wOptions, options.MonitorIndex);
         _windowedSize = wOptions.Size;
+#endif
     }
 
+#if !ANDROID
     private static Silk.NET.Windowing.IWindow CreateWindow(
         WindowOptions options,
         int? monitorIndex)
@@ -80,6 +107,7 @@ public sealed class Window : IWindow
             monitorIndex,
             $"Monitor index {monitorIndex} was not found. Available monitor indices: {availableIndices}.");
     }
+#endif
 
     public void Initialize()
     {
@@ -104,7 +132,9 @@ public sealed class Window : IWindow
         }
 
         _windowedSize = _instance.Size;
+#if !ANDROID
         _windowedPosition = _instance.Position;
+#endif
         _initialized = true;
     }
 
@@ -118,6 +148,10 @@ public sealed class Window : IWindow
 
     public void ToggleFullscreen()
     {
+#if ANDROID
+        // Android owns the native surface and always presents it fullscreen.
+        _isFullscreen = true;
+#else
         if (_isFullscreen)
         {
             _instance.WindowState = WindowState.Normal;
@@ -139,6 +173,7 @@ public sealed class Window : IWindow
 
         var framebufferSize = _instance.FramebufferSize;
         Resized?.Invoke(framebufferSize.X, framebufferSize.Y);
+#endif
     }
 
     public void SetCursorCaptured(bool captured)
@@ -168,6 +203,18 @@ public sealed class Window : IWindow
         cursor.CursorMode = targetMode;
         IsCursorCaptured = captured;
     }
+
+    public System.Numerics.Vector2 ClientToFramebuffer(
+        System.Numerics.Vector2 position) =>
+        new(
+            position.X * Width / Math.Max(1.0f, ClientWidth),
+            position.Y * Height / Math.Max(1.0f, ClientHeight));
+
+    public System.Numerics.Vector2 FramebufferToClient(
+        System.Numerics.Vector2 position) =>
+        new(
+            position.X * ClientWidth / Math.Max(1.0f, Width),
+            position.Y * ClientHeight / Math.Max(1.0f, Height));
 
     public nint GetProcAddress(string name) =>
         _instance.GLContext?.GetProcAddress(name) ?? 0;

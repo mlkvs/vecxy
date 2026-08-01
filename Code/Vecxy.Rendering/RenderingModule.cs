@@ -14,12 +14,16 @@ public interface IRenderer
     bool Wireframe { get; set; }
     bool ScenePresentationEnabled { get; set; }
     nint SceneTextureId { get; }
+    int GameOutputWidth { get; }
+    int GameOutputHeight { get; }
 
     GameView CreateGameView(
         IRenderTarget? target = null);
 
     void DestroyGameView(GameView view);
     void SetSceneViewportSize(int width, int height);
+    void SetSceneViewportScreenRect(Rect? screenRect);
+    Vector2 ScreenToGameOutput(Vector2 screenPosition);
 
     Mesh CreateQuad();
 }
@@ -27,6 +31,15 @@ public interface IRenderer
 public interface IMeshResolver
 {
     IReadOnlyList<Mesh> GetMeshes(Model model, int meshIndex);
+}
+
+public interface ISceneInstantiator
+{
+    SceneObject InstantiateModel(
+        SceneInstance sceneInstance,
+        Model model,
+        string? name = null,
+        Material? fallbackMaterial = null);
 }
 
 public interface IRenderOverlayStage
@@ -50,6 +63,7 @@ public sealed class RenderingModule(
         IModule.IRenderable,
         IRenderer,
         IMeshResolver,
+        ISceneInstantiator,
         IRenderOverlayStage
 {
     private const int MaxPointLights = 8;
@@ -63,6 +77,7 @@ public sealed class RenderingModule(
             [
                 typeof(IRenderer),
                 typeof(IMeshResolver),
+                typeof(ISceneInstantiator),
                 typeof(IRenderOverlayStage)
             ];
 
@@ -132,6 +147,7 @@ public sealed class RenderingModule(
     private float _time;
     private int _sceneViewportWidth;
     private int _sceneViewportHeight;
+    private Rect? _sceneViewportScreenRect;
 
     public RenderingStatistics Statistics => statistics;
     public bool Wireframe { get; set; }
@@ -140,6 +156,12 @@ public sealed class RenderingModule(
         _presentedSceneTarget is null
             ? 0
             : (nint)_presentedSceneTarget.ColorTextureHandle;
+    public int GameOutputWidth => _sceneViewportWidth > 0
+        ? _sceneViewportWidth
+        : Math.Max(1, backbuffer.Width);
+    public int GameOutputHeight => _sceneViewportHeight > 0
+        ? _sceneViewportHeight
+        : Math.Max(1, backbuffer.Height);
 
     public void OnInitialize()
     {
@@ -170,19 +192,47 @@ public sealed class RenderingModule(
 
     public void OnRender()
     {
+#if !ANDROID
         device.GL.PolygonMode(
             TriangleFace.FrontAndBack,
             Wireframe ? PolygonMode.Line : PolygonMode.Fill);
+#endif
 
         var presentedTargets = new HashSet<IRenderTarget>();
         var renderSceneToViewport =
             _sceneViewportWidth > 0 &&
             _sceneViewportHeight > 0;
+        var gameOutputWidth = renderSceneToViewport
+            ? _sceneViewportWidth
+            : backbuffer.Width;
+        var gameOutputHeight = renderSceneToViewport
+            ? _sceneViewportHeight
+            : backbuffer.Height;
 
-        RenderSubmittedViews(presentedTargets);
+        _sceneTarget ??= new SceneRenderTarget(device);
+        _sceneTarget.EnsureSize(gameOutputWidth, gameOutputHeight);
+        _presentedSceneTarget = null;
 
-        if (ScenePresentationEnabled && RenderActiveScene())
+        var renderedGameOutputView = RenderSubmittedViews(
+            presentedTargets,
+            out var gameOutputClearColor);
+
+        var renderedScene =
+            ScenePresentationEnabled && RenderActiveScene();
+        if (renderedScene)
             presentedTargets.Add(backbuffer);
+
+        if (!renderedScene &&
+            renderedGameOutputView &&
+            ScenePresentationEnabled)
+        {
+            PresentGameOutputView(
+                gameOutputClearColor,
+                renderSceneToViewport);
+
+            if (!renderSceneToViewport)
+                presentedTargets.Add(backbuffer);
+        }
 
         backbuffer.Bind(device);
         device.GL.Disable(EnableCap.DepthTest);
@@ -204,7 +254,18 @@ public sealed class RenderingModule(
     public GameView CreateGameView(
         IRenderTarget? target = null)
     {
-        var view = new GameView(target ?? backbuffer);
+        var usesGameOutputTarget = target is null;
+        if (usesGameOutputTarget)
+        {
+            _sceneTarget ??= new SceneRenderTarget(device);
+            _sceneTarget.EnsureSize(
+                Math.Max(1, backbuffer.Width),
+                Math.Max(1, backbuffer.Height));
+        }
+
+        var view = new GameView(
+            target ?? _sceneTarget!,
+            usesGameOutputTarget);
         _views.Add(view);
         return view;
     }
@@ -220,6 +281,29 @@ public sealed class RenderingModule(
     {
         _sceneViewportWidth = Math.Max(0, width);
         _sceneViewportHeight = Math.Max(0, height);
+    }
+
+    public void SetSceneViewportScreenRect(Rect? screenRect)
+    {
+        _sceneViewportScreenRect = screenRect is { Width: > 0.0f, Height: > 0.0f }
+            ? screenRect
+            : null;
+    }
+
+    public Vector2 ScreenToGameOutput(Vector2 screenPosition)
+    {
+        if (_sceneViewportScreenRect is not { } screenRect ||
+            _sceneViewportWidth <= 0 ||
+            _sceneViewportHeight <= 0)
+        {
+            return screenPosition;
+        }
+
+        return new Vector2(
+            (screenPosition.X - screenRect.X) / screenRect.Width *
+            _sceneViewportWidth,
+            (screenPosition.Y - screenRect.Y) / screenRect.Height *
+            _sceneViewportHeight);
     }
 
     public void RegisterOverlay(Action draw)
@@ -532,13 +616,22 @@ public sealed class RenderingModule(
         return material?.Clone();
     }
 
-    private void RenderSubmittedViews(
-        ISet<IRenderTarget> presentedTargets)
+    private bool RenderSubmittedViews(
+        ISet<IRenderTarget> presentedTargets,
+        out Vector4 gameOutputClearColor)
     {
         device.GL.Disable(EnableCap.DepthTest);
+        var renderedGameOutputView = false;
+        gameOutputClearColor = Vector4.Zero;
 
         foreach (var view in _views.Where(view => view.Enabled))
         {
+            if (view.UsesGameOutputTarget)
+            {
+                renderedGameOutputView = true;
+                gameOutputClearColor = view.ClearColor;
+            }
+
             view.Target.Bind(device);
             device.GL.ClearColor(
                 view.ClearColor.X,
@@ -561,6 +654,7 @@ public sealed class RenderingModule(
                          .Where(item => item.Enabled)
                          .OrderBy(item => item.Phase))
             {
+                ApplyMaterialState(item.Material);
                 var shader =
                     materials.Bind(item.Material);
                 shader.Set(
@@ -570,8 +664,60 @@ public sealed class RenderingModule(
                 statistics.RecordDraw();
             }
 
+            device.GL.Disable(EnableCap.Blend);
+            device.GL.DepthMask(true);
+
             presentedTargets.Add(view.Target);
         }
+
+        return renderedGameOutputView;
+    }
+
+    private void PresentGameOutputView(
+        Vector4 clearColor,
+        bool renderToSceneViewport)
+    {
+        if (_sceneTarget is null)
+            return;
+
+        _presentedSceneTarget = _sceneTarget;
+        if (renderToSceneViewport)
+            return;
+
+        DrawCopyPass(
+            _sceneTarget,
+            backbuffer,
+            clearColor);
+    }
+
+    private void DrawCopyPass(
+        SceneRenderTarget input,
+        IRenderTarget output,
+        Vector4 clearColor)
+    {
+        if (_fullscreenQuad is null)
+            return;
+
+        output.Bind(device);
+        device.GL.Disable(EnableCap.DepthTest);
+        device.GL.DepthMask(false);
+        device.GL.ClearColor(
+            clearColor.X,
+            clearColor.Y,
+            clearColor.Z,
+            clearColor.W);
+        device.GL.Clear(ClearBufferMask.ColorBufferBit);
+
+        var shader = ResolveCopyPostProcessShader();
+        shader.Bind();
+        input.BindColorTexture(0);
+        shader.Set("uSceneTexture", 0);
+        shader.Set(
+            "uTransform",
+            Matrix4x4.CreateScale(2.0f, 2.0f, 1.0f));
+        _fullscreenQuad.Draw();
+        statistics.RecordDraw();
+        device.GL.DepthMask(true);
     }
 
     private bool RenderActiveScene()

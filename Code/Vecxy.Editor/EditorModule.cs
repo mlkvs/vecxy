@@ -76,7 +76,8 @@ public sealed class EditorModule(
     private EditorLayoutConfig _editorLayout =
         EditorLayoutConfig.CreateDefault();
     private bool _initialized;
-    private bool _overlayVisible = true;
+    private bool _overlayVisible;
+    private bool _f12KeyDown;
     private bool _dockLayoutDirty;
     private int _lastWindowWidth;
     private int _lastWindowHeight;
@@ -144,7 +145,7 @@ public sealed class EditorModule(
         _lastWindowWidth = Math.Max(1, window.Width);
         _lastWindowHeight = Math.Max(1, window.Height);
         overlays.RegisterOverlay(RenderOverlay);
-        window.SetCursorCaptured(true);
+        window.SetCursorCaptured(!_overlayVisible);
         _initialized = true;
     }
 
@@ -179,7 +180,10 @@ public sealed class EditorModule(
         if (_overlayVisible || debugConsolePanel.ShouldRender)
             imgui.BeginFrame(deltaTime);
         else
+        {
             renderer.SetSceneViewportSize(0, 0);
+            renderer.SetSceneViewportScreenRect(null);
+        }
     }
 
     public void OnShutdown()
@@ -263,11 +267,19 @@ public sealed class EditorModule(
 
     private void OnKeyChanged(IWindow.KeyEvent keyEvent)
     {
-        if (!keyEvent.IsPressed)
-            return;
-
         if (keyEvent.Key == (int)EKeyboardKey.F12)
         {
+            if (!keyEvent.IsPressed)
+            {
+                _f12KeyDown = false;
+                return;
+            }
+
+            if (_f12KeyDown)
+                return;
+
+            _f12KeyDown = true;
+
             if (_overlayVisible)
             {
                 _overlayVisible = false;
@@ -288,8 +300,16 @@ public sealed class EditorModule(
                 window.SetCursorCaptured(false);
             else
                 window.SetCursorCaptured(!_overlayVisible);
+
+            Logger.Info(
+                _overlayVisible
+                    ? "Editor overlay enabled."
+                    : "Editor overlay disabled.");
             return;
         }
+
+        if (!keyEvent.IsPressed)
+            return;
 
         if (keyEvent.Key == (int)EKeyboardKey.Escape &&
             window.IsCursorCaptured)
@@ -437,7 +457,10 @@ public sealed class EditorModule(
         if (_overlayVisible && _showGameViewWindow)
             DrawGameViewWindow();
         else if (_overlayVisible)
+        {
             renderer.SetSceneViewportSize(0, 0);
+            renderer.SetSceneViewportScreenRect(null);
+        }
 
         if (_overlayVisible && _showHierarchyWindow)
             DrawHierarchyWindow();
@@ -662,6 +685,7 @@ public sealed class EditorModule(
         if (!ImGui.Begin("GameView", ref _showGameViewWindow))
         {
             renderer.SetSceneViewportSize(0, 0);
+            renderer.SetSceneViewportScreenRect(null);
             ImGui.End();
             ImGui.PopStyleVar();
             return;
@@ -704,11 +728,18 @@ public sealed class EditorModule(
             _gameViewHovered = ImGui.IsItemHovered();
             _gameViewScreenPosition = ImGui.GetItemRectMin();
             _gameViewScreenSize = ImGui.GetItemRectSize();
+            renderer.SetSceneViewportScreenRect(
+                new Rect(
+                    _gameViewScreenPosition.X,
+                    _gameViewScreenPosition.Y,
+                    _gameViewScreenSize.X,
+                    _gameViewScreenSize.Y));
         }
         else
         {
             ImGui.Dummy(available);
             _gameViewHovered = ImGui.IsItemHovered();
+            renderer.SetSceneViewportScreenRect(null);
         }
 
         ImGui.End();

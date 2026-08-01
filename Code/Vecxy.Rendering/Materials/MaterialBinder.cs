@@ -45,7 +45,7 @@ internal sealed class MaterialBinder
                         if (texture.Texture.HasError)
                             return BindFallback();
 
-                        _textures.Get(texture.Texture).Bind(textureSlot);
+                        _textures.Get(texture.Texture).Bind(textureSlot, texture.Sampler);
                         shader.Set(name, (int)textureSlot);
                         shader.Set($"{name}Tiling", texture.Tiling);
                         shader.Set($"{name}Offset", texture.Offset);
@@ -54,7 +54,7 @@ internal sealed class MaterialBinder
                         break;
 
                     case EmbeddedTextureMaterialParameter texture:
-                        _textures.Get(texture.Texture).Bind(textureSlot);
+                        _textures.Get(texture.Texture).Bind(textureSlot, texture.Sampler);
                         shader.Set(name, (int)textureSlot);
                         shader.Set($"{name}Tiling", texture.Tiling);
                         shader.Set($"{name}Offset", texture.Offset);

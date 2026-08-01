@@ -133,6 +133,12 @@ public sealed class ImGuiRenderer(
         _resetLayoutRequested = true;
     }
 
+    public unsafe void DisableIniPersistence()
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        ImGui.GetIO().NativePtr->IniFilename = null;
+    }
+
     private void ConfigureImGui()
     {
         var io = ImGui.GetIO();

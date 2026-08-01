@@ -7,6 +7,7 @@ public sealed class Texture : IDisposable
 {
     private readonly GraphicsDevice _device;
     private uint _handle;
+    private TextureSamplerState? _sampler;
     private bool _disposed;
 
     internal unsafe Texture(GraphicsDevice device, TextureAsset asset)
@@ -43,31 +44,71 @@ public sealed class Texture : IDisposable
                 pixelsPointer);
         }
 
-        gl.TexParameter(
-            TextureTarget.Texture2D,
-            TextureParameterName.TextureMinFilter,
-            (int)TextureMinFilter.Nearest);
-        gl.TexParameter(
-            TextureTarget.Texture2D,
-            TextureParameterName.TextureMagFilter,
-            (int)TextureMagFilter.Nearest);
-        gl.TexParameter(
-            TextureTarget.Texture2D,
-            TextureParameterName.TextureWrapS,
-            (int)TextureWrapMode.Repeat);
-        gl.TexParameter(
-            TextureTarget.Texture2D,
-            TextureParameterName.TextureWrapT,
-            (int)TextureWrapMode.Repeat);
+        ApplySampler(TextureSamplerState.Default);
         gl.BindTexture(TextureTarget.Texture2D, 0);
     }
 
     public void Bind(uint slot)
     {
+        Bind(slot, TextureSamplerState.Default);
+    }
+
+    public void Bind(uint slot, TextureSamplerState sampler)
+    {
         ObjectDisposedException.ThrowIf(_disposed, this);
         _device.GL.ActiveTexture((TextureUnit)((uint)TextureUnit.Texture0 + slot));
         _device.GL.BindTexture(TextureTarget.Texture2D, _handle);
+        ApplySampler(sampler);
     }
+
+    private void ApplySampler(TextureSamplerState sampler)
+    {
+        if (_sampler == sampler)
+            return;
+
+        var gl = _device.GL;
+        gl.TexParameter(
+            TextureTarget.Texture2D,
+            TextureParameterName.TextureMinFilter,
+            (int)ToMinFilter(sampler.MinFilter));
+        gl.TexParameter(
+            TextureTarget.Texture2D,
+            TextureParameterName.TextureMagFilter,
+            (int)ToMagFilter(sampler.MagFilter));
+        gl.TexParameter(
+            TextureTarget.Texture2D,
+            TextureParameterName.TextureWrapS,
+            (int)ToWrapMode(sampler.WrapU));
+        gl.TexParameter(
+            TextureTarget.Texture2D,
+            TextureParameterName.TextureWrapT,
+            (int)ToWrapMode(sampler.WrapV));
+        _sampler = sampler;
+    }
+
+    private static TextureMinFilter ToMinFilter(ETextureFilter filter) =>
+        filter switch
+        {
+            ETextureFilter.Nearest => TextureMinFilter.Nearest,
+            ETextureFilter.Linear => TextureMinFilter.Linear,
+            _ => throw new ArgumentOutOfRangeException(nameof(filter))
+        };
+
+    private static TextureMagFilter ToMagFilter(ETextureFilter filter) =>
+        filter switch
+        {
+            ETextureFilter.Nearest => TextureMagFilter.Nearest,
+            ETextureFilter.Linear => TextureMagFilter.Linear,
+            _ => throw new ArgumentOutOfRangeException(nameof(filter))
+        };
+
+    private static TextureWrapMode ToWrapMode(ETextureWrap wrap) =>
+        wrap switch
+        {
+            ETextureWrap.Repeat => TextureWrapMode.Repeat,
+            ETextureWrap.Clamp => TextureWrapMode.ClampToEdge,
+            _ => throw new ArgumentOutOfRangeException(nameof(wrap))
+        };
 
     public void Dispose()
     {

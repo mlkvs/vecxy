@@ -99,6 +99,9 @@ public sealed class ShaderCompiler(GraphicsDevice device)
 
     private uint CompileStage(string name, ShaderType type, string source)
     {
+#if ANDROID
+        source = ConvertToOpenGles(source, type);
+#endif
         var gl = device.GL;
         var shader = gl.CreateShader(type);
         gl.ShaderSource(shader, source);
@@ -115,4 +118,26 @@ public sealed class ShaderCompiler(GraphicsDevice device)
         throw new InvalidOperationException(
             $"Shader '{name}' {type} compilation failed:{Environment.NewLine}{log}");
     }
+
+#if ANDROID
+    private static string ConvertToOpenGles(string source, ShaderType type)
+    {
+        source = source.Replace(
+            "#version 330 core",
+            "#version 300 es",
+            StringComparison.Ordinal);
+
+        if (type == ShaderType.FragmentShader &&
+            !source.Contains("precision ", StringComparison.Ordinal))
+        {
+            const string version = "#version 300 es";
+            source = source.Replace(
+                version,
+                version + "\nprecision highp float;\nprecision highp int;",
+                StringComparison.Ordinal);
+        }
+
+        return source;
+    }
+#endif
 }

@@ -15,7 +15,7 @@ public sealed class Material : IDisposable
     private float? _alphaCutoffOverride;
     private bool _disposed;
 
-    internal Material(AssetRef<MaterialAsset> source)
+    public Material(AssetRef<MaterialAsset> source)
     {
         ArgumentNullException.ThrowIfNull(source);
         _source = source.Acquire();
@@ -147,13 +147,15 @@ public sealed class Material : IDisposable
                     new TextureMaterialParameter(
                         texture.Acquire(),
                         existing.Tiling,
-                        existing.Offset),
+                        existing.Offset,
+                        existing.Sampler),
 
                 EmbeddedTextureMaterialParameter existing =>
                     new TextureMaterialParameter(
                         texture.Acquire(),
                         existing.Tiling,
-                        existing.Offset),
+                        existing.Offset,
+                        existing.Sampler),
 
                 _ => throw new InvalidOperationException(
                     $"Material parameter '{name}' is not a texture.")
@@ -177,13 +179,15 @@ public sealed class Material : IDisposable
                     new TextureMaterialParameter(
                         texture.Texture.Acquire(),
                         tiling,
-                        offset),
+                        offset,
+                        texture.Sampler),
 
                 EmbeddedTextureMaterialParameter texture =>
                     new EmbeddedTextureMaterialParameter(
                         texture.Texture,
                         tiling,
-                        offset),
+                        offset,
+                        texture.Sampler),
 
                 _ => throw new InvalidOperationException(
                     $"Material parameter '{name}' is not a texture.")
@@ -305,12 +309,14 @@ public sealed class Material : IDisposable
                 new TextureMaterialParameter(
                     texture.Texture.Acquire(),
                     texture.Tiling,
-                    texture.Offset),
+                    texture.Offset,
+                    texture.Sampler),
             EmbeddedTextureMaterialParameter texture =>
                 new EmbeddedTextureMaterialParameter(
                     texture.Texture,
                     texture.Tiling,
-                    texture.Offset),
+                    texture.Offset,
+                    texture.Sampler),
             VectorMaterialParameter vector =>
                 new VectorMaterialParameter(vector.Value),
             FloatMaterialParameter scalar =>
