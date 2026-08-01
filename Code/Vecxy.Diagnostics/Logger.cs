@@ -131,6 +131,15 @@ public static class Logger
             ? global::System.Console.Error
             : global::System.Console.Out;
 
+        // Mobile console implementations forward text to the platform log but do not
+        // implement terminal colors. Querying ForegroundColor throws before the
+        // actual message can be written on Android.
+        if (OperatingSystem.IsAndroid())
+        {
+            writer.WriteLine(message);
+            return;
+        }
+
         if (writer == global::System.Console.Out && global::System.Console.IsOutputRedirected ||
             writer == global::System.Console.Error && global::System.Console.IsErrorRedirected)
         {

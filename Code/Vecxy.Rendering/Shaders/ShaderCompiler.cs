@@ -122,6 +122,10 @@ public sealed class ShaderCompiler(GraphicsDevice device)
 #if ANDROID
     private static string ConvertToOpenGles(string source, ShaderType type)
     {
+        // Some GLES drivers require #version to be the very first source line,
+        // while desktop drivers commonly accept leading blank lines. Shader
+        // stages naturally contain one after their #type directive.
+        source = source.TrimStart('\uFEFF', ' ', '\t', '\r', '\n');
         source = source.Replace(
             "#version 330 core",
             "#version 300 es",
