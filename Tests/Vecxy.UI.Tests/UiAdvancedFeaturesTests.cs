@@ -100,6 +100,31 @@ public sealed class UiAdvancedFeaturesTests
     }
 
     [Fact]
+    public void GridOverflow_CreatesScrollableContentExtent()
+    {
+        var yoga = new Config();
+        var root = Element(
+            yoga,
+            "ui",
+            ("style", "display: grid; width: 200ui; height: 100ui; grid-template-columns: repeat(2, 1fr); grid-auto-rows: 60ui; gap: 4ui; overflow-y: scroll;"));
+        for (var index = 0; index < 6; index++)
+            root.Add(Element(yoga, "panel"));
+        try
+        {
+            UiStyleResolver.Resolve(root, []);
+            UiLayout.Calculate(root, 200, 100);
+            Assert.True(root.CanScrollVertically);
+            Assert.True(root.ScrollExtent.Y >= 188.0f);
+            root.ScrollBy(new Vector2(0, 500));
+            Assert.True(root.ScrollOffset.Y >= 88.0f);
+        }
+        finally
+        {
+            root.ReleaseLayout();
+        }
+    }
+
+    [Fact]
     public void Selectors_MatchInteractiveStatesAndStructure()
     {
         var yoga = new Config();
