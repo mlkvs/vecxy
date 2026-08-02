@@ -1,3 +1,4 @@
+using System.Numerics;
 using Facebook.Yoga;
 using Vecxy.Kernel;
 using static Facebook.Yoga.YGNodeAPI;
@@ -10,22 +11,32 @@ internal static class UiLayout
 {
     public static void Calculate(UiElement root, int width, int height)
     {
-        ApplyRecursive(root);
+        ApplyRecursive(root, width, height);
         YGNodeStyleSetWidth(root.YogaNode, width);
         YGNodeStyleSetHeight(root.YogaNode, height);
         YGNodeCalculateLayout(root.YogaNode, width, height, YGDirection.LTR);
         ReadRecursive(root, 0.0f, 0.0f);
+        for (var pass = 0; pass < 3 && UiGridLayout.PlaceGrids(root, width, height); pass++)
+        {
+            YGNodeCalculateLayout(root.YogaNode, width, height, YGDirection.LTR);
+            ReadRecursive(root, 0.0f, 0.0f);
+        }
+        UpdateScrollExtents(root);
     }
 
-    private static void ApplyRecursive(UiElement element)
+    private static void ApplyRecursive(UiElement element, float viewportWidth, float viewportHeight)
     {
         var node = element.YogaNode;
         var style = element.ComputedStyle;
+        style.FontSize = Math.Max(1.0f, ResolvePoints(style.FontSizeLength, viewportWidth, viewportHeight));
+        style.BorderWidth = Math.Max(0.0f, ResolvePoints(style.BorderWidthLength, viewportWidth, viewportHeight));
+        style.BorderRadius = Math.Max(0.0f, ResolvePoints(style.BorderRadiusLength, viewportWidth, viewportHeight));
+        style.Transform = style.TransformDefinition.Resolve(viewportWidth, viewportHeight);
 
         YGNodeStyleSetDisplay(node, style.Display switch
         {
             "none" => YGDisplay.None,
-            "grid" => YGDisplay.Grid,
+            "grid" => YGDisplay.Flex,
             "contents" => YGDisplay.Contents,
             _ => YGDisplay.Flex
         });
@@ -51,25 +62,31 @@ internal static class UiLayout
         YGNodeStyleSetJustifyContent(node, ToJustify(style.JustifyContent));
         YGNodeStyleSetAlignItems(node, ToAlign(style.AlignItems, YGAlign.Stretch));
         YGNodeStyleSetAlignSelf(node, ToAlign(style.AlignSelf, YGAlign.Auto));
-        YGNodeStyleSetOverflow(node, style.Overflow switch
-        {
-            "hidden" => YGOverflow.Hidden,
-            "scroll" or "auto" => YGOverflow.Scroll,
-            _ => YGOverflow.Visible
-        });
+        YGNodeStyleSetOverflow(
+            node,
+            style.OverflowX is "scroll" or "auto" || style.OverflowY is "scroll" or "auto"
+                ? YGOverflow.Scroll
+                : style.OverflowX == "hidden" || style.OverflowY == "hidden"
+                    ? YGOverflow.Hidden
+                    : YGOverflow.Visible);
         YGNodeStyleSetFlexGrow(node, style.FlexGrow);
         YGNodeStyleSetFlexShrink(node, style.FlexShrink);
-        SetFlexBasis(node, style.FlexBasis);
-        SetSize(node, style.Width, YGNodeStyleSetWidth, YGNodeStyleSetWidthPercent, YGNodeStyleSetWidthAuto);
-        SetSize(node, style.Height, YGNodeStyleSetHeight, YGNodeStyleSetHeightPercent, YGNodeStyleSetHeightAuto);
-        SetOptionalSize(node, style.MinWidth, YGNodeStyleSetMinWidth, YGNodeStyleSetMinWidthPercent);
-        SetOptionalSize(node, style.MinHeight, YGNodeStyleSetMinHeight, YGNodeStyleSetMinHeightPercent);
-        SetOptionalSize(node, style.MaxWidth, YGNodeStyleSetMaxWidth, YGNodeStyleSetMaxWidthPercent);
-        SetOptionalSize(node, style.MaxHeight, YGNodeStyleSetMaxHeight, YGNodeStyleSetMaxHeightPercent);
-        ApplyEdges(node, style.Margin, SetMargin);
-        ApplyEdges(node, style.Padding, SetPadding);
-        ApplyEdges(node, style.Inset, SetPosition);
-        SetGap(node, style.Gap);
+        SetFlexBasis(node, style.FlexBasis, viewportWidth, viewportHeight);
+        SetSize(node, style.Width, YGNodeStyleSetWidth, YGNodeStyleSetWidthPercent, YGNodeStyleSetWidthAuto, viewportWidth, viewportHeight);
+        SetSize(node, style.Height, YGNodeStyleSetHeight, YGNodeStyleSetHeightPercent, YGNodeStyleSetHeightAuto, viewportWidth, viewportHeight);
+        SetOptionalSize(node, style.MinWidth, YGNodeStyleSetMinWidth, YGNodeStyleSetMinWidthPercent, viewportWidth, viewportHeight);
+        SetOptionalSize(node, style.MinHeight, YGNodeStyleSetMinHeight, YGNodeStyleSetMinHeightPercent, viewportWidth, viewportHeight);
+        SetOptionalSize(node, style.MaxWidth, YGNodeStyleSetMaxWidth, YGNodeStyleSetMaxWidthPercent, viewportWidth, viewportHeight);
+        SetOptionalSize(node, style.MaxHeight, YGNodeStyleSetMaxHeight, YGNodeStyleSetMaxHeightPercent, viewportWidth, viewportHeight);
+        ApplyEdges(node, style.Margin, (target, edge, value) => SetMargin(target, edge, value, viewportWidth, viewportHeight));
+        ApplyEdges(node, style.Padding, (target, edge, value) => SetPadding(target, edge, value, viewportWidth, viewportHeight));
+        ApplyEdges(node, style.Inset, (target, edge, value) => SetPosition(target, edge, value, viewportWidth, viewportHeight));
+        SetGap(node, style.Gap, viewportWidth, viewportHeight);
+        if (style.RowGap is { } rowGap)
+            SetGap(node, YGGutter.Row, rowGap, viewportWidth, viewportHeight);
+        if (style.ColumnGap is { } columnGap)
+            SetGap(node, YGGutter.Column, columnGap, viewportWidth, viewportHeight);
+        UiGridLayout.ResetNativeGrid(node);
         YGNodeStyleSetBorder(node, YGEdge.All, Math.Max(0.0f, style.BorderWidth));
         YGNodeStyleSetAspectRatio(node, style.AspectRatio ?? float.NaN);
 
@@ -83,7 +100,7 @@ internal static class UiLayout
             YGNodeSetMeasureFunc(node, null);
 
         foreach (var child in element.Children)
-            ApplyRecursive(child);
+            ApplyRecursive(child, viewportWidth, viewportHeight);
     }
 
     private static YGSize MeasureText(
@@ -145,13 +162,28 @@ internal static class UiLayout
             ReadRecursive(child, left, top);
     }
 
-    private static void SetFlexBasis(Node node, UiLength value)
+    private static void UpdateScrollExtents(UiElement element)
+    {
+        foreach (var child in element.Children)
+            UpdateScrollExtents(child);
+
+        var width = element.Bounds.Width;
+        var height = element.Bounds.Height;
+        foreach (var child in element.Children.Where(child => child.ComputedStyle.Display != "none"))
+        {
+            width = Math.Max(width, child.Bounds.Right - element.Bounds.Left);
+            height = Math.Max(height, child.Bounds.Bottom - element.Bounds.Top);
+        }
+        element.UpdateScrollExtent(new Vector2(width, height));
+    }
+
+    private static void SetFlexBasis(Node node, UiLength value, float viewportWidth, float viewportHeight)
     {
         switch (value.Unit)
         {
-            case EUiLengthUnit.Pixel: YGNodeStyleSetFlexBasis(node, value.Value); break;
             case EUiLengthUnit.Percent: YGNodeStyleSetFlexBasisPercent(node, value.Value); break;
-            default: YGNodeStyleSetFlexBasisAuto(node); break;
+            case EUiLengthUnit.Auto: YGNodeStyleSetFlexBasisAuto(node); break;
+            default: YGNodeStyleSetFlexBasis(node, ResolvePoints(value, viewportWidth, viewportHeight)); break;
         }
     }
 
@@ -160,13 +192,15 @@ internal static class UiLayout
         UiLength value,
         Action<Node, float> points,
         Action<Node, float> percent,
-        Action<Node> auto)
+        Action<Node> auto,
+        float viewportWidth,
+        float viewportHeight)
     {
         switch (value.Unit)
         {
-            case EUiLengthUnit.Pixel: points(node, value.Value); break;
             case EUiLengthUnit.Percent: percent(node, value.Value); break;
-            default: auto(node); break;
+            case EUiLengthUnit.Auto: auto(node); break;
+            default: points(node, ResolvePoints(value, viewportWidth, viewportHeight)); break;
         }
     }
 
@@ -174,12 +208,16 @@ internal static class UiLayout
         Node node,
         UiLength value,
         Action<Node, float> points,
-        Action<Node, float> percent)
+        Action<Node, float> percent,
+        float viewportWidth,
+        float viewportHeight)
     {
         if (value.Unit == EUiLengthUnit.Percent)
             percent(node, value.Value);
         else
-            points(node, value.Unit == EUiLengthUnit.Pixel ? value.Value : float.NaN);
+            points(node, value.Unit == EUiLengthUnit.Auto
+                ? float.NaN
+                : ResolvePoints(value, viewportWidth, viewportHeight));
     }
 
     private static void ApplyEdges(Node node, UiEdges edges, Action<Node, YGEdge, UiLength> setter)
@@ -190,41 +228,53 @@ internal static class UiLayout
         setter(node, YGEdge.Left, edges.Left);
     }
 
-    private static void SetMargin(Node node, YGEdge edge, UiLength value)
+    private static void SetMargin(Node node, YGEdge edge, UiLength value, float viewportWidth, float viewportHeight)
     {
         if (value.Unit == EUiLengthUnit.Auto)
             YGNodeStyleSetMarginAuto(node, edge);
         else if (value.Unit == EUiLengthUnit.Percent)
             YGNodeStyleSetMarginPercent(node, edge, value.Value);
         else
-            YGNodeStyleSetMargin(node, edge, value.Value);
+            YGNodeStyleSetMargin(node, edge, ResolvePoints(value, viewportWidth, viewportHeight));
     }
 
-    private static void SetPadding(Node node, YGEdge edge, UiLength value)
+    private static void SetPadding(Node node, YGEdge edge, UiLength value, float viewportWidth, float viewportHeight)
     {
         if (value.Unit == EUiLengthUnit.Percent)
             YGNodeStyleSetPaddingPercent(node, edge, value.Value);
         else
-            YGNodeStyleSetPadding(node, edge, value.Unit == EUiLengthUnit.Pixel ? value.Value : 0.0f);
+            YGNodeStyleSetPadding(node, edge, value.Unit == EUiLengthUnit.Auto ? 0.0f : ResolvePoints(value, viewportWidth, viewportHeight));
     }
 
-    private static void SetPosition(Node node, YGEdge edge, UiLength value)
+    private static void SetPosition(Node node, YGEdge edge, UiLength value, float viewportWidth, float viewportHeight)
     {
         if (value.Unit == EUiLengthUnit.Auto)
             YGNodeStyleSetPositionAuto(node, edge);
         else if (value.Unit == EUiLengthUnit.Percent)
             YGNodeStyleSetPositionPercent(node, edge, value.Value);
         else
-            YGNodeStyleSetPosition(node, edge, value.Value);
+            YGNodeStyleSetPosition(node, edge, ResolvePoints(value, viewportWidth, viewportHeight));
     }
 
-    private static void SetGap(Node node, UiLength value)
+    private static void SetGap(Node node, UiLength value, float viewportWidth, float viewportHeight)
+        => SetGap(node, YGGutter.All, value, viewportWidth, viewportHeight);
+
+    private static void SetGap(Node node, YGGutter gutter, UiLength value, float viewportWidth, float viewportHeight)
     {
         if (value.Unit == EUiLengthUnit.Percent)
-            YGNodeStyleSetGapPercent(node, YGGutter.All, value.Value);
+            YGNodeStyleSetGapPercent(node, gutter, value.Value);
         else
-            YGNodeStyleSetGap(node, YGGutter.All, value.Unit == EUiLengthUnit.Pixel ? value.Value : 0.0f);
+            YGNodeStyleSetGap(node, gutter, value.Unit == EUiLengthUnit.Auto ? 0.0f : ResolvePoints(value, viewportWidth, viewportHeight));
     }
+
+    internal static float ResolvePoints(UiLength value, float viewportWidth, float viewportHeight) =>
+        value.Unit switch
+        {
+            EUiLengthUnit.Pixel or EUiLengthUnit.Ui => value.Value,
+            EUiLengthUnit.ViewportWidth => viewportWidth * value.Value * 0.01f,
+            EUiLengthUnit.ViewportHeight => viewportHeight * value.Value * 0.01f,
+            _ => value.Value
+        };
 
     private static YGJustify ToJustify(string value) => value switch
     {

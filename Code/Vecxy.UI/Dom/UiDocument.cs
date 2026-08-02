@@ -21,8 +21,11 @@ public sealed class UiDocument : IDisposable
         new(StringComparer.Ordinal);
     private readonly Dictionary<string, AssetRef<UiFontAsset>> _fontAssets =
         new(StringComparer.Ordinal);
+    private readonly Dictionary<string, UiKeyframes> _keyframes =
+        new(StringComparer.Ordinal);
     private int _sourceVersion;
     private int[] _styleVersions = [];
+    private UiConfig _settings = new();
     private bool _disposed;
 
     public string Path => _source.Metadata.Path;
@@ -78,12 +81,34 @@ public sealed class UiDocument : IDisposable
         ResolveIntrinsicImages();
     }
 
-    internal void Layout(int width, int height)
+    internal void Layout(int width, int height, UiConfig? settings = null)
     {
+        _settings = settings ?? new UiConfig();
         Refresh();
-        var canvas = UiCanvas.Resolve(Root, width, height);
+        var canvas = UiCanvas.Resolve(Root, width, height, _settings);
         LayoutScale = canvas.Scale;
         UiLayout.Calculate(Root, canvas.Width, canvas.Height);
+    }
+
+    internal void UpdateAnimations(
+        float deltaTime,
+        int width,
+        int height,
+        UiConfig settings)
+    {
+        _settings = settings;
+        Refresh();
+        var canvas = UiCanvas.Resolve(Root, width, height, settings);
+        // Animation callbacks are allowed to remove their element from the DOM.
+        foreach (var element in Root.DescendantsAndSelf().ToArray())
+        {
+            element.AnimationRuntime.Update(
+                element,
+                _keyframes,
+                deltaTime,
+                canvas.Width,
+                canvas.Height);
+        }
     }
 
     internal Vector2 ToLayoutPoint(Vector2 outputPoint) =>
@@ -96,39 +121,15 @@ public sealed class UiDocument : IDisposable
             var separator = spriteSource.LastIndexOf('#');
             if (separator <= 0 || separator == spriteSource.Length - 1)
                 return null;
-            var atlasPath = ResolveRelativePath(Path, spriteSource[..separator]);
-            var spriteName = spriteSource[(separator + 1)..];
-            if (!_spriteAtlases.TryGetValue(atlasPath, out var atlas))
-            {
-                try
-                {
-                    atlas = _assets.Load<UiSpriteAtlasAsset>(atlasPath);
-                    _spriteAtlases.Add(atlasPath, atlas);
-                }
-                catch (Exception exception)
-                {
-                    Logger.Error(exception, $"Could not load UI sprite atlas: {atlasPath}");
-                    return null;
-                }
-            }
-
-            if (atlas.HasError || !atlas.Value.Sprites.TryGetValue(spriteName, out var sprite))
-                return null;
-            var textureAsset = atlas.Value.Texture;
-            var width = Math.Max(1, textureAsset.Value.Width);
-            var height = Math.Max(1, textureAsset.Value.Height);
-            return new UiResolvedImage(
-                _textures.Resolve(textureAsset),
-                new Vector4(
-                    sprite.X / (float)width,
-                    sprite.Y / (float)height,
-                    (sprite.X + sprite.Width) / (float)width,
-                    (sprite.Y + sprite.Height) / (float)height),
-                new Vector2(sprite.Width, sprite.Height));
+            return ResolveSprite(spriteSource[..separator], spriteSource[(separator + 1)..]);
         }
 
-        var source = element.Attributes.GetValueOrDefault("src") ??
-                     element.ComputedStyle.BackgroundImage;
+        if (TryParseSprite(element.ComputedStyle.BackgroundImage, out var atlasName, out var spriteName))
+            return ResolveSprite(atlasName, spriteName);
+
+        var source = element.Attributes.GetValueOrDefault("src");
+        if (string.IsNullOrWhiteSpace(source))
+            source = ParseUrl(element.ComputedStyle.BackgroundImage);
         if (string.IsNullOrWhiteSpace(source))
             return null;
 
@@ -143,6 +144,67 @@ public sealed class UiDocument : IDisposable
                 _textures.Resolve(asset),
                 new Vector4(0, 0, 1, 1),
                 new Vector2(asset.Value.Width, asset.Value.Height));
+    }
+
+    private UiResolvedImage? ResolveSprite(string atlasName, string spriteName)
+    {
+        var atlasSource = _settings.SpriteAtlases.GetValueOrDefault(atlasName) ?? atlasName;
+        var atlasPath = ResolveRelativePath(Path, atlasSource);
+        if (!_spriteAtlases.TryGetValue(atlasPath, out var atlas))
+        {
+            try
+            {
+                atlas = _assets.Load<UiSpriteAtlasAsset>(atlasPath);
+                _spriteAtlases.Add(atlasPath, atlas);
+            }
+            catch (Exception exception)
+            {
+                Logger.Error(exception, $"Could not load UI sprite atlas: {atlasPath}");
+                return null;
+            }
+        }
+
+        if (atlas.HasError || !atlas.Value.Sprites.TryGetValue(spriteName, out var sprite))
+            return null;
+        var textureAsset = atlas.Value.Texture;
+        var width = Math.Max(1, textureAsset.Value.Width);
+        var height = Math.Max(1, textureAsset.Value.Height);
+        return new UiResolvedImage(
+            _textures.Resolve(textureAsset),
+            new Vector4(
+                sprite.X / (float)width,
+                sprite.Y / (float)height,
+                (sprite.X + sprite.Width) / (float)width,
+                (sprite.Y + sprite.Height) / (float)height),
+            new Vector2(sprite.Width, sprite.Height));
+    }
+
+    private static bool TryParseSprite(string? source, out string atlas, out string sprite)
+    {
+        atlas = string.Empty;
+        sprite = string.Empty;
+        if (string.IsNullOrWhiteSpace(source))
+            return false;
+        var match = System.Text.RegularExpressions.Regex.Match(
+            source,
+            "^sprite\\(\\s*['\\\"]?([^,'\\\")]+)['\\\"]?\\s*,\\s*['\\\"]?([^'\\\")]+)['\\\"]?\\s*\\)$",
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        if (!match.Success)
+            return false;
+        atlas = match.Groups[1].Value.Trim();
+        sprite = match.Groups[2].Value.Trim();
+        return atlas.Length > 0 && sprite.Length > 0;
+    }
+
+    private static string? ParseUrl(string? source)
+    {
+        if (string.IsNullOrWhiteSpace(source))
+            return null;
+        var match = System.Text.RegularExpressions.Regex.Match(
+            source,
+            "url\\(\\s*['\\\"]?([^'\\\"\\)]+)",
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        return match.Success ? match.Groups[1].Value.Trim() : null;
     }
 
     private AssetRef<TextureAsset>? GetImageAsset(string path)
@@ -240,6 +302,7 @@ public sealed class UiDocument : IDisposable
     private void ReloadStyles()
     {
         _styleSheets.Clear();
+        _keyframes.Clear();
         foreach (var font in _fontAssets.Values)
             font.Dispose();
         _fontAssets.Clear();
@@ -250,6 +313,8 @@ public sealed class UiDocument : IDisposable
             {
                 var parsed = UiStyleSheet.Parse(style.Value.Source);
                 _styleSheets.Add(parsed);
+                foreach (var (name, animation) in parsed.Keyframes)
+                    _keyframes[name] = animation;
                 foreach (var face in parsed.FontFaces)
                 {
                     var path = ResolveRelativePath(style.Metadata.Path, face.Source);

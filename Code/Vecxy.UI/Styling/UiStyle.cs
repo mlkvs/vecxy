@@ -9,7 +9,10 @@ public enum EUiLengthUnit : byte
 {
     Auto,
     Pixel,
-    Percent
+    Percent,
+    Ui,
+    ViewportWidth,
+    ViewportHeight
 }
 
 public readonly record struct UiLength(float Value, EUiLengthUnit Unit)
@@ -17,6 +20,7 @@ public readonly record struct UiLength(float Value, EUiLengthUnit Unit)
     public static UiLength Auto => new(0.0f, EUiLengthUnit.Auto);
     public static UiLength Pixels(float value) => new(value, EUiLengthUnit.Pixel);
     public static UiLength Percent(float value) => new(value, EUiLengthUnit.Percent);
+    public static UiLength Ui(float value) => new(value, EUiLengthUnit.Ui);
 
     public static bool TryParse(string source, out UiLength result)
     {
@@ -32,6 +36,21 @@ public readonly record struct UiLength(float Value, EUiLengthUnit Unit)
         {
             unit = EUiLengthUnit.Percent;
             source = source[..^1];
+        }
+        else if (source.EndsWith("ui", StringComparison.OrdinalIgnoreCase))
+        {
+            unit = EUiLengthUnit.Ui;
+            source = source[..^2];
+        }
+        else if (source.EndsWith("vw", StringComparison.OrdinalIgnoreCase))
+        {
+            unit = EUiLengthUnit.ViewportWidth;
+            source = source[..^2];
+        }
+        else if (source.EndsWith("vh", StringComparison.OrdinalIgnoreCase))
+        {
+            unit = EUiLengthUnit.ViewportHeight;
+            source = source[..^2];
         }
         else if (source.EndsWith("px", StringComparison.OrdinalIgnoreCase))
         {
@@ -75,7 +94,8 @@ public sealed class UiComputedStyle
     public string JustifyContent { get; set; } = "flex-start";
     public string AlignItems { get; set; } = "stretch";
     public string AlignSelf { get; set; } = "auto";
-    public string Overflow { get; set; } = "visible";
+    public string OverflowX { get; set; } = "visible";
+    public string OverflowY { get; set; } = "visible";
     public string PointerEvents { get; set; } = "auto";
     public string Visibility { get; set; } = "visible";
     public UiLength Width { get; set; } = UiLength.Auto;
@@ -92,6 +112,8 @@ public sealed class UiComputedStyle
         UiLength.Auto,
         UiLength.Auto);
     public UiLength Gap { get; set; } = UiLength.Pixels(0);
+    public UiLength? RowGap { get; set; }
+    public UiLength? ColumnGap { get; set; }
     public UiLength FlexBasis { get; set; } = UiLength.Auto;
     public float FlexGrow { get; set; }
     public float FlexShrink { get; set; }
@@ -100,13 +122,34 @@ public sealed class UiComputedStyle
     public Vector4 BackgroundColor { get; set; } = Vector4.Zero;
     public Vector4 BorderColor { get; set; } = Vector4.Zero;
     public float BorderWidth { get; set; }
+    public UiLength BorderWidthLength { get; set; } = UiLength.Pixels(0.0f);
     public float BorderRadius { get; set; }
+    public UiLength BorderRadiusLength { get; set; } = UiLength.Pixels(0.0f);
     public float FontSize { get; set; } = 16.0f;
+    public UiLength FontSizeLength { get; set; } = UiLength.Ui(16.0f);
     public string FontFamily { get; set; } = "Vecxy Fallback";
     public float Opacity { get; set; } = 1.0f;
     public int ZIndex { get; set; }
     public string? BackgroundImage { get; set; }
+    public string BackgroundSize { get; set; } = "fill";
+    public string BackgroundPosition { get; set; } = "center";
+    internal UiTransformDefinition TransformDefinition { get; set; } = UiTransformDefinition.Identity;
+    public UiTransform Transform { get; set; } = UiTransform.Identity;
+    public Vector2 TransformOrigin { get; set; } = new(0.5f);
+    internal IReadOnlyList<UiTransitionDefinition> Transitions { get; set; } = [];
+    internal UiAnimationDefinition Animation { get; set; } = UiAnimationDefinition.None;
     public string ObjectFit { get; set; } = "fill";
+    public UiLength ScrollbarWidth { get; set; } = UiLength.Ui(8.0f);
+    public Vector4 ScrollbarColor { get; set; } = new(1.0f, 1.0f, 1.0f, 0.55f);
+    public Vector4 ScrollbarTrackColor { get; set; } = new(0.0f, 0.0f, 0.0f, 0.22f);
+    public string GridTemplateColumns { get; set; } = string.Empty;
+    public string GridTemplateRows { get; set; } = string.Empty;
+    public string GridAutoColumns { get; set; } = string.Empty;
+    public string GridAutoRows { get; set; } = string.Empty;
+    public string GridColumnStart { get; set; } = "auto";
+    public string GridColumnEnd { get; set; } = "auto";
+    public string GridRowStart { get; set; } = "auto";
+    public string GridRowEnd { get; set; } = "auto";
     public Dictionary<string, string> Variables { get; } =
         new(StringComparer.Ordinal);
 
@@ -118,6 +161,7 @@ public sealed class UiComputedStyle
 
         style.Color = parent.Color;
         style.FontSize = parent.FontSize;
+        style.FontSizeLength = parent.FontSizeLength;
         style.FontFamily = parent.FontFamily;
         foreach (var (name, value) in parent.Variables)
             style.Variables[name] = value;
@@ -135,13 +179,16 @@ internal sealed class UiStyleSheet
 {
     public IReadOnlyList<UiStyleRule> Rules { get; }
     public IReadOnlyList<UiFontFace> FontFaces { get; }
+    public IReadOnlyDictionary<string, UiKeyframes> Keyframes { get; }
 
     private UiStyleSheet(
         IReadOnlyList<UiStyleRule> rules,
-        IReadOnlyList<UiFontFace> fontFaces)
+        IReadOnlyList<UiFontFace> fontFaces,
+        IReadOnlyDictionary<string, UiKeyframes> keyframes)
     {
         Rules = rules;
         FontFaces = fontFaces;
+        Keyframes = keyframes;
     }
 
     public static UiStyleSheet Parse(string source)
@@ -155,6 +202,7 @@ internal sealed class UiStyleSheet
 
         var rules = new List<UiStyleRule>();
         var fontFaces = new List<UiFontFace>();
+        var keyframes = new Dictionary<string, UiKeyframes>(StringComparer.Ordinal);
         var order = 0;
         var cursor = 0;
 
@@ -174,6 +222,15 @@ internal sealed class UiStyleSheet
                 continue;
             }
 
+            if (prelude.StartsWith("@keyframes ", StringComparison.OrdinalIgnoreCase))
+            {
+                var name = prelude[11..].Trim();
+                var frames = ParseKeyframes(body);
+                if (name.Length > 0 && frames.Count > 0)
+                    keyframes[name] = new UiKeyframes(name, frames);
+                continue;
+            }
+
             if (prelude.Length == 0 || prelude.StartsWith('@'))
                 continue;
 
@@ -186,7 +243,31 @@ internal sealed class UiStyleSheet
             }
         }
 
-        return new UiStyleSheet(rules, fontFaces);
+        return new UiStyleSheet(rules, fontFaces, keyframes);
+    }
+
+    private static IReadOnlyList<UiKeyframe> ParseKeyframes(string source)
+    {
+        var result = new List<UiKeyframe>();
+        var cursor = 0;
+        while (TryReadBlock(source, ref cursor, out var prelude, out var body))
+        {
+            var declarations = ParseDeclarations(body);
+            foreach (var selector in SplitTopLevel(prelude, ','))
+            {
+                var token = selector.Trim().ToLowerInvariant();
+                float offset;
+                if (token == "from") offset = 0.0f;
+                else if (token == "to") offset = 1.0f;
+                else if (token.EndsWith('%') &&
+                         float.TryParse(token[..^1], NumberStyles.Float, CultureInfo.InvariantCulture, out var percent))
+                    offset = Math.Clamp(percent * 0.01f, 0.0f, 1.0f);
+                else
+                    continue;
+                result.Add(new UiKeyframe(offset, declarations));
+            }
+        }
+        return result.OrderBy(frame => frame.Offset).ToArray();
     }
 
     internal static IReadOnlyDictionary<string, string> ParseDeclarations(
@@ -529,8 +610,13 @@ internal sealed class UiSelector
                     "root" => element.Parent is null,
                     "hover" => element.IsHovered,
                     "active" => element.IsActive,
-                    "focus" or "focus-visible" => element.IsFocused,
+                    "focus" => element.IsFocused,
+                    "focus-visible" => element.IsFocused && element.IsFocusVisible,
                     "disabled" => element.IsDisabled,
+                    "checked" => element.IsChecked,
+                    "selected" => element.IsSelected,
+                    "dragging" => element.IsDragging,
+                    "drop-target" => element.IsDropTarget,
                     "first-child" => element.Parent?.Children.FirstOrDefault() == element,
                     "last-child" => element.Parent?.Children.LastOrDefault() == element,
                     "empty" => element.Children.Count == 0 && string.IsNullOrWhiteSpace(element.Text),
@@ -638,9 +724,9 @@ internal static class UiStyleResolver
             case "justify-content": style.JustifyContent = value; break;
             case "align-items": style.AlignItems = value; break;
             case "align-self": style.AlignSelf = value; break;
-            case "overflow":
-            case "overflow-x":
-            case "overflow-y": style.Overflow = value; break;
+            case "overflow": style.OverflowX = style.OverflowY = value.ToLowerInvariant(); break;
+            case "overflow-x": style.OverflowX = value.ToLowerInvariant(); break;
+            case "overflow-y": style.OverflowY = value.ToLowerInvariant(); break;
             case "pointer-events": style.PointerEvents = value; break;
             case "visibility": style.Visibility = value; break;
             case "width": SetLength(value, result => style.Width = result); break;
@@ -650,6 +736,8 @@ internal static class UiStyleResolver
             case "max-width": SetLength(value, result => style.MaxWidth = result); break;
             case "max-height": SetLength(value, result => style.MaxHeight = result); break;
             case "gap": SetLength(value, result => style.Gap = result); break;
+            case "row-gap": SetLength(value, result => style.RowGap = result); break;
+            case "column-gap": SetLength(value, result => style.ColumnGap = result); break;
             case "flex-grow": SetFloat(value, result => style.FlexGrow = result); break;
             case "flex-shrink": SetFloat(value, result => style.FlexShrink = result); break;
             case "flex-basis": SetLength(value, result => style.FlexBasis = result); break;
@@ -682,10 +770,10 @@ internal static class UiStyleResolver
                 SetColor(value, result => style.BackgroundColor = result);
                 break;
             case "border-color": SetColor(value, result => style.BorderColor = result); break;
-            case "border-width": SetPixels(value, result => style.BorderWidth = result); break;
-            case "border-radius": SetPixels(value.Split(' ', StringSplitOptions.RemoveEmptyEntries)[0], result => style.BorderRadius = result); break;
+            case "border-width": SetLength(value, result => style.BorderWidthLength = result); break;
+            case "border-radius": SetLength(value.Split(' ', StringSplitOptions.RemoveEmptyEntries)[0], result => style.BorderRadiusLength = result); break;
             case "border": ApplyBorder(style, value); break;
-            case "font-size": SetPixels(value, result => style.FontSize = Math.Max(1.0f, result)); break;
+            case "font-size": SetLength(value, result => style.FontSizeLength = result); break;
             case "font-family":
                 style.FontFamily = value.Split(',', 2)[0].Trim(' ', '\'', '"');
                 break;
@@ -694,8 +782,41 @@ internal static class UiStyleResolver
                 if (int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var zIndex))
                     style.ZIndex = zIndex;
                 break;
-            case "background-image": style.BackgroundImage = ParseUrl(value); break;
+            case "background-image": style.BackgroundImage = value.Trim(); break;
+            case "background-size": style.BackgroundSize = value.ToLowerInvariant(); break;
+            case "background-position": style.BackgroundPosition = value.ToLowerInvariant(); break;
+            case "transform": style.TransformDefinition = UiTransformParser.Parse(value, style.TransformOrigin); break;
+            case "transform-origin":
+                style.TransformOrigin = UiTransformParser.ParseOrigin(value);
+                style.TransformDefinition = style.TransformDefinition with { Origin = style.TransformOrigin };
+                break;
+            case "transition": style.Transitions = UiAnimationParser.ParseTransitions(value); break;
+            case "animation": style.Animation = UiAnimationParser.ParseAnimation(value); break;
             case "object-fit": style.ObjectFit = value.ToLowerInvariant(); break;
+            case "scrollbar-width": SetLength(value, result => style.ScrollbarWidth = result); break;
+            case "scrollbar-color":
+            {
+                var colors = value.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                if (colors.Length > 0 && TryColor(colors[0], out var thumb))
+                    style.ScrollbarColor = thumb;
+                if (colors.Length > 1 && TryColor(colors[1], out var track))
+                    style.ScrollbarTrackColor = track;
+                break;
+            }
+            case "grid-template-columns": style.GridTemplateColumns = value; break;
+            case "grid-template-rows": style.GridTemplateRows = value; break;
+            case "grid-auto-columns": style.GridAutoColumns = value; break;
+            case "grid-auto-rows": style.GridAutoRows = value; break;
+            case "grid-column-start": style.GridColumnStart = value; break;
+            case "grid-column-end": style.GridColumnEnd = value; break;
+            case "grid-row-start": style.GridRowStart = value; break;
+            case "grid-row-end": style.GridRowEnd = value; break;
+            case "grid-column":
+                (style.GridColumnStart, style.GridColumnEnd) = UiGridLayout.ParsePlacement(value);
+                break;
+            case "grid-row":
+                (style.GridRowStart, style.GridRowEnd) = UiGridLayout.ParsePlacement(value);
+                break;
             case "flex": ApplyFlex(style, value); break;
         }
     }
@@ -715,8 +836,8 @@ internal static class UiStyleResolver
     {
         foreach (var part in value.Split(' ', StringSplitOptions.RemoveEmptyEntries))
         {
-            if (part.EndsWith("px", StringComparison.OrdinalIgnoreCase))
-                SetPixels(part, result => style.BorderWidth = result);
+            if (UiLength.TryParse(part, out var width) && width.Unit is not (EUiLengthUnit.Auto or EUiLengthUnit.Percent))
+                style.BorderWidthLength = width;
             else if (TryColor(part, out var color))
                 style.BorderColor = color;
         }

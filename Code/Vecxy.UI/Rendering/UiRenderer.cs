@@ -15,6 +15,7 @@ internal sealed class UiRenderer : IDisposable
     private readonly List<float> _vertices = [];
     private readonly List<uint> _indices = [];
     private readonly List<Batch> _batches = [];
+    private Matrix3x2 _transform = Matrix3x2.Identity;
     private uint _program;
     private uint _vertexArray;
     private uint _vertexBuffer;
@@ -29,7 +30,7 @@ internal sealed class UiRenderer : IDisposable
         _device = device;
     }
 
-    public void Draw(IReadOnlyList<UiDocument> documents, int width, int height)
+    public void Draw(IReadOnlyList<UiDocument> documents, int width, int height, UiConfig? settings)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         EnsureResources();
@@ -40,8 +41,15 @@ internal sealed class UiRenderer : IDisposable
         var viewport = new Rect(0, 0, width, height);
         foreach (var document in documents.Where(document => document.IsVisible))
         {
-            document.Layout(width, height);
-            PaintElement(document, document.Root, viewport, 1.0f, document.LayoutScale);
+            document.Layout(width, height, settings);
+            PaintElement(
+                document,
+                document.Root,
+                viewport,
+                1.0f,
+                document.LayoutScale,
+                Vector2.Zero,
+                Matrix3x2.Identity);
         }
 
         if (_indices.Count == 0)
@@ -55,16 +63,32 @@ internal sealed class UiRenderer : IDisposable
         UiElement element,
         Rect clip,
         float inheritedOpacity,
-        float scale)
+        float scale,
+        Vector2 translation,
+        Matrix3x2 parentTransform)
     {
         var style = element.ComputedStyle;
-        var bounds = Scale(element.Bounds, scale);
+        var bounds = Scale(
+            new Rect(
+                element.Bounds.X + translation.X,
+                element.Bounds.Y + translation.Y,
+                element.Bounds.Width,
+                element.Bounds.Height),
+            scale);
         if (style.Display == "none" || style.Visibility == "hidden" ||
             bounds.Width <= 0 || bounds.Height <= 0)
             return;
 
-        var opacity = inheritedOpacity * style.Opacity;
-        var background = style.BackgroundColor with { W = style.BackgroundColor.W * opacity };
+        var previousTransform = _transform;
+        var renderTransform = element.RenderTransform with
+        {
+            Translation = element.RenderTransform.Translation * scale
+        };
+        _transform = renderTransform.ToMatrix(bounds) * parentTransform;
+
+        var opacity = inheritedOpacity * element.RenderOpacity;
+        var renderedBackground = element.RenderBackgroundColor;
+        var background = renderedBackground with { W = renderedBackground.W * opacity };
         if (background.W > 0.001f)
             AddQuad(bounds, background, null, clip, false);
 
@@ -75,7 +99,8 @@ internal sealed class UiRenderer : IDisposable
                 bounds,
                 resolvedImage.Uv,
                 resolvedImage.Size,
-                style.ObjectFit);
+                element.TagName == "image" ? style.ObjectFit : style.BackgroundSize,
+                element.TagName == "image" ? "center" : style.BackgroundPosition);
             AddTextured(
                 imageBounds,
                 Vector4.One with { W = opacity },
@@ -89,22 +114,94 @@ internal sealed class UiRenderer : IDisposable
 
         if (element.TagName == "text" && element.Text.Length > 0)
         {
-            var color = style.Color with { W = style.Color.W * opacity };
+            var renderedColor = element.RenderColor;
+            var color = renderedColor with { W = renderedColor.W * opacity };
             if (element.Font is { } font && document.ResolveFontTexture(element) is { } fontTexture)
                 UiBitmapFont.Paint(this, font, fontTexture, element.Text, bounds, style.FontSize * scale, color, clip);
             else
                 UiFallbackFont.Paint(this, element.Text, bounds, style.FontSize * scale, color, clip);
         }
 
-        var childClip = style.Overflow is "hidden" or "scroll" or "auto"
-            ? Intersect(clip, bounds)
-            : clip;
+        var childClip = ClipAxes(
+            clip,
+            bounds,
+            style.OverflowX is "hidden" or "scroll" or "auto",
+            style.OverflowY is "hidden" or "scroll" or "auto");
+        var childTranslation = translation - element.ScrollOffset;
         foreach (var child in element.Children
                      .Select((value, index) => (value, index))
                      .OrderBy(item => item.value.ComputedStyle.ZIndex)
                      .ThenBy(item => item.index)
                      .Select(item => item.value))
-            PaintElement(document, child, childClip, opacity, scale);
+            PaintElement(
+                document,
+                child,
+                childClip,
+                opacity,
+                scale,
+                childTranslation,
+                _transform);
+
+        PaintScrollbars(element, bounds, opacity, scale, clip);
+        _transform = previousTransform;
+    }
+
+    private void PaintScrollbars(
+        UiElement element,
+        Rect bounds,
+        float opacity,
+        float scale,
+        Rect clip)
+    {
+        var style = element.ComputedStyle;
+        var width = Math.Max(
+            1.0f,
+            UiLayout.ResolvePoints(
+                style.ScrollbarWidth,
+                element.Bounds.Width,
+                element.Bounds.Height) * scale);
+
+        if (element.CanScrollVertically)
+        {
+            var track = new Rect(bounds.Right - width, bounds.Top, width, bounds.Height);
+            AddSolid(
+                track,
+                style.ScrollbarTrackColor with { W = style.ScrollbarTrackColor.W * opacity },
+                clip);
+            var ratio = Math.Clamp(element.Bounds.Height / element.ScrollExtent.Y, 0.05f, 1.0f);
+            var thumbHeight = track.Height * ratio;
+            var progress = element.ScrollOffset.Y /
+                           Math.Max(0.001f, element.ScrollExtent.Y - element.Bounds.Height);
+            AddSolid(
+                new Rect(
+                    track.X,
+                    track.Y + (track.Height - thumbHeight) * progress,
+                    width,
+                    thumbHeight),
+                style.ScrollbarColor with { W = style.ScrollbarColor.W * opacity },
+                clip);
+        }
+
+        if (element.CanScrollHorizontally)
+        {
+            var track = new Rect(bounds.Left, bounds.Bottom - width, bounds.Width, width);
+            AddSolid(
+                track,
+                style.ScrollbarTrackColor with { W = style.ScrollbarTrackColor.W * opacity },
+                clip);
+            var ratio = Math.Clamp(element.Bounds.Width / element.ScrollExtent.X, 0.05f, 1.0f);
+            var thumbWidth = track.Width * ratio;
+            var progress = element.ScrollOffset.X /
+                           Math.Max(0.001f, element.ScrollExtent.X - element.Bounds.Width);
+            AddSolid(
+                new Rect(
+                    track.X + (track.Width - thumbWidth) * progress,
+                    track.Y,
+                    thumbWidth,
+                    width),
+                style.ScrollbarColor with { W = style.ScrollbarColor.W * opacity },
+                clip);
+        }
     }
 
     private static Rect Scale(Rect bounds, float scale) =>
@@ -118,7 +215,8 @@ internal sealed class UiRenderer : IDisposable
         Rect bounds,
         Vector4 uv,
         Vector2 sourceSize,
-        string objectFit)
+        string objectFit,
+        string position)
     {
         if (objectFit == "fill" || sourceSize.X <= 0.0f || sourceSize.Y <= 0.0f ||
             bounds.Width <= 0.0f || bounds.Height <= 0.0f)
@@ -126,6 +224,7 @@ internal sealed class UiRenderer : IDisposable
 
         var sourceAspect = sourceSize.X / sourceSize.Y;
         var targetAspect = bounds.Width / bounds.Height;
+        var alignment = ParseImagePosition(position);
         if (objectFit == "contain")
         {
             var width = bounds.Width;
@@ -138,8 +237,8 @@ internal sealed class UiRenderer : IDisposable
 
             return (
                 new Rect(
-                    bounds.X + (bounds.Width - width) * 0.5f,
-                    bounds.Y + (bounds.Height - height) * 0.5f,
+                    bounds.X + (bounds.Width - width) * alignment.X,
+                    bounds.Y + (bounds.Height - height) * alignment.Y,
                     width,
                     height),
                 uv);
@@ -151,19 +250,57 @@ internal sealed class UiRenderer : IDisposable
         if (sourceAspect > targetAspect)
         {
             var visible = targetAspect / sourceAspect;
-            var inset = (1.0f - visible) * 0.5f * (uv.Z - uv.X);
-            uv.X += inset;
-            uv.Z -= inset;
+            var crop = (1.0f - visible) * (uv.Z - uv.X);
+            uv.X += crop * alignment.X;
+            uv.Z -= crop * (1.0f - alignment.X);
         }
         else
         {
             var visible = sourceAspect / targetAspect;
-            var inset = (1.0f - visible) * 0.5f * (uv.W - uv.Y);
-            uv.Y += inset;
-            uv.W -= inset;
+            var crop = (1.0f - visible) * (uv.W - uv.Y);
+            uv.Y += crop * alignment.Y;
+            uv.W -= crop * (1.0f - alignment.Y);
         }
 
         return (bounds, uv);
+    }
+
+    private static Vector2 ParseImagePosition(string source)
+    {
+        var parts = source.Split(
+            ' ',
+            StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        if (parts.Length == 0)
+            return new Vector2(0.5f);
+
+        var horizontal = 0.5f;
+        var vertical = 0.5f;
+        for (var index = 0; index < Math.Min(parts.Length, 2); index++)
+        {
+            var part = parts[index];
+            switch (part)
+            {
+                case "left": horizontal = 0.0f; break;
+                case "right": horizontal = 1.0f; break;
+                case "top": vertical = 0.0f; break;
+                case "bottom": vertical = 1.0f; break;
+                case "center": break;
+                default:
+                    if (!part.EndsWith('%') ||
+                        !float.TryParse(
+                            part[..^1],
+                            System.Globalization.NumberStyles.Float,
+                            System.Globalization.CultureInfo.InvariantCulture,
+                            out var percentage))
+                        break;
+                    if (index == 0)
+                        horizontal = Math.Clamp(percentage * 0.01f, 0.0f, 1.0f);
+                    else
+                        vertical = Math.Clamp(percentage * 0.01f, 0.0f, 1.0f);
+                    break;
+            }
+        }
+        return new Vector2(horizontal, vertical);
     }
 
     internal void AddSolid(Rect bounds, Vector4 color, Rect clip) =>
@@ -232,8 +369,9 @@ internal sealed class UiRenderer : IDisposable
 
     private void AddVertex(float x, float y, float u, float v, Vector4 color)
     {
-        _vertices.Add(x);
-        _vertices.Add(y);
+        var position = Vector2.Transform(new Vector2(x, y), _transform);
+        _vertices.Add(position.X);
+        _vertices.Add(position.Y);
         _vertices.Add(u);
         _vertices.Add(v);
         _vertices.Add(color.X);
@@ -436,6 +574,19 @@ internal sealed class UiRenderer : IDisposable
         var right = Math.Min(first.Right, second.Right);
         var bottom = Math.Min(first.Bottom, second.Bottom);
         return new Rect(left, top, Math.Max(0, right - left), Math.Max(0, bottom - top));
+    }
+
+    private static Rect ClipAxes(Rect clip, Rect bounds, bool horizontal, bool vertical)
+    {
+        var left = horizontal ? Math.Max(clip.Left, bounds.Left) : clip.Left;
+        var right = horizontal ? Math.Min(clip.Right, bounds.Right) : clip.Right;
+        var top = vertical ? Math.Max(clip.Top, bounds.Top) : clip.Top;
+        var bottom = vertical ? Math.Min(clip.Bottom, bounds.Bottom) : clip.Bottom;
+        return new Rect(
+            left,
+            top,
+            Math.Max(0.0f, right - left),
+            Math.Max(0.0f, bottom - top));
     }
 
     public void Dispose()
