@@ -3,7 +3,7 @@ using Vecxy.Scene;
 
 namespace Vecxy.Rendering;
 
-public sealed class MeshRenderer : AComponent
+public sealed class MeshRenderer : AComponent, ILocalBoundsProvider
 {
     private Mesh? _mesh;
     private Material? _material;

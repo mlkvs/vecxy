@@ -91,6 +91,17 @@ internal static class PhysicsDescriptionFactory
                 0.0f,
                 0.0f),
 
+            BoxCollider2D box => new PhysicsShapeDefinition(
+                EPhysicsShapeType.Box,
+                center,
+                collider.Rotation,
+                new Vector3(
+                    box.Size.X * scale.X,
+                    box.Size.Y * scale.Y,
+                    box.Depth * scale.Z),
+                0.0f,
+                0.0f),
+
             SphereCollider sphere => new PhysicsShapeDefinition(
                 EPhysicsShapeType.Sphere,
                 center,

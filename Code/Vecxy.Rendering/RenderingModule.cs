@@ -24,6 +24,9 @@ public interface IRenderer
     void SetSceneViewportSize(int width, int height);
     void SetSceneViewportScreenRect(Rect? screenRect);
     Vector2 ScreenToGameOutput(Vector2 screenPosition);
+    bool TryCreateCameraRay(
+        Vector2 screenPosition,
+        out CameraRay ray);
 
     Mesh CreateQuad();
 }
@@ -31,6 +34,17 @@ public interface IRenderer
 public interface IMeshResolver
 {
     IReadOnlyList<Mesh> GetMeshes(Model model, int meshIndex);
+}
+
+public interface ITextureResolver
+{
+    Texture Resolve(AssetRef<TextureAsset> texture);
+    Texture Resolve(TextureAsset texture);
+}
+
+public interface IGraphicsDeviceProvider
+{
+    GraphicsDevice GraphicsDevice { get; }
 }
 
 public interface ISceneInstantiator
@@ -44,16 +58,28 @@ public interface ISceneInstantiator
 
 public interface IRenderOverlayStage
 {
+    void RegisterGameOverlay(Action<RenderOverlayContext> draw);
+    void UnregisterGameOverlay(Action<RenderOverlayContext> draw);
     void RegisterOverlay(Action draw);
     void UnregisterOverlay(Action draw);
 }
 
+public readonly record struct RenderOverlayContext(int Width, int Height);
+
+public readonly record struct CameraRay(
+    Vector2 OutputPosition,
+    Vector3 Origin,
+    Vector3 Direction,
+    float MaxDistance);
+
 public sealed class RenderingModule(
     IAssetsManager assets,
+    IWindow window,
     GraphicsDevice device,
     BackbufferRenderTarget backbuffer,
     ShaderLibrary shaders,
     MaterialLibrary materials,
+    TextureLibrary textures,
     MeshLibrary meshes,
     RenderingStatistics statistics,
     ISceneManager scenes)
@@ -63,6 +89,8 @@ public sealed class RenderingModule(
         IModule.IRenderable,
         IRenderer,
         IMeshResolver,
+        ITextureResolver,
+        IGraphicsDeviceProvider,
         ISceneInstantiator,
         IRenderOverlayStage
 {
@@ -77,6 +105,8 @@ public sealed class RenderingModule(
             [
                 typeof(IRenderer),
                 typeof(IMeshResolver),
+                typeof(ITextureResolver),
+                typeof(IGraphicsDeviceProvider),
                 typeof(ISceneInstantiator),
                 typeof(IRenderOverlayStage)
             ];
@@ -132,9 +162,11 @@ public sealed class RenderingModule(
         }
     }
 
+    private readonly List<Action<RenderOverlayContext>> _gameOverlayCallbacks = [];
     private readonly List<Action> _overlayCallbacks = [];
     private readonly List<GameView> _views = [];
     private AssetRef<ShaderAsset>? _litShader;
+    private AssetRef<ShaderAsset>? _spriteShader;
     private AssetRef<ShaderAsset>? _skyboxShader;
     private AssetRef<ShaderAsset>? _copyPostShader;
     private SceneRenderTarget? _sceneTarget;
@@ -150,6 +182,7 @@ public sealed class RenderingModule(
     private Rect? _sceneViewportScreenRect;
 
     public RenderingStatistics Statistics => statistics;
+    public GraphicsDevice GraphicsDevice => device;
     public bool Wireframe { get; set; }
     public bool ScenePresentationEnabled { get; set; } = true;
     public nint SceneTextureId =>
@@ -166,6 +199,7 @@ public sealed class RenderingModule(
     public void OnInitialize()
     {
         _litShader = assets.Load<ShaderAsset>("Shaders/Lit.glsl");
+        _spriteShader = assets.Load<ShaderAsset>("Shaders/Sprite.glsl");
         _skyboxShader = assets.Load<ShaderAsset>("Shaders/Skybox.glsl");
         _copyPostShader = assets.Load<ShaderAsset>("Shaders/PostProcessing/Copy.glsl");
         _sceneTarget = new SceneRenderTarget(device);
@@ -242,6 +276,21 @@ public sealed class RenderingModule(
             device.GL.Clear(ClearBufferMask.ColorBufferBit);
         }
 
+        if (renderSceneToViewport && _presentedSceneTarget is not null)
+        {
+            _presentedSceneTarget.Bind(device);
+            DrawGameOverlays(
+                _presentedSceneTarget.Width,
+                _presentedSceneTarget.Height);
+            backbuffer.Bind(device);
+        }
+        else
+        {
+            DrawGameOverlays(
+                Math.Max(1, backbuffer.Width),
+                Math.Max(1, backbuffer.Height));
+        }
+
         foreach (var draw in _overlayCallbacks.ToArray())
             draw();
 
@@ -296,7 +345,7 @@ public sealed class RenderingModule(
             _sceneViewportWidth <= 0 ||
             _sceneViewportHeight <= 0)
         {
-            return screenPosition;
+            return window.ClientToFramebuffer(screenPosition);
         }
 
         return new Vector2(
@@ -306,12 +355,105 @@ public sealed class RenderingModule(
             _sceneViewportHeight);
     }
 
+    public bool TryCreateCameraRay(
+        Vector2 screenPosition,
+        out CameraRay ray)
+    {
+        ray = default;
+
+        if (_sceneViewportScreenRect is { } screenRect &&
+            (screenPosition.X < screenRect.Left ||
+             screenPosition.X > screenRect.Right ||
+             screenPosition.Y < screenRect.Top ||
+             screenPosition.Y > screenRect.Bottom))
+        {
+            return false;
+        }
+
+        var camera = FindActiveCamera();
+        if (camera is null)
+            return false;
+
+        var width = Math.Max(1, GameOutputWidth);
+        var height = Math.Max(1, GameOutputHeight);
+        var output = ScreenToGameOutput(screenPosition);
+        if (output.X < 0.0f || output.X > width ||
+            output.Y < 0.0f || output.Y > height)
+        {
+            return false;
+        }
+
+        var aspectRatio = width / (float)height;
+        var viewProjection =
+            camera.ViewMatrix *
+            camera.GetProjectionMatrix(aspectRatio);
+        if (!Matrix4x4.Invert(viewProjection, out var inverse))
+            return false;
+
+        var normalizedX = output.X / width * 2.0f - 1.0f;
+        var normalizedY = 1.0f - output.Y / height * 2.0f;
+        var near = Unproject(
+            new Vector4(normalizedX, normalizedY, -1.0f, 1.0f),
+            inverse);
+        var far = Unproject(
+            new Vector4(normalizedX, normalizedY, 1.0f, 1.0f),
+            inverse);
+        var delta = far - near;
+        var distance = delta.Length();
+        if (distance <= float.Epsilon ||
+            !float.IsFinite(distance))
+        {
+            return false;
+        }
+
+        ray = new CameraRay(
+            output,
+            near,
+            delta / distance,
+            distance);
+        return true;
+    }
+
+    private static Vector3 Unproject(
+        Vector4 clipPosition,
+        Matrix4x4 inverseViewProjection)
+    {
+        var world = Vector4.Transform(
+            clipPosition,
+            inverseViewProjection);
+        if (Math.Abs(world.W) <= float.Epsilon)
+            return new Vector3(world.X, world.Y, world.Z);
+
+        return new Vector3(world.X, world.Y, world.Z) / world.W;
+    }
+
     public void RegisterOverlay(Action draw)
     {
         ArgumentNullException.ThrowIfNull(draw);
 
         if (!_overlayCallbacks.Contains(draw))
             _overlayCallbacks.Add(draw);
+    }
+
+    public void RegisterGameOverlay(Action<RenderOverlayContext> draw)
+    {
+        ArgumentNullException.ThrowIfNull(draw);
+
+        if (!_gameOverlayCallbacks.Contains(draw))
+            _gameOverlayCallbacks.Add(draw);
+    }
+
+    public void UnregisterGameOverlay(Action<RenderOverlayContext> draw)
+    {
+        ArgumentNullException.ThrowIfNull(draw);
+        _gameOverlayCallbacks.Remove(draw);
+    }
+
+    private void DrawGameOverlays(int width, int height)
+    {
+        var context = new RenderOverlayContext(width, height);
+        foreach (var draw in _gameOverlayCallbacks.ToArray())
+            draw(context);
     }
 
     public void UnregisterOverlay(Action draw)
@@ -343,6 +485,18 @@ public sealed class RenderingModule(
             "Fullscreen Quad",
             new VertexAttribute(0, 2, 0),
             new VertexAttribute(1, 2, 2));
+    }
+
+    public Texture Resolve(AssetRef<TextureAsset> texture)
+    {
+        ArgumentNullException.ThrowIfNull(texture);
+        return textures.Get(texture);
+    }
+
+    public Texture Resolve(TextureAsset texture)
+    {
+        ArgumentNullException.ThrowIfNull(texture);
+        return textures.Get(texture);
     }
 
     private Mesh CreateSkyboxCube()
@@ -761,6 +915,8 @@ public sealed class RenderingModule(
             camera.GetProjectionMatrix(aspectRatio);
         var lighting = CollectLighting(scene);
 
+        DrawSprites(scene, viewProjection);
+
         var renderers = scene.Objects
             .Where(sceneObject => sceneObject.IsActive)
             .Select(sceneObject =>
@@ -1077,6 +1233,81 @@ public sealed class RenderingModule(
         }
     }
 
+    private void DrawSprites(
+        SceneInstance scene,
+        Matrix4x4 viewProjection)
+    {
+        if (_fullscreenQuad is null ||
+            _spriteShader is null ||
+            _spriteShader.HasError)
+        {
+            return;
+        }
+
+        var renderers = scene.Objects
+            .Where(sceneObject => sceneObject.IsActive)
+            .Select(sceneObject => sceneObject.GetComponent<SpriteRenderer>())
+            .Where(renderer =>
+                renderer is
+                {
+                    IsActive: true,
+                    IsConfigured: true
+                })
+            .Select(renderer => renderer!)
+            .OrderBy(renderer => renderer.SortingLayer)
+            .ThenBy(renderer => renderer.OrderInLayer)
+            .ThenBy(renderer => renderer.SceneObject!.Id)
+            .ToArray();
+
+        if (renderers.Length == 0)
+            return;
+
+        var shader = shaders.Get(_spriteShader);
+        device.GL.Disable(EnableCap.DepthTest);
+        device.GL.DepthMask(false);
+        device.GL.Enable(EnableCap.Blend);
+        device.GL.BlendFunc(
+            BlendingFactor.SrcAlpha,
+            BlendingFactor.OneMinusSrcAlpha);
+
+        foreach (var renderer in renderers)
+        {
+            try
+            {
+                var size = renderer.LocalSize;
+                var pivotOffset = new Vector3(
+                    (0.5f - renderer.Pivot.X) * size.X,
+                    (0.5f - renderer.Pivot.Y) * size.Y,
+                    0.0f);
+                var model =
+                    Matrix4x4.CreateScale(size.X, size.Y, 1.0f) *
+                    Matrix4x4.CreateTranslation(pivotOffset) *
+                    renderer.Transform.WorldMatrix;
+
+                shader.Bind();
+                textures.Get(renderer.TextureReference).Bind(0, renderer.Sampler);
+                shader.Set("uTexture", 0);
+                shader.Set("uColor", renderer.Color);
+                shader.Set("uAlphaCutoff", renderer.AlphaCutoff);
+                shader.Set("uFlipX", renderer.FlipX ? 1 : 0);
+                shader.Set("uFlipY", renderer.FlipY ? 1 : 0);
+                shader.Set("uTransform", model * viewProjection);
+                _fullscreenQuad.Draw();
+                statistics.RecordDraw();
+            }
+            catch (Exception exception)
+            {
+                Logger.Error(
+                    exception,
+                    $"Could not render sprite '{renderer.SceneObject?.Name ?? "destroyed object"}'.");
+            }
+        }
+
+        device.GL.Disable(EnableCap.Blend);
+        device.GL.DepthMask(true);
+        device.GL.Enable(EnableCap.DepthTest);
+    }
+
     private void ApplyMaterialState(Material material)
     {
         switch (material.Surface)
@@ -1336,11 +1567,14 @@ public sealed class RenderingModule(
             view.Clear();
 
         _views.Clear();
+        _gameOverlayCallbacks.Clear();
         _overlayCallbacks.Clear();
         assets.UnregisterImporter<Model>();
         assets.UnregisterImporter<Material>();
         _litShader?.Dispose();
         _litShader = null;
+        _spriteShader?.Dispose();
+        _spriteShader = null;
         _skyboxShader?.Dispose();
         _skyboxShader = null;
         _copyPostShader?.Dispose();
