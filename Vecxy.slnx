@@ -10,6 +10,8 @@
   <Project Path="Code/Vecxy.Diagnostics/Vecxy.Diagnostics.csproj" />
   <Project Path="Code/Vecxy.Engine/Vecxy.Engine.csproj" />
   <Project Path="Code/Vecxy.Kernel/Vecxy.Kernel.csproj" />
+  <Project Path="Code/Vecxy.Platforms/Vecxy.Platforms.csproj" />
+  <Project Path="Code/Vecxy.Platforms.Android/Vecxy.Platforms.Android.csproj" />
   <Project Path="Code/Vecxy.Rendering/Vecxy.Rendering.csproj" />
   <Project Path="Code/Vecxy.UI/Vecxy.UI.csproj" />
 </Solution>

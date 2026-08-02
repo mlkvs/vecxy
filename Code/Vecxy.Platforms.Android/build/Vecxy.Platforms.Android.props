@@ -1,0 +1,27 @@
+<Project>
+  <PropertyGroup>
+    <AndroidApplication>true</AndroidApplication>
+    <OutputType>Exe</OutputType>
+    <AndroidManifest>$([MSBuild]::MakeRelative('$(MSBuildProjectDirectory)', '$(MSBuildThisFileDirectory)AndroidManifest.xml'))</AndroidManifest>
+    <SupportedOSPlatformVersion Condition="'$(SupportedOSPlatformVersion)' == ''">24</SupportedOSPlatformVersion>
+    <RuntimeIdentifier Condition="'$(RuntimeIdentifier)' == ''">android-arm64</RuntimeIdentifier>
+    <ApplicationId Condition="'$(ApplicationId)' == ''">$(VecxyApplicationId)</ApplicationId>
+    <ApplicationTitle Condition="'$(ApplicationTitle)' == ''">$(VecxyApplicationTitle)</ApplicationTitle>
+    <ApplicationVersion Condition="'$(ApplicationVersion)' == ''">1</ApplicationVersion>
+    <ApplicationDisplayVersion Condition="'$(ApplicationDisplayVersion)' == ''">$(VecxyApplicationVersion)</ApplicationDisplayVersion>
+    <AndroidPackageFormat>apk</AndroidPackageFormat>
+    <PublishTrimmed>false</PublishTrimmed>
+    <RunAOTCompilation>false</RunAOTCompilation>
+    <AndroidEnableMarshalMethods>false</AndroidEnableMarshalMethods>
+    <AndroidUseSharedRuntime>false</AndroidUseSharedRuntime>
+    <AndroidSdkDirectory Condition="'$(AndroidSdkDirectory)' == '' and Exists('$(HOME)/.local/share/android-sdk')">$(HOME)/.local/share/android-sdk</AndroidSdkDirectory>
+    <JavaSdkDirectory Condition="'$(JavaSdkDirectory)' == '' and Exists('$(HOME)/.local/share/android-jdk')">$(HOME)/.local/share/android-jdk</JavaSdkDirectory>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="$(MSBuildThisFileDirectory)..\Vecxy.Platforms.Android.csproj" />
+    <AndroidAsset Include="$(MSBuildThisFileDirectory)..\..\Vecxy.Engine\Assets\**\*">
+      <Link>Assets\%(RecursiveDir)%(Filename)%(Extension)</Link>
+    </AndroidAsset>
+  </ItemGroup>
+</Project>

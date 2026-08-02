@@ -1,0 +1,25 @@
+<Project>
+  <PropertyGroup>
+    <VecxyPlatform Condition="'$(VecxyPlatform)' == ''">Desktop</VecxyPlatform>
+    <TargetFramework Condition="'$(VecxyPlatform)' == 'Desktop'">net10.0</TargetFramework>
+    <TargetFramework Condition="'$(VecxyPlatform)' == 'Android'">net10.0-android</TargetFramework>
+    <OutputType>Exe</OutputType>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="$(MSBuildThisFileDirectory)..\Vecxy.Platforms.csproj" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(VecxyPlatform)' == 'Desktop'">
+    <Content Include="$(MSBuildProjectDirectory)\Assets\**\*">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <TargetPath>Assets\%(RecursiveDir)%(Filename)%(Extension)</TargetPath>
+    </Content>
+  </ItemGroup>
+
+  <Import
+    Project="$(MSBuildThisFileDirectory)..\..\Vecxy.Platforms.Android\build\Vecxy.Platforms.Android.props"
+    Condition="'$(VecxyPlatform)' == 'Android'" />
+</Project>
