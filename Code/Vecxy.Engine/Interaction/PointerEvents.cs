@@ -2,6 +2,7 @@ using System.Numerics;
 using Vecxy.Assets;
 using Vecxy.Physics;
 using Vecxy.Rendering;
+using Vecxy.Input;
 
 namespace Vecxy.Interaction;
 
@@ -9,7 +10,9 @@ public readonly record struct PointerEventData(
     Vector2 ScreenPosition,
     CameraRay Ray,
     PhysicsRaycastHit Hit,
-    EMouseButton Button);
+    EMouseButton Button,
+    EPointerKind PointerKind = EPointerKind.Mouse,
+    int PointerId = 0);
 
 public interface IPointerEnterHandler
 {

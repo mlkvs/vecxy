@@ -151,6 +151,11 @@ public sealed class PointerInteractionTests
         public Vector2 MousePosition { get; set; } = new(100.0f, 100.0f);
         public Vector2 MouseDelta { get; set; }
         public Vector2 MouseWheelDelta => Vector2.Zero;
+        public IReadOnlyList<TouchPoint> Touches => [];
+        public Vector2 PointerPosition => MousePosition;
+        public Vector2 PointerDelta => MouseDelta;
+        public EPointerKind PointerKind => EPointerKind.Mouse;
+        public bool IsPrimaryPointerPressed => LeftPressed;
         public bool IsKeyPressed(EKeyboardKey key) => false;
         public bool IsMouseButtonPressed(EMouseButton button) =>
             button == EMouseButton.Left && LeftPressed;

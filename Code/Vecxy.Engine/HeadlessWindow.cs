@@ -19,6 +19,7 @@ internal sealed class HeadlessWindow(IWindow.Options options) : IWindow
     public event Action<IWindow.MouseButtonEvent>? MouseButtonChanged;
     public event Action<IWindow.MouseMoveEvent>? MouseMoved;
     public event Action<IWindow.MouseWheelEvent>? MouseWheelChanged;
+    public event Action<IWindow.TouchEvent>? TouchChanged;
 
     public void Initialize()
     {

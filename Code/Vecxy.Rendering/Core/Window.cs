@@ -28,6 +28,7 @@ public sealed class Window : IWindow
     public event Action<IWindow.MouseButtonEvent>? MouseButtonChanged;
     public event Action<IWindow.MouseMoveEvent>? MouseMoved;
     public event Action<IWindow.MouseWheelEvent>? MouseWheelChanged;
+    public event Action<IWindow.TouchEvent>? TouchChanged;
 
 #if ANDROID
     private readonly Silk.NET.Windowing.IView _instance;
@@ -111,6 +112,7 @@ public sealed class Window : IWindow
 
     public void Initialize()
     {
+        Vecxy.Kernel.PlatformTouchSource.Changed += OnPlatformTouch;
         _instance.Initialize();
 
         _instance.Resize += size => Resized?.Invoke(size.X, size.Y);
@@ -222,6 +224,7 @@ public sealed class Window : IWindow
 
     public void Dispose()
     {
+        Vecxy.Kernel.PlatformTouchSource.Changed -= OnPlatformTouch;
         try
         {
             SetCursorCaptured(false);
@@ -280,4 +283,7 @@ public sealed class Window : IWindow
                 wheel.X,
                 wheel.Y));
     }
+
+    private void OnPlatformTouch(IWindow.TouchEvent eventData) =>
+        TouchChanged?.Invoke(eventData);
 }

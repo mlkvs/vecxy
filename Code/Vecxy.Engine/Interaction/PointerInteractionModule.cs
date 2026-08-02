@@ -53,7 +53,7 @@ public sealed class PointerInteractionModule(
             return;
 
         foreach (var button in Buttons)
-            _wasPressed[button] = input.IsMouseButtonPressed(button);
+            _wasPressed[button] = IsPressed(button);
 
         _initialized = true;
     }
@@ -66,7 +66,7 @@ public sealed class PointerInteractionModule(
         var suppressed = inputCapture.SuppressMouse;
         PhysicsRaycastHit? hit = null;
         if (!suppressed &&
-            renderer.TryCreateCameraRay(input.MousePosition, out var ray))
+            renderer.TryCreateCameraRay(input.PointerPosition, out var ray))
         {
             _lastRay = ray;
             if (physics.Raycast(
@@ -120,7 +120,7 @@ public sealed class PointerInteractionModule(
         }
 
         if (hit is { } hovered &&
-            input.MouseDelta.LengthSquared() > float.Epsilon)
+            input.PointerDelta.LengthSquared() > float.Epsilon)
         {
             Dispatch(
                 hovered,
@@ -135,7 +135,7 @@ public sealed class PointerInteractionModule(
     {
         foreach (var button in Buttons)
         {
-            var pressedNow = input.IsMouseButtonPressed(button);
+            var pressedNow = IsPressed(button);
             var wasPressed = _wasPressed.GetValueOrDefault(button);
 
             if (suppressed)
@@ -175,10 +175,12 @@ public sealed class PointerInteractionModule(
             return;
 
         var eventData = new PointerEventData(
-            input.MousePosition,
+            input.PointerPosition,
             _lastRay,
             hit,
-            button);
+            button,
+            input.PointerKind,
+            input.Touches.FirstOrDefault(touch => touch.IsPrimary).Id);
 
         foreach (var component in sceneObject.Components.ToArray())
         {
@@ -228,6 +230,11 @@ public sealed class PointerInteractionModule(
             }
         }
     }
+
+    private bool IsPressed(EMouseButton button) =>
+        button == EMouseButton.Left
+            ? input.IsPrimaryPointerPressed
+            : input.IsMouseButtonPressed(button);
 
     private static bool SameTarget(
         PhysicsRaycastHit? first,
