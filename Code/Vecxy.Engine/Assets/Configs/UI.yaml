@@ -3,4 +3,6 @@ referenceResolution:
 - 1080
 scaleMode: fit
 scrollSpeed: 48
+dragScrollThreshold: 8
+scrollDeceleration: 2400
 spriteAtlases: {}

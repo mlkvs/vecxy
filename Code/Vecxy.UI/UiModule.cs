@@ -47,8 +47,15 @@ public sealed class UiModule :
     private UiElement? _focusedElement;
     private UiElement? _draggingElement;
     private UiElement? _dropTarget;
+    private UiElement? _scrollCandidate;
+    private UiElement? _scrollingElement;
+    private UiElement? _inertiaElement;
+    private UiDocument? _pressedDocument;
+    private readonly Dictionary<int, (UiElement Element, UiDocument Document)> _touchCaptures = [];
     private Vector2 _pressPosition;
-    private bool _wasLeftPressed;
+    private Vector2 _lastPointerPosition;
+    private Vector2 _scrollVelocity;
+    private bool _wasPointerPressed;
     private bool _wasTabPressed;
     private bool _initialized;
     private bool _disposed;
@@ -182,53 +189,77 @@ public sealed class UiModule :
             }
         }
 
-        var pointer = _renderer.ScreenToGameOutput(_input.MousePosition);
-        UiElement? hit = null;
-        foreach (var document in _documents.AsEnumerable().Reverse())
-        {
-            if (!document.IsVisible)
-                continue;
-            hit = document.Root.HitTest(document.ToLayoutPoint(pointer));
-            if (hit is not null)
-                break;
-        }
+        UpdateScrollInertia(deltaTime);
 
-        for (var hovered = hit; hovered is not null; hovered = hovered.Parent)
-            hovered.IsHovered = true;
+        var pointer = _renderer.ScreenToGameOutput(_input.PointerPosition);
+        var hit = HitTest(pointer, out var hitDocument);
+        DispatchTouchEvents();
+
+        if (_input.PointerKind == EPointerKind.Mouse || _input.IsPrimaryPointerPressed)
+            for (var hovered = hit; hovered is not null; hovered = hovered.Parent)
+                hovered.IsHovered = true;
 
         HandleKeyboardFocus();
         HandleScrolling(hit);
 
-        var leftPressed = _input.IsMouseButtonPressed(EMouseButton.Left);
-        if (leftPressed && !_wasLeftPressed)
+        var pointerPressed = _input.IsPrimaryPointerPressed;
+        var pointerCancelled = _input.Touches.Any(touch =>
+            touch.IsPrimary && touch.Phase == ETouchPhase.Cancelled);
+        if (pointerPressed && !_wasPointerPressed)
         {
             _pressedElement = hit;
+            _pressedDocument = hitDocument;
+            _scrollCandidate = FindScrollable(hit, preferHorizontal: false);
+            _scrollingElement = null;
+            _inertiaElement = null;
+            _scrollVelocity = Vector2.Zero;
             _pressPosition = pointer;
+            _lastPointerPosition = pointer;
             Focus(hit, false);
             if (_pressedElement is not null)
                 _pressedElement.IsActive = true;
         }
-        else if (leftPressed && _wasLeftPressed && _pressedElement is { } pressed)
+        else if (pointerPressed && _wasPointerPressed && _pressedElement is { } pressed)
         {
-            if (_draggingElement is null && pressed.IsDraggable &&
-                Vector2.DistanceSquared(pointer, _pressPosition) >= 36.0f)
+            var pointerDelta = pointer - _lastPointerPosition;
+            var threshold = Settings.DragScrollThreshold * (_pressedDocument?.LayoutScale ?? 1.0f);
+            var exceededThreshold = Vector2.DistanceSquared(pointer, _pressPosition) >= threshold * threshold;
+
+            if (_scrollingElement is null && _draggingElement is null && exceededThreshold &&
+                _scrollCandidate is { } scrollCandidate &&
+                MovementMatchesScrollAxis(scrollCandidate, pointer - _pressPosition))
+            {
+                _scrollingElement = scrollCandidate;
+                pressed.IsActive = false;
+            }
+            else if (_scrollingElement is null && _draggingElement is null &&
+                     pressed.IsDraggable && exceededThreshold)
             {
                 _draggingElement = pressed;
                 pressed.IsDragging = true;
                 pressed.RaiseDragStarted();
             }
 
-            if (_draggingElement is not null)
+            if (_scrollingElement is not null)
+                DragScroll(pointerDelta, deltaTime);
+            else if (_draggingElement is not null)
                 SetDropTarget(FindDropTarget(hit, _draggingElement));
+
+            _lastPointerPosition = pointer;
         }
-        else if (!leftPressed && _wasLeftPressed)
+        else if (!pointerPressed && _wasPointerPressed)
         {
             var releasedElement = _pressedElement;
             _pressedElement = null;
             if (releasedElement is not null)
             {
                 releasedElement.IsActive = false;
-                if (_draggingElement is not null)
+                if (_scrollingElement is not null)
+                {
+                    _inertiaElement = _scrollingElement;
+                    _scrollingElement = null;
+                }
+                else if (_draggingElement is not null)
                 {
                     _dropTarget?.RaiseDropped(_draggingElement);
                     _draggingElement.IsDragging = false;
@@ -236,15 +267,138 @@ public sealed class UiModule :
                     _draggingElement = null;
                     SetDropTarget(null);
                 }
-                else if (ReferenceEquals(releasedElement, hit))
+                else if (!pointerCancelled && ReferenceEquals(releasedElement, hit))
                     releasedElement.RaiseClicked();
             }
+            _scrollCandidate = null;
+            _pressedDocument = null;
         }
 
-        _wasLeftPressed = leftPressed;
-        _inputCapture.SuppressMouse = hit is not null || _pressedElement is not null;
+        _wasPointerPressed = pointerPressed;
+        _inputCapture.SuppressMouse = hit is not null || _pressedElement is not null || _scrollingElement is not null;
         _inputCapture.SuppressKeyboard =
             _focusedElement?.TagName is "input" or "textarea" or "select";
+    }
+
+    private UiElement? HitTest(Vector2 outputPoint, out UiDocument? hitDocument)
+    {
+        foreach (var document in _documents.AsEnumerable().Reverse())
+        {
+            if (!document.IsVisible)
+                continue;
+            var hit = document.Root.HitTest(document.ToLayoutPoint(outputPoint));
+            if (hit is null)
+                continue;
+            hitDocument = document;
+            return hit;
+        }
+        hitDocument = null;
+        return null;
+    }
+
+    private void DispatchTouchEvents()
+    {
+        foreach (var touch in _input.Touches)
+        {
+            var outputPosition = _renderer.ScreenToGameOutput(touch.Position);
+            var current = HitTest(outputPosition, out var currentDocument);
+            if (touch.Phase == ETouchPhase.Began && current is not null && currentDocument is not null)
+            {
+                _touchCaptures[touch.Id] = (current, currentDocument);
+                current.RaiseTouchStarted(ToUiTouch(touch, currentDocument));
+                continue;
+            }
+
+            if (!_touchCaptures.TryGetValue(touch.Id, out var capture))
+                continue;
+            var eventData = ToUiTouch(touch, capture.Document);
+            switch (touch.Phase)
+            {
+                case ETouchPhase.Moved:
+                    capture.Element.RaiseTouchMoved(eventData);
+                    break;
+                case ETouchPhase.Ended:
+                    capture.Element.RaiseTouchEnded(eventData);
+                    _touchCaptures.Remove(touch.Id);
+                    break;
+                case ETouchPhase.Cancelled:
+                    capture.Element.RaiseTouchCancelled(eventData);
+                    _touchCaptures.Remove(touch.Id);
+                    break;
+            }
+        }
+    }
+
+    private UiTouchEvent ToUiTouch(TouchPoint touch, UiDocument document)
+    {
+        var current = _renderer.ScreenToGameOutput(touch.Position);
+        var previous = _renderer.ScreenToGameOutput(touch.Position - touch.Delta);
+        return new UiTouchEvent(
+            touch.Id,
+            document.ToLayoutPoint(current),
+            (current - previous) / Math.Max(0.0001f, document.LayoutScale),
+            touch.Pressure,
+            touch.IsPrimary);
+    }
+
+    private static bool MovementMatchesScrollAxis(UiElement element, Vector2 movement)
+    {
+        var horizontal = element.CanScrollHorizontally;
+        var vertical = element.CanScrollVertically;
+        return horizontal && vertical ||
+               horizontal && Math.Abs(movement.X) >= Math.Abs(movement.Y) ||
+               vertical && Math.Abs(movement.Y) >= Math.Abs(movement.X);
+    }
+
+    private void DragScroll(Vector2 outputDelta, float deltaTime)
+    {
+        if (_scrollingElement is not { } element)
+            return;
+        var scale = Math.Max(0.0001f, _pressedDocument?.LayoutScale ?? 1.0f);
+        var requested = -outputDelta / scale;
+        if (!element.CanScrollHorizontally)
+            requested.X = 0.0f;
+        if (!element.CanScrollVertically)
+            requested.Y = 0.0f;
+
+        var before = element.ScrollOffset;
+        element.ScrollBy(requested);
+        var applied = element.ScrollOffset - before;
+        if (deltaTime <= 0.0001f)
+            return;
+        var instantaneous = applied / deltaTime;
+        _scrollVelocity = Vector2.Lerp(_scrollVelocity, instantaneous, 0.45f);
+    }
+
+    private void UpdateScrollInertia(float deltaTime)
+    {
+        if (_inertiaElement is not { } element || deltaTime <= 0.0f)
+            return;
+
+        var speed = _scrollVelocity.Length();
+        if (speed < 8.0f || !float.IsFinite(speed))
+        {
+            _inertiaElement = null;
+            _scrollVelocity = Vector2.Zero;
+            return;
+        }
+
+        var before = element.ScrollOffset;
+        element.ScrollBy(_scrollVelocity * deltaTime);
+        var applied = element.ScrollOffset - before;
+        if (Math.Abs(applied.X) < 0.001f)
+            _scrollVelocity.X = 0.0f;
+        if (Math.Abs(applied.Y) < 0.001f)
+            _scrollVelocity.Y = 0.0f;
+
+        speed = _scrollVelocity.Length();
+        if (speed <= 0.0f)
+        {
+            _inertiaElement = null;
+            return;
+        }
+        var replacement = Math.Max(0.0f, speed - Settings.ScrollDeceleration * deltaTime);
+        _scrollVelocity *= replacement / speed;
     }
 
     private void HandleScrolling(UiElement? hit)
@@ -258,6 +412,9 @@ public sealed class UiModule :
             _input.IsKeyPressed(EKeyboardKey.RightShift));
         if (scrollable is null)
             return;
+
+        _inertiaElement = null;
+        _scrollVelocity = Vector2.Zero;
 
         var speed = Settings.ScrollSpeed;
         if ((_input.IsKeyPressed(EKeyboardKey.LeftShift) ||
@@ -356,6 +513,13 @@ public sealed class UiModule :
         _settings?.Dispose();
         _settings = null;
         _pressedElement = null;
+        _pressedDocument = null;
+        _scrollCandidate = null;
+        _scrollingElement = null;
+        _inertiaElement = null;
+        _scrollVelocity = Vector2.Zero;
+        _touchCaptures.Clear();
+        _wasPointerPressed = false;
         Focus(null);
         _draggingElement = null;
         SetDropTarget(null);

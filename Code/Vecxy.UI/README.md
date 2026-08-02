@@ -14,6 +14,8 @@ referenceResolution:
 - 1080
 scaleMode: fit
 scrollSpeed: 48
+dragScrollThreshold: 8
+scrollDeceleration: 2400
 spriteAtlases:
   hud-atlas: UI/hud.atlas
 ```
@@ -130,8 +132,9 @@ supported.
   `overflow`, `overflow-x`, `overflow-y`, `visibility`, `z-index`, and
   `pointer-events`. Images support `fill`, `contain`, and `cover`.
 - Scrolling: nested clipping, mouse wheel input, per-axis scroll offsets,
-  programmatic `ScrollTo`/`ScrollBy`, scroll events, and rendered scrollbars with
-  `scrollbar-width` and `scrollbar-color`.
+  mouse/touch drag with inertial deceleration, programmatic `ScrollTo`/`ScrollBy`,
+  scroll events, and rendered scrollbars with `scrollbar-width` and
+  `scrollbar-color`. A drag which starts scrolling cancels the pending click.
 - Lengths: pixels, percentages, `vw`, `vh`, `ui`, zero, and `auto` where accepted.
   One `ui` is one logical pixel at the reference resolution and scales according
   to the global scale mode.
@@ -259,3 +262,9 @@ panel.Scrolled += _ => { };
 Elements also expose `Focused`, `Blurred`, `DragStarted`, `DragEnded`, and
 `Dropped`. Set `IsDraggable` on a source and `AcceptsDrop` on a target; their
 `:dragging` and `:drop-target` states update automatically during pointer input.
+
+Multi-touch is exposed through `TouchStarted`, `TouchMoved`, `TouchEnded`, and
+`TouchCancelled`. `UiTouchEvent` contains the pointer id, logical position,
+per-frame delta, pressure, and primary-touch flag. The primary touch also drives
+regular click and scene `IPointer*Handler` callbacks, so existing gameplay
+interaction works on mobile without a parallel click implementation.

@@ -18,4 +18,9 @@
     <ProjectReference Include="..\Vecxy.Kernel\Vecxy.Kernel.csproj" />
     <ProjectReference Include="..\Vecxy.Rendering\Vecxy.Rendering.csproj" />
   </ItemGroup>
+
+  <ItemGroup Condition="'$(TargetPlatformIdentifier)' == 'android'">
+    <!-- This is a C# namespace folder, not an Android asset directory. -->
+    <AndroidAsset Remove="Assets\**\*" />
+  </ItemGroup>
 </Project>

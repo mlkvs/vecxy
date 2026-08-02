@@ -84,6 +84,10 @@ public sealed class UiElement
     public event Action<UiElement, UiAnimationEvent>? AnimationIteration;
     public event Action<UiElement, UiAnimationEvent>? AnimationEnded;
     public event Action<UiElement, UiTransitionEvent>? TransitionEnded;
+    public event Action<UiElement, UiTouchEvent>? TouchStarted;
+    public event Action<UiElement, UiTouchEvent>? TouchMoved;
+    public event Action<UiElement, UiTouchEvent>? TouchEnded;
+    public event Action<UiElement, UiTouchEvent>? TouchCancelled;
 
     public void SetAttribute(string name, string value)
     {
@@ -205,6 +209,8 @@ public sealed class UiElement
         !IsDisabled &&
         (TagName is "button" or "input" or "select" or "slider" ||
          Clicked is not null ||
+         TouchStarted is not null || TouchMoved is not null ||
+         TouchEnded is not null || TouchCancelled is not null ||
          CanScrollHorizontally || CanScrollVertically ||
          Attributes.ContainsKey("action"));
 
@@ -256,6 +262,14 @@ public sealed class UiElement
         AnimationEnded?.Invoke(this, eventData);
     internal void RaiseTransitionEnded(UiTransitionEvent eventData) =>
         TransitionEnded?.Invoke(this, eventData);
+    internal void RaiseTouchStarted(UiTouchEvent eventData) =>
+        TouchStarted?.Invoke(this, eventData);
+    internal void RaiseTouchMoved(UiTouchEvent eventData) =>
+        TouchMoved?.Invoke(this, eventData);
+    internal void RaiseTouchEnded(UiTouchEvent eventData) =>
+        TouchEnded?.Invoke(this, eventData);
+    internal void RaiseTouchCancelled(UiTouchEvent eventData) =>
+        TouchCancelled?.Invoke(this, eventData);
 
     private bool HasBooleanAttribute(string name) =>
         Attributes.TryGetValue(name, out var value) &&
@@ -278,3 +292,10 @@ public sealed class UiElement
 }
 
 public readonly record struct UiDragEvent(UiElement Source, UiElement Target);
+
+public readonly record struct UiTouchEvent(
+    int Id,
+    Vector2 Position,
+    Vector2 Delta,
+    float Pressure,
+    bool IsPrimary);
