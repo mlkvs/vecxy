@@ -1,10 +1,12 @@
 using JetBrains.Annotations;
 using Vecxy.Assets;
 using Vecxy.Input;
+using Vecxy.Interaction;
 using Vecxy.Kernel;
 using Vecxy.Physics;
 using Vecxy.Rendering;
 using Vecxy.Scene;
+using Vecxy.UI;
 
 namespace Vecxy.Engine;
 
@@ -30,6 +32,8 @@ public sealed class EngineLayer(
                 new InputModule.Definition(),
                 new ScenesModule.Definition(),
                 new PhysicsModule.Definition(physics),
+                new UiModule.Definition(),
+                new PointerInteractionModule.Definition(),
                 //new AudioModule.Definition()
             ];
         }

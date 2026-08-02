@@ -27,6 +27,9 @@ public sealed class TextureAsset
         Pixels = pixels;
     }
 
+    public static TextureAsset FromRgba(int width, int height, byte[] pixels) =>
+        new(width, height, pixels);
+
     /// <summary>
     /// Reads an RGBA pixel. Coordinates use image-space orientation:
     /// (0, 0) is the top-left source pixel.

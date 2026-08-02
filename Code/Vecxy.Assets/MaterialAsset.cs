@@ -43,6 +43,13 @@ public readonly record struct TextureSamplerState(
             ETextureFilter.Nearest,
             ETextureWrap.Clamp,
             ETextureWrap.Clamp);
+
+    public static TextureSamplerState LinearClamp { get; } =
+        new(
+            ETextureFilter.Linear,
+            ETextureFilter.Linear,
+            ETextureWrap.Clamp,
+            ETextureWrap.Clamp);
 }
 
 public abstract record MaterialParameter;
