@@ -178,6 +178,7 @@ public sealed class Window : IWindow
 
     public void SetCursorCaptured(bool captured)
     {
+        return;
         if (!_initialized)
         {
             IsCursorCaptured = captured;

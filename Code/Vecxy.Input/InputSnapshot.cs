@@ -39,4 +39,24 @@ public sealed class InputSnapshot
             _pressedMouseButtons.Remove(button);
     }
 
+    internal void CopyFrom(
+        InputSnapshot source,
+        bool suppressKeyboard,
+        bool suppressMouse)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+
+        MousePosition = source.MousePosition;
+        MouseDelta = suppressMouse ? Vector2.Zero : source.MouseDelta;
+        MouseWheelDelta = suppressMouse ? Vector2.Zero : source.MouseWheelDelta;
+
+        _pressedKeys.Clear();
+        if (!suppressKeyboard)
+            _pressedKeys.UnionWith(source._pressedKeys);
+
+        _pressedMouseButtons.Clear();
+        if (!suppressMouse)
+            _pressedMouseButtons.UnionWith(source._pressedMouseButtons);
+    }
+
 }

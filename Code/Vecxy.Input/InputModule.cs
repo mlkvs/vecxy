@@ -32,8 +32,10 @@ public sealed class InputModule :
     }
 
     private readonly IWindow _window;
+    private readonly IInputCaptureState _captureState;
     private readonly List<InputMap> _maps = [];
     private readonly InputSnapshot _snapshot = new();
+    private readonly InputSnapshot _actionSnapshot = new();
     private Vector2 _pendingMouseDelta;
     private Vector2 _pendingMouseWheelDelta;
     private Vector2 _lastMousePosition;
@@ -41,17 +43,26 @@ public sealed class InputModule :
     private bool _initialized;
     private bool _disposed;
 
-    internal InputSnapshot Snapshot => _snapshot;
+    internal InputSnapshot ActionSnapshot => _actionSnapshot;
 
     public Vector2 MousePosition => _snapshot.MousePosition;
 
     public Vector2 MouseDelta => _snapshot.MouseDelta;
+
+    public Vector2 MouseWheelDelta => _snapshot.MouseWheelDelta;
+
+    public bool IsKeyPressed(EKeyboardKey key) =>
+        _snapshot.IsKeyPressed(key);
+
+    public bool IsMouseButtonPressed(EMouseButton button) =>
+        _snapshot.IsMouseButtonPressed(button);
 
     public InputModule(
         IWindow window,
         IInputCaptureState captureState)
     {
         _window = window;
+        _captureState = captureState;
     }
 
     public InputMap Create(AssetRef<InputAsset> asset, string mapName)
@@ -90,8 +101,13 @@ public sealed class InputModule :
         _pendingMouseDelta = Vector2.Zero;
         _pendingMouseWheelDelta = Vector2.Zero;
 
+        _actionSnapshot.CopyFrom(
+            _snapshot,
+            _captureState.SuppressKeyboard,
+            _captureState.SuppressMouse);
+
         foreach (var map in _maps.ToArray())
-            map.Update(_snapshot);
+            map.Update(_actionSnapshot);
     }
 
     public void OnShutdown()

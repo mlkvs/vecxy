@@ -54,7 +54,7 @@ public sealed class InputMap : IDisposable
 
         IsEnabled = true;
 
-        var snapshot = _input.Snapshot;
+        var snapshot = _input.ActionSnapshot;
         foreach (var action in _actions)
             action.Sync(snapshot, this);
     }
@@ -146,7 +146,7 @@ public sealed class InputMap : IDisposable
 
         if (IsEnabled)
         {
-            var snapshot = _input.Snapshot;
+            var snapshot = _input.ActionSnapshot;
             foreach (var action in _actions)
                 action.Sync(snapshot, this);
         }

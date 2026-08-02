@@ -179,7 +179,7 @@ public enum EKeyboardKey : int
 
 public enum EMouseButton : int
 {
-    Undefined,
+    Undefined = -1,
     Left = 0,
     Right = 1,
     Middle = 2,
