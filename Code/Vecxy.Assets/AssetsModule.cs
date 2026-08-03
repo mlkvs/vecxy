@@ -68,7 +68,6 @@ public sealed class AssetsModule :
     }
 
     private readonly Dictionary<Type, IAssetImporter> _importers = [];
-    private readonly HashSet<Type> _registeredConfigs = [];
     private readonly Dictionary<string, List<IConfigRef>> _configRefs =
         new(StringComparer.Ordinal);
     private readonly Dictionary<string, Type> _extensionTypes =
@@ -175,21 +174,10 @@ public sealed class AssetsModule :
     public AssetRef<T> Load<T>(string path) where T : class =>
         Load<T>(Find(path));
 
-    public void Register<T>() where T : class, IYamlConfig
-    {
-        ObjectDisposedException.ThrowIf(_disposed, this);
-        _registeredConfigs.Add(typeof(T));
-    }
 
     public ConfigRef<T> LoadConfig<T>(string path) where T : class, IYamlConfig
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
-
-        if (!_registeredConfigs.Contains(typeof(T)))
-        {
-            throw new InvalidOperationException(
-                $"Config type '{typeof(T).Name}' is not registered.");
-        }
 
         using var source = Load<TextAsset>(path);
         var config = new ConfigRef<T>(source, UnregisterConfigRef);

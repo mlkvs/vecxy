@@ -85,6 +85,22 @@ public readonly record struct UiEdges(
         UiLength.Pixels(0));
 }
 
+public readonly record struct UiBoxShadow(
+    UiLength OffsetX,
+    UiLength OffsetY,
+    UiLength BlurRadius,
+    UiLength SpreadRadius,
+    Vector4 Color,
+    bool Inset);
+
+public readonly record struct UiResolvedBoxShadow(
+    float OffsetX,
+    float OffsetY,
+    float BlurRadius,
+    float SpreadRadius,
+    Vector4 Color,
+    bool Inset);
+
 public sealed class UiComputedStyle
 {
     public string Display { get; set; } = "flex";
@@ -94,6 +110,8 @@ public sealed class UiComputedStyle
     public string JustifyContent { get; set; } = "flex-start";
     public string AlignItems { get; set; } = "stretch";
     public string AlignSelf { get; set; } = "auto";
+    public string TextAlign { get; set; } = "left";
+    public string VerticalAlign { get; set; } = "top";
     public string OverflowX { get; set; } = "visible";
     public string OverflowY { get; set; } = "visible";
     public string PointerEvents { get; set; } = "auto";
@@ -125,6 +143,8 @@ public sealed class UiComputedStyle
     public UiLength BorderWidthLength { get; set; } = UiLength.Pixels(0.0f);
     public float BorderRadius { get; set; }
     public UiLength BorderRadiusLength { get; set; } = UiLength.Pixels(0.0f);
+    public IReadOnlyList<UiBoxShadow> BoxShadowDefinitions { get; set; } = [];
+    public IReadOnlyList<UiResolvedBoxShadow> BoxShadows { get; set; } = [];
     public float FontSize { get; set; } = 16.0f;
     public UiLength FontSizeLength { get; set; } = UiLength.Ui(16.0f);
     public string FontFamily { get; set; } = "Vecxy Fallback";
@@ -163,6 +183,7 @@ public sealed class UiComputedStyle
         style.FontSize = parent.FontSize;
         style.FontSizeLength = parent.FontSizeLength;
         style.FontFamily = parent.FontFamily;
+        style.TextAlign = parent.TextAlign;
         foreach (var (name, value) in parent.Variables)
             style.Variables[name] = value;
 
@@ -724,6 +745,9 @@ internal static class UiStyleResolver
             case "justify-content": style.JustifyContent = value; break;
             case "align-items": style.AlignItems = value; break;
             case "align-self": style.AlignSelf = value; break;
+            case "text-align": style.TextAlign = value.ToLowerInvariant(); break;
+            case "vertical-align": style.VerticalAlign = value.ToLowerInvariant(); break;
+            case "place-content": ApplyPlaceContent(style, value); break;
             case "overflow": style.OverflowX = style.OverflowY = value.ToLowerInvariant(); break;
             case "overflow-x": style.OverflowX = value.ToLowerInvariant(); break;
             case "overflow-y": style.OverflowY = value.ToLowerInvariant(); break;
@@ -773,6 +797,7 @@ internal static class UiStyleResolver
             case "border-width": SetLength(value, result => style.BorderWidthLength = result); break;
             case "border-radius": SetLength(value.Split(' ', StringSplitOptions.RemoveEmptyEntries)[0], result => style.BorderRadiusLength = result); break;
             case "border": ApplyBorder(style, value); break;
+            case "box-shadow": style.BoxShadowDefinitions = ParseBoxShadows(value); break;
             case "font-size": SetLength(value, result => style.FontSizeLength = result); break;
             case "font-family":
                 style.FontFamily = value.Split(',', 2)[0].Trim(' ', '\'', '"');
@@ -819,6 +844,100 @@ internal static class UiStyleResolver
                 break;
             case "flex": ApplyFlex(style, value); break;
         }
+    }
+
+    private static void ApplyPlaceContent(UiComputedStyle style, string value)
+    {
+        var values = value.ToLowerInvariant().Split(
+            ' ',
+            StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        if (values.Length == 0)
+            return;
+
+        var vertical = values[0];
+        var horizontal = values.Length > 1 ? values[1] : vertical;
+        style.AlignItems = vertical;
+        style.JustifyContent = horizontal;
+        style.VerticalAlign = vertical switch
+        {
+            "center" => "middle",
+            "end" or "flex-end" => "bottom",
+            _ => "top"
+        };
+        style.TextAlign = horizontal switch
+        {
+            "center" => "center",
+            "end" or "flex-end" => "right",
+            _ => "left"
+        };
+    }
+
+    private static IReadOnlyList<UiBoxShadow> ParseBoxShadows(string value)
+    {
+        if (value.Trim().Equals("none", StringComparison.OrdinalIgnoreCase))
+            return [];
+
+        var result = new List<UiBoxShadow>();
+        foreach (var item in UiStyleSheet.SplitTopLevel(value, ','))
+        {
+            var inset = false;
+            Vector4? color = null;
+            var lengths = new List<UiLength>(4);
+            foreach (var token in SplitWhitespaceTopLevel(item))
+            {
+                if (token.Equals("inset", StringComparison.OrdinalIgnoreCase))
+                {
+                    inset = true;
+                    continue;
+                }
+                if (TryColor(token, out var parsedColor))
+                {
+                    color = parsedColor;
+                    continue;
+                }
+                if (UiLength.TryParse(token, out var length) &&
+                    length.Unit is not (EUiLengthUnit.Auto or EUiLengthUnit.Percent))
+                    lengths.Add(length);
+            }
+
+            if (lengths.Count < 2)
+                continue;
+            result.Add(new UiBoxShadow(
+                lengths[0],
+                lengths[1],
+                lengths.Count > 2 ? lengths[2] : UiLength.Pixels(0),
+                lengths.Count > 3 ? lengths[3] : UiLength.Pixels(0),
+                color ?? new Vector4(0, 0, 0, 0.5f),
+                inset));
+        }
+        return result;
+    }
+
+    private static IEnumerable<string> SplitWhitespaceTopLevel(string source)
+    {
+        var start = -1;
+        var depth = 0;
+        for (var index = 0; index < source.Length; index++)
+        {
+            var character = source[index];
+            if (character == '(')
+                depth++;
+            else if (character == ')')
+                depth = Math.Max(0, depth - 1);
+            else if (char.IsWhiteSpace(character) && depth == 0)
+            {
+                if (start >= 0)
+                {
+                    yield return source[start..index];
+                    start = -1;
+                }
+                continue;
+            }
+            if (start < 0)
+                start = index;
+        }
+        if (start >= 0)
+            yield return source[start..];
     }
 
     private static void ApplyFlex(UiComputedStyle style, string value)
@@ -932,22 +1051,67 @@ internal static class UiStyleResolver
         var rgba = Regex.Match(source, @"rgba?\(([^\)]+)\)", RegexOptions.IgnoreCase);
         if (rgba.Success)
         {
-            var channels = rgba.Groups[1].Value.Split(',', StringSplitOptions.TrimEntries);
-            if (channels.Length is 3 or 4 &&
-                TryFloat(channels[0], out var red) &&
-                TryFloat(channels[1], out var green) &&
-                TryFloat(channels[2], out var blue) &&
-                (channels.Length == 3 || TryFloat(channels[3], out _)))
+            var body = rgba.Groups[1].Value;
+            string[] channels;
+            string? alphaSource;
+            if (body.Contains(','))
             {
-                var alpha = channels.Length == 4
-                    ? float.Parse(channels[3], CultureInfo.InvariantCulture)
+                var commaSeparated = body.Split(',', StringSplitOptions.TrimEntries);
+                channels = commaSeparated.Take(3).ToArray();
+                alphaSource = commaSeparated.Length == 4 ? commaSeparated[3] : null;
+            }
+            else
+            {
+                var slashSeparated = body.Split('/', 2, StringSplitOptions.TrimEntries);
+                channels = slashSeparated[0].Split(
+                    ' ',
+                    StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+                alphaSource = slashSeparated.Length == 2 ? slashSeparated[1] : null;
+            }
+
+            if (channels.Length == 3 &&
+                TryRgbChannel(channels[0], out var red) &&
+                TryRgbChannel(channels[1], out var green) &&
+                TryRgbChannel(channels[2], out var blue) &&
+                (alphaSource is null || TryAlphaChannel(alphaSource, out _)))
+            {
+                var alpha = alphaSource is not null && TryAlphaChannel(alphaSource, out var parsedAlpha)
+                    ? parsedAlpha
                     : 1.0f;
-                result = new Vector4(red / 255.0f, green / 255.0f, blue / 255.0f, alpha);
+                result = new Vector4(red, green, blue, alpha);
                 return true;
             }
         }
 
         result = Vector4.Zero;
+        return false;
+    }
+
+    private static bool TryRgbChannel(string source, out float value)
+    {
+        var percentage = source.EndsWith('%');
+        if (percentage)
+            source = source[..^1];
+        if (TryFloat(source, out var parsed))
+        {
+            value = Math.Clamp(parsed / (percentage ? 100.0f : 255.0f), 0.0f, 1.0f);
+            return true;
+        }
+        value = 0.0f;
+        return false;
+    }
+
+    private static bool TryAlphaChannel(string source, out float value)
+    {
+        var percentage = source.EndsWith('%');
+        if (percentage)
+            source = source[..^1];
+        if (TryFloat(source, out var parsed))
+        {
+            value = Math.Clamp(parsed / (percentage ? 100.0f : 1.0f), 0.0f, 1.0f);
+            return true;
+        }
+        value = 0.0f;
         return false;
     }
 

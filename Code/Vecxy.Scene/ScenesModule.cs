@@ -75,8 +75,6 @@ public sealed class ScenesModule(
         if (_initialized)
             return;
 
-        config.Register<SkyboxConfig>();
-
         _skyboxConfig =
             config.LoadConfig<SkyboxConfig>("SkyBox/Skybox.yaml");
 

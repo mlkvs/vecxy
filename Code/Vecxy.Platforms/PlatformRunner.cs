@@ -1,5 +1,3 @@
-using VecxyEngine = Vecxy.Engine.Engine;
-
 namespace Vecxy.Platforms;
 
 public static class PlatformRunner
@@ -9,7 +7,7 @@ public static class PlatformRunner
         ArgumentNullException.ThrowIfNull(application);
         ArgumentNullException.ThrowIfNull(context);
 
-        using var engine = new VecxyEngine(
+        using var engine = new Engine.Engine(
             application.CreateEngineOptions(context),
             application.CreateLayers(context));
         engine.Run();

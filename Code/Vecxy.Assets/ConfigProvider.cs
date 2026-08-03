@@ -7,12 +7,11 @@ namespace Vecxy.Assets;
 
 public interface IYamlConfig
 {
-    void Validate();
+    void Validate() { }
 }
 
 public interface IConfigProvider
 {
-    void Register<T>() where T : class, IYamlConfig;
     ConfigRef<T> LoadConfig<T>(string path) where T : class, IYamlConfig;
     IReadOnlyList<IConfigRef> GetLoadedConfigs();
     void SaveConfig(IConfigRef config, object value);

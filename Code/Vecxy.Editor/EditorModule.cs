@@ -388,7 +388,6 @@ public sealed class EditorModule(
 
     private void InitializeEditorLayout()
     {
-        configs.Register<EditorLayoutConfig>();
         _editorLayoutRef =
             configs.LoadConfig<EditorLayoutConfig>(
                 "Configs/EditorLayout.yaml");

@@ -97,7 +97,6 @@ public sealed class UiDocument : IDisposable
         UiConfig settings)
     {
         _settings = settings;
-        Refresh();
         var canvas = UiCanvas.Resolve(Root, width, height, settings);
         // Animation callbacks are allowed to remove their element from the DOM.
         foreach (var element in Root.DescendantsAndSelf().ToArray())

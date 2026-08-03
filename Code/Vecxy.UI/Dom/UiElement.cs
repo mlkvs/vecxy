@@ -112,6 +112,7 @@ public sealed class UiElement
         if (Parent is not { } parent)
             return false;
 
+       
         YGNodeRemoveChild(parent.YogaNode, YogaNode);
         parent._children.Remove(this);
         Parent = null;
@@ -186,6 +187,9 @@ public sealed class UiElement
         var clipsY = ComputedStyle.OverflowY is "hidden" or "scroll" or "auto";
         if ((!insideX && clipsX) || (!insideY && clipsY))
             return null;
+        if ((clipsX || clipsY) && inside && ComputedStyle.BorderRadius > 0.0f &&
+            !ContainsRounded(visualBounds, ComputedStyle.BorderRadius, localPoint))
+            return null;
 
         var childTranslation = translation - ScrollOffset;
 
@@ -203,6 +207,18 @@ public sealed class UiElement
         return inside && ComputedStyle.PointerEvents != "none" && IsInteractive
             ? this
             : null;
+    }
+
+    private static bool ContainsRounded(Rect bounds, float radius, Vector2 point)
+    {
+        radius = Math.Clamp(radius, 0.0f, Math.Min(bounds.Width, bounds.Height) * 0.5f);
+        if (radius <= 0.0f)
+            return true;
+        var nearest = Vector2.Clamp(
+            point,
+            new Vector2(bounds.Left + radius, bounds.Top + radius),
+            new Vector2(bounds.Right - radius, bounds.Bottom - radius));
+        return Vector2.DistanceSquared(point, nearest) <= radius * radius;
     }
 
     internal bool IsInteractive =>

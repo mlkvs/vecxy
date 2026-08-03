@@ -64,7 +64,6 @@ public sealed class PhysicsModule(
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
 
-        configs.Register<PhysicsConfig>();
         _config = configs.LoadConfig<PhysicsConfig>(
             options.ConfigPath);
 

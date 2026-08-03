@@ -50,6 +50,7 @@ public sealed class VecxyActivity : SilkActivity
             throw;
         }
     }
+    
 
     public override bool DispatchTouchEvent(MotionEvent? eventData)
     {

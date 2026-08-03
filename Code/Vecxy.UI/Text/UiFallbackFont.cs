@@ -47,42 +47,52 @@ internal static class UiFallbackFont
         Rect bounds,
         float fontSize,
         Vector4 color,
-        Rect clip)
+        Rect clip,
+        string textAlign,
+        string verticalAlign)
     {
         var scale = Math.Max(1.0f, fontSize / 6.0f);
-        var originX = bounds.X;
-        var x = originX;
-        var y = bounds.Y;
-        foreach (var sourceCharacter in text)
+        var lines = text.Replace("\r", string.Empty).Split('\n');
+        var contentHeight = lines.Length * 7.0f * scale;
+        var y = verticalAlign switch
         {
-            if (sourceCharacter == '\r')
-                continue;
-            if (sourceCharacter == '\n')
+            "middle" or "center" => bounds.Y + (bounds.Height - contentHeight) * 0.5f,
+            "bottom" or "end" => bounds.Bottom - contentHeight,
+            _ => bounds.Y
+        };
+        foreach (var line in lines)
+        {
+            var lineWidth = line.Length * 6.0f * scale;
+            var x = textAlign switch
             {
-                x = originX;
-                y += 7.0f * scale;
-                continue;
-            }
+                "center" => bounds.X + (bounds.Width - lineWidth) * 0.5f,
+                "right" or "end" => bounds.Right - lineWidth,
+                _ => bounds.X
+            };
 
-            var character = char.ToUpperInvariant(sourceCharacter);
-            if (character != ' ')
+            foreach (var sourceCharacter in line)
             {
-                if (!Glyphs.TryGetValue(character, out var pixels))
-                    pixels = "111111000110101101011000111111";
-                for (var row = 0; row < 6; row++)
-                for (var column = 0; column < 5; column++)
+                var character = char.ToUpperInvariant(sourceCharacter);
+                if (character != ' ')
                 {
-                    if (pixels[row * 5 + column] == '1')
+                    if (!Glyphs.TryGetValue(character, out var pixels))
+                        pixels = "111111000110101101011000111111";
+                    for (var row = 0; row < 6; row++)
+                    for (var column = 0; column < 5; column++)
                     {
-                        renderer.AddSolid(
-                            new Rect(x + column * scale, y + row * scale, scale, scale),
-                            color,
-                            clip);
+                        if (pixels[row * 5 + column] == '1')
+                        {
+                            renderer.AddSolid(
+                                new Rect(x + column * scale, y + row * scale, scale, scale),
+                                color,
+                                clip);
+                        }
                     }
                 }
-            }
 
-            x += 6.0f * scale;
+                x += 6.0f * scale;
+            }
+            y += 7.0f * scale;
         }
     }
 }

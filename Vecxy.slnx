@@ -2,10 +2,6 @@
   <Folder Name="/Tools/">
     <Project Path="Code/Vecxy.CLI/Vecxy.CLI.csproj" />
   </Folder>
-  <Folder Name="/Tests/">
-    <Project Path="Tests/Vecxy.Engine.Tests/Vecxy.Engine.Tests.csproj" />
-    <Project Path="Tests/Vecxy.UI.Tests/Vecxy.UI.Tests.csproj" />
-  </Folder>
   <Project Path="Code/Vecxy.Assets/Vecxy.Assets.csproj" />
   <Project Path="Code/Vecxy.Diagnostics/Vecxy.Diagnostics.csproj" />
   <Project Path="Code/Vecxy.Engine/Vecxy.Engine.csproj" />

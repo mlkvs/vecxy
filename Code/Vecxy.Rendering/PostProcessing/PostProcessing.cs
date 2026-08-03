@@ -26,9 +26,6 @@ public sealed class PostProcessing : AComponent
         ObjectDisposedException.ThrowIf(IsDestroyed, this);
         ArgumentNullException.ThrowIfNull(configs);
 
-        configs.Register<RetroPostProcessConfig>();
-        configs.Register<VignettePostProcessConfig>();
-
         _retro.SetConfig(
             configs.LoadConfig<RetroPostProcessConfig>(
                 $"{basePath}/Retro.postfx"));

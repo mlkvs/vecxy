@@ -15,11 +15,11 @@ internal static class UiLayout
         YGNodeStyleSetWidth(root.YogaNode, width);
         YGNodeStyleSetHeight(root.YogaNode, height);
         YGNodeCalculateLayout(root.YogaNode, width, height, YGDirection.LTR);
-        ReadRecursive(root, 0.0f, 0.0f);
+        ReadRecursive(root, 0.0f, 0.0f, width, height);
         for (var pass = 0; pass < 3 && UiGridLayout.PlaceGrids(root, width, height); pass++)
         {
             YGNodeCalculateLayout(root.YogaNode, width, height, YGDirection.LTR);
-            ReadRecursive(root, 0.0f, 0.0f);
+            ReadRecursive(root, 0.0f, 0.0f, width, height);
         }
         UpdateScrollExtents(root);
     }
@@ -30,8 +30,13 @@ internal static class UiLayout
         var style = element.ComputedStyle;
         style.FontSize = Math.Max(1.0f, ResolvePoints(style.FontSizeLength, viewportWidth, viewportHeight));
         style.BorderWidth = Math.Max(0.0f, ResolvePoints(style.BorderWidthLength, viewportWidth, viewportHeight));
-        style.BorderRadius = Math.Max(0.0f, ResolvePoints(style.BorderRadiusLength, viewportWidth, viewportHeight));
-        style.Transform = style.TransformDefinition.Resolve(viewportWidth, viewportHeight);
+        style.BoxShadows = style.BoxShadowDefinitions.Select(shadow => new UiResolvedBoxShadow(
+            ResolvePoints(shadow.OffsetX, viewportWidth, viewportHeight),
+            ResolvePoints(shadow.OffsetY, viewportWidth, viewportHeight),
+            Math.Max(0.0f, ResolvePoints(shadow.BlurRadius, viewportWidth, viewportHeight)),
+            ResolvePoints(shadow.SpreadRadius, viewportWidth, viewportHeight),
+            shadow.Color,
+            shadow.Inset)).ToArray();
 
         YGNodeStyleSetDisplay(node, style.Display switch
         {
@@ -148,7 +153,12 @@ internal static class UiLayout
         return new YGSize { Width = size.X, Height = size.Y };
     }
 
-    private static void ReadRecursive(UiElement element, float parentX, float parentY)
+    private static void ReadRecursive(
+        UiElement element,
+        float parentX,
+        float parentY,
+        float viewportWidth,
+        float viewportHeight)
     {
         var left = parentX + YGNodeLayoutGetLeft(element.YogaNode);
         var top = parentY + YGNodeLayoutGetTop(element.YogaNode);
@@ -157,9 +167,18 @@ internal static class UiLayout
             top,
             Math.Max(0.0f, YGNodeLayoutGetWidth(element.YogaNode)),
             Math.Max(0.0f, YGNodeLayoutGetHeight(element.YogaNode)));
+        var style = element.ComputedStyle;
+        style.BorderRadius = Math.Max(0.0f, style.BorderRadiusLength.Unit == EUiLengthUnit.Percent
+            ? Math.Min(element.Bounds.Width, element.Bounds.Height) * style.BorderRadiusLength.Value * 0.01f
+            : ResolvePoints(style.BorderRadiusLength, element.Bounds.Width, element.Bounds.Height));
+        style.Transform = style.TransformDefinition.Resolve(
+            element.Bounds.Width,
+            element.Bounds.Height,
+            viewportWidth,
+            viewportHeight);
 
         foreach (var child in element.Children)
-            ReadRecursive(child, left, top);
+            ReadRecursive(child, left, top, viewportWidth, viewportHeight);
     }
 
     private static void UpdateScrollExtents(UiElement element)

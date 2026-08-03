@@ -156,7 +156,14 @@ internal sealed class UiAnimationRuntime
         float viewportHeight)
     {
         var style = element.ComputedStyle;
-        var target = Snapshot.FromStyle(style, viewportWidth, viewportHeight);
+        var transformWidth = element.Bounds.Width > 0.0f ? element.Bounds.Width : viewportWidth;
+        var transformHeight = element.Bounds.Height > 0.0f ? element.Bounds.Height : viewportHeight;
+        var target = Snapshot.FromStyle(
+            style,
+            transformWidth,
+            transformHeight,
+            viewportWidth,
+            viewportHeight);
         var visible = style.Display != "none" && style.Visibility != "hidden";
         if (!_initialized)
         {
@@ -175,7 +182,14 @@ internal sealed class UiAnimationRuntime
         }
 
         UpdateTransitions(element, Math.Max(0.0f, deltaTime));
-        ApplyAnimation(element, keyframes, Math.Max(0.0f, deltaTime), viewportWidth, viewportHeight);
+        ApplyAnimation(
+            element,
+            keyframes,
+            Math.Max(0.0f, deltaTime),
+            transformWidth,
+            transformHeight,
+            viewportWidth,
+            viewportHeight);
     }
 
     private void BeginTransitions(
@@ -245,6 +259,8 @@ internal sealed class UiAnimationRuntime
         UiElement element,
         IReadOnlyDictionary<string, UiKeyframes> keyframes,
         float deltaTime,
+        float elementWidth,
+        float elementHeight,
         float viewportWidth,
         float viewportHeight)
     {
@@ -267,7 +283,14 @@ internal sealed class UiAnimationRuntime
             ? 1.0f
             : _animationElapsed / _animation.Duration - MathF.Floor(_animationElapsed / _animation.Duration);
         progress = UiAnimationParser.Ease(_animation.Easing, progress);
-        _visual = Evaluate(animation, progress, _target, viewportWidth, viewportHeight);
+        _visual = Evaluate(
+            animation,
+            progress,
+            _target,
+            elementWidth,
+            elementHeight,
+            viewportWidth,
+            viewportHeight);
 
         if (!complete)
             return;
@@ -281,6 +304,8 @@ internal sealed class UiAnimationRuntime
         UiKeyframes animation,
         float progress,
         Snapshot fallback,
+        float elementWidth,
+        float elementHeight,
         float viewportWidth,
         float viewportHeight)
     {
@@ -291,8 +316,20 @@ internal sealed class UiAnimationRuntime
         var after = frames.FirstOrDefault(frame => frame.Offset >= progress) ?? frames[^1];
         var range = after.Offset - before.Offset;
         var amount = range <= float.Epsilon ? 0.0f : (progress - before.Offset) / range;
-        var first = Snapshot.FromDeclarations(before.Declarations, fallback, viewportWidth, viewportHeight);
-        var second = Snapshot.FromDeclarations(after.Declarations, fallback, viewportWidth, viewportHeight);
+        var first = Snapshot.FromDeclarations(
+            before.Declarations,
+            fallback,
+            elementWidth,
+            elementHeight,
+            viewportWidth,
+            viewportHeight);
+        var second = Snapshot.FromDeclarations(
+            after.Declarations,
+            fallback,
+            elementWidth,
+            elementHeight,
+            viewportWidth,
+            viewportHeight);
         return Snapshot.Lerp(first, second, amount);
     }
 
@@ -310,18 +347,29 @@ internal sealed class UiAnimationRuntime
         float Opacity,
         UiTransform Transform)
     {
-        public static Snapshot FromStyle(UiComputedStyle style, float width, float height) =>
+        public static Snapshot FromStyle(
+            UiComputedStyle style,
+            float elementWidth,
+            float elementHeight,
+            float viewportWidth,
+            float viewportHeight) =>
             new(
                 style.Color,
                 style.BackgroundColor,
                 style.Opacity,
-                style.TransformDefinition.Resolve(width, height));
+                style.TransformDefinition.Resolve(
+                    elementWidth,
+                    elementHeight,
+                    viewportWidth,
+                    viewportHeight));
 
         public static Snapshot FromDeclarations(
             IReadOnlyDictionary<string, string> declarations,
             Snapshot fallback,
-            float width,
-            float height)
+            float elementWidth,
+            float elementHeight,
+            float viewportWidth,
+            float viewportHeight)
         {
             var result = fallback;
             if (declarations.TryGetValue("color", out var color) && UiStyleResolver.TryColor(color, out var parsedColor))
@@ -332,7 +380,14 @@ internal sealed class UiAnimationRuntime
                 float.TryParse(opacity, NumberStyles.Float, CultureInfo.InvariantCulture, out var parsedOpacity))
                 result = result with { Opacity = Math.Clamp(parsedOpacity, 0.0f, 1.0f) };
             if (declarations.TryGetValue("transform", out var transform))
-                result = result with { Transform = UiTransformParser.Parse(transform, fallback.Transform.Origin).Resolve(width, height) };
+                result = result with
+                {
+                    Transform = UiTransformParser.Parse(transform, fallback.Transform.Origin).Resolve(
+                        elementWidth,
+                        elementHeight,
+                        viewportWidth,
+                        viewportHeight)
+                };
             return result;
         }
 

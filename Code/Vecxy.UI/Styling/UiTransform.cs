@@ -43,14 +43,27 @@ internal readonly record struct UiTransformDefinition(
     public static UiTransformDefinition Identity { get; } =
         new(UiLength.Ui(0), UiLength.Ui(0), Vector2.One, 0.0f, new Vector2(0.5f));
 
-    public UiTransform Resolve(float viewportWidth, float viewportHeight) =>
+    public UiTransform Resolve(
+        float elementWidth,
+        float elementHeight,
+        float viewportWidth,
+        float viewportHeight) =>
         new(
             new Vector2(
-                UiLayout.ResolvePoints(TranslateX, viewportWidth, viewportHeight),
-                UiLayout.ResolvePoints(TranslateY, viewportWidth, viewportHeight)),
+                ResolveTranslation(TranslateX, elementWidth, viewportWidth, viewportHeight),
+                ResolveTranslation(TranslateY, elementHeight, viewportWidth, viewportHeight)),
             Scale,
             RotationDegrees,
             Origin);
+
+    private static float ResolveTranslation(
+        UiLength value,
+        float percentageBasis,
+        float viewportWidth,
+        float viewportHeight) =>
+        value.Unit == EUiLengthUnit.Percent
+            ? percentageBasis * value.Value * 0.01f
+            : UiLayout.ResolvePoints(value, viewportWidth, viewportHeight);
 }
 
 internal static class UiTransformParser

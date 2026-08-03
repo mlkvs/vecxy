@@ -151,7 +151,6 @@ public sealed class UiModule :
         _assets.RegisterImporter<UiStyleSheetAsset>(new UiStyleSheetAssetImporter());
         _assets.RegisterImporter<UiFontAsset>(new UiFontAssetImporter());
         _assets.RegisterImporter<UiSpriteAtlasAsset>(new UiSpriteAtlasAssetImporter());
-        _configs.Register<UiConfig>();
         _settings = _configs.LoadConfig<UiConfig>("Configs/UI.yaml");
         _overlays.RegisterGameOverlay(RenderOverlay);
         _initialized = true;
@@ -167,12 +166,12 @@ public sealed class UiModule :
         {
             try
             {
+                document.Layout(_renderer.GameOutputWidth, _renderer.GameOutputHeight, Settings);
                 document.UpdateAnimations(
                     deltaTime,
                     _renderer.GameOutputWidth,
                     _renderer.GameOutputHeight,
                     Settings);
-                document.Layout(_renderer.GameOutputWidth, _renderer.GameOutputHeight, Settings);
                 foreach (var element in document.Root.DescendantsAndSelf())
                 {
                     element.IsHovered = false;
