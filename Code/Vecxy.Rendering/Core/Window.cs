@@ -7,6 +7,7 @@ namespace Vecxy.Rendering;
 
 public sealed class Window : IWindow
 {
+    private int _suppressNextSwap;
 #if !ANDROID
     public Silk.NET.Windowing.IWindow NativeWindow => _instance;
 #endif
@@ -142,7 +143,14 @@ public sealed class Window : IWindow
 
     public void PollEvents() => _instance.DoEvents();
 
-    public void SwapBuffers() => _instance.SwapBuffers();
+    public void SuppressNextSwap() => Interlocked.Exchange(ref _suppressNextSwap, 1);
+
+    public void SwapBuffers()
+    {
+        if (Interlocked.Exchange(ref _suppressNextSwap, 0) != 0)
+            return;
+        _instance.SwapBuffers();
+    }
 
     public void MakeCurrent() => _instance.GLContext?.MakeCurrent();
 

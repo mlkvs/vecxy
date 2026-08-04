@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Numerics;
 using Autofac;
 using Facebook.Yoga;
@@ -20,11 +21,13 @@ public interface IUiManager
 public sealed class UiModule :
     IModule,
     IModule.IUpdatable,
-    IUiManager
+    IUiManager,
+    IUiDiagnostics
 {
     public sealed class Definition : AModuleDefinition<UiModule>
     {
-        protected override IReadOnlyList<Type> Exports => [typeof(IUiManager)];
+        protected override IReadOnlyList<Type> Exports =>
+            [typeof(IUiManager), typeof(IUiDiagnostics)];
 
         protected override void RegisterModule(ContainerBuilder builder)
         {
@@ -40,6 +43,7 @@ public sealed class UiModule :
     private readonly IRenderOverlayStage _overlays;
     private readonly ITextureResolver _textures;
     private readonly UiRenderer _uiRenderer;
+    private readonly UiPerformanceStatistics _statistics = new();
     private readonly Config _yogaConfig = new();
     private readonly List<UiDocument> _documents = [];
     private ConfigRef<UiConfig>? _settings;
@@ -47,6 +51,8 @@ public sealed class UiModule :
     private UiElement? _focusedElement;
     private UiElement? _draggingElement;
     private UiElement? _dropTarget;
+    private readonly List<UiElement> _hoveredElements = [];
+    private readonly List<UiElement> _nextHoveredElements = [];
     private UiElement? _scrollCandidate;
     private UiElement? _scrollingElement;
     private UiElement? _inertiaElement;
@@ -55,12 +61,17 @@ public sealed class UiModule :
     private Vector2 _pressPosition;
     private Vector2 _lastPointerPosition;
     private Vector2 _scrollVelocity;
+    private Vector2 _cachedHitPoint = new(float.NaN, float.NaN);
+    private UiElement? _cachedHitElement;
+    private UiDocument? _cachedHitDocument;
+    private int _cachedHitSignature = int.MinValue;
     private bool _wasPointerPressed;
     private bool _wasTabPressed;
     private bool _initialized;
     private bool _disposed;
 
     public IReadOnlyList<UiDocument> Documents => _documents;
+    public UiPerformanceStatistics Statistics => _statistics;
 
     public UiModule(
         IAssetsManager assets,
@@ -79,7 +90,7 @@ public sealed class UiModule :
         _renderer = renderer;
         _overlays = overlays;
         _textures = textures;
-        _uiRenderer = new UiRenderer(graphics.GraphicsDevice);
+        _uiRenderer = new UiRenderer(graphics.GraphicsDevice, _statistics);
         _yogaConfig.SetUseWebDefaults(false);
         _yogaConfig.SetPointScaleFactor(1.0f);
     }
@@ -162,25 +173,25 @@ public sealed class UiModule :
         if (!_initialized)
             return;
 
+        _statistics.BeginFrame(deltaTime);
+        var updateStarted = Stopwatch.GetTimestamp();
+        var allocatedBeforeUpdate = GC.GetAllocatedBytesForCurrentThread();
+        double layoutMilliseconds = 0;
+        double animationMilliseconds = 0;
         foreach (var document in _documents)
         {
             try
             {
+                var started = Stopwatch.GetTimestamp();
                 document.Layout(_renderer.GameOutputWidth, _renderer.GameOutputHeight, Settings);
+                layoutMilliseconds += Stopwatch.GetElapsedTime(started).TotalMilliseconds;
+                started = Stopwatch.GetTimestamp();
                 document.UpdateAnimations(
                     deltaTime,
                     _renderer.GameOutputWidth,
                     _renderer.GameOutputHeight,
                     Settings);
-                foreach (var element in document.Root.DescendantsAndSelf())
-                {
-                    element.IsHovered = false;
-                    element.IsActive = ReferenceEquals(element, _pressedElement);
-                    element.IsFocused = ReferenceEquals(element, _focusedElement);
-                    element.IsFocusVisible = element.IsFocused && element.IsFocusVisible;
-                    element.IsDragging = ReferenceEquals(element, _draggingElement);
-                    element.IsDropTarget = ReferenceEquals(element, _dropTarget);
-                }
+                animationMilliseconds += Stopwatch.GetElapsedTime(started).TotalMilliseconds;
             }
             catch (Exception exception)
             {
@@ -188,15 +199,27 @@ public sealed class UiModule :
             }
         }
 
+        var inputStarted = Stopwatch.GetTimestamp();
         UpdateScrollInertia(deltaTime);
 
         var pointer = _renderer.ScreenToGameOutput(_input.PointerPosition);
+        var hitTestStarted = Stopwatch.GetTimestamp();
         var hit = HitTest(pointer, out var hitDocument);
         DispatchTouchEvents();
+        var hitTestMilliseconds = Stopwatch.GetElapsedTime(hitTestStarted).TotalMilliseconds;
 
+        _nextHoveredElements.Clear();
         if (_input.PointerKind == EPointerKind.Mouse || _input.IsPrimaryPointerPressed)
             for (var hovered = hit; hovered is not null; hovered = hovered.Parent)
+                _nextHoveredElements.Add(hovered);
+        foreach (var hovered in _hoveredElements)
+            if (!_nextHoveredElements.Contains(hovered))
+                hovered.IsHovered = false;
+        foreach (var hovered in _nextHoveredElements)
+            if (!_hoveredElements.Contains(hovered))
                 hovered.IsHovered = true;
+        _hoveredElements.Clear();
+        _hoveredElements.AddRange(_nextHoveredElements);
 
         HandleKeyboardFocus();
         HandleScrolling(hit);
@@ -277,22 +300,60 @@ public sealed class UiModule :
         _inputCapture.SuppressMouse = hit is not null || _pressedElement is not null || _scrollingElement is not null;
         _inputCapture.SuppressKeyboard =
             _focusedElement?.TagName is "input" or "textarea" or "select";
+        var inputMilliseconds = Stopwatch.GetElapsedTime(inputStarted).TotalMilliseconds;
+        _statistics.RecordUpdate(
+            Stopwatch.GetElapsedTime(updateStarted).TotalMilliseconds,
+            layoutMilliseconds,
+            animationMilliseconds,
+            hitTestMilliseconds,
+            inputMilliseconds,
+            GC.GetAllocatedBytesForCurrentThread() - allocatedBeforeUpdate);
     }
 
     private UiElement? HitTest(Vector2 outputPoint, out UiDocument? hitDocument)
     {
-        foreach (var document in _documents.AsEnumerable().Reverse())
+        var signature = new HashCode();
+        signature.Add(_renderer.GameOutputWidth);
+        signature.Add(_renderer.GameOutputHeight);
+        signature.Add(_documents.Count);
+        foreach (var document in _documents)
         {
+            signature.Add(document.IsVisible);
+            signature.Add(document.RenderVersion);
+        }
+        var currentSignature = signature.ToHashCode();
+        if (outputPoint == _cachedHitPoint && currentSignature == _cachedHitSignature)
+        {
+            hitDocument = _cachedHitDocument;
+            return _cachedHitElement;
+        }
+
+        for (var index = _documents.Count - 1; index >= 0; index--)
+        {
+            var document = _documents[index];
             if (!document.IsVisible)
                 continue;
             var hit = document.Root.HitTest(document.ToLayoutPoint(outputPoint));
             if (hit is null)
                 continue;
-            hitDocument = document;
-            return hit;
+            return CacheHit(outputPoint, currentSignature, hit, document, out hitDocument);
         }
-        hitDocument = null;
-        return null;
+        return CacheHit(outputPoint, currentSignature, null, null, out hitDocument);
+    }
+
+    private UiElement? CacheHit(
+        Vector2 point,
+        int signature,
+        UiElement? element,
+        UiDocument? document,
+        out UiDocument? hitDocument)
+    {
+        _cachedHitPoint = point;
+        _cachedHitSignature = signature;
+        _cachedHitElement = element;
+        _cachedHitDocument = document;
+        hitDocument = document;
+        return element;
     }
 
     private void DispatchTouchEvents()
@@ -518,6 +579,8 @@ public sealed class UiModule :
         _inertiaElement = null;
         _scrollVelocity = Vector2.Zero;
         _touchCaptures.Clear();
+        _hoveredElements.Clear();
+        _nextHoveredElements.Clear();
         _wasPointerPressed = false;
         Focus(null);
         _draggingElement = null;

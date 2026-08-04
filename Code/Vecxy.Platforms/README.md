@@ -18,3 +18,16 @@ dotnet publish Game.csproj -p:VecxyPlatform=Android -r android-arm64
 
 Platform-specific hosts, packaging rules and assets belong to projects such as
 `Vecxy.Platforms.Android`; they do not belong to the game project.
+
+The engine splash screen is enabled by default and uses
+`Assets/Textures/Logo.jpeg`. It reports layer initialization progress, remains
+visible until the first successful frame, and fades out on every supported
+platform. A game can disable or replace it in its shared engine options:
+
+```csharp
+public Engine.Options CreateEngineOptions(PlatformContext context) => new()
+{
+    ShowSplashScreen = false,
+    SplashScreenLogoPath = "Textures/StudioLogo.png"
+};
+```

@@ -41,6 +41,7 @@ public interface IWindow : IDisposable
     void Initialize();
     void PollEvents();
     void MakeCurrent();
+    void SuppressNextSwap();
     void SwapBuffers();
     void Close();
     void ToggleFullscreen();

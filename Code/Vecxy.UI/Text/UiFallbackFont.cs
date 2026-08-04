@@ -5,6 +5,7 @@ namespace Vecxy.UI;
 
 internal static class UiFallbackFont
 {
+    private static readonly object CacheKey = new();
     private static readonly IReadOnlyDictionary<char, string> Glyphs =
         new Dictionary<char, string>
         {
@@ -32,10 +33,14 @@ internal static class UiFallbackFont
             ['!']="001000010000100001000000000100", ['+']="000000010000100111110010000100"
         };
 
-    public static Vector2 Measure(string text, float fontSize)
+    public static Vector2 Measure(
+        UiElement element,
+        string text,
+        float fontSize,
+        float maximumWidth = float.PositiveInfinity)
     {
         var scale = Math.Max(1.0f, fontSize / 6.0f);
-        var lines = text.Replace("\r", string.Empty).Split('\n');
+        var lines = Lines(element, text, fontSize, maximumWidth, scale);
         return new Vector2(
             lines.Max(line => line.Length) * 6.0f * scale,
             lines.Length * 7.0f * scale);
@@ -43,16 +48,23 @@ internal static class UiFallbackFont
 
     public static void Paint(
         UiRenderer renderer,
+        UiElement element,
         string text,
         Rect bounds,
         float fontSize,
         Vector4 color,
         Rect clip,
         string textAlign,
-        string verticalAlign)
+        string verticalAlign,
+        bool wrap)
     {
         var scale = Math.Max(1.0f, fontSize / 6.0f);
-        var lines = text.Replace("\r", string.Empty).Split('\n');
+        var lines = Lines(
+            element,
+            text,
+            fontSize,
+            wrap ? bounds.Width : float.PositiveInfinity,
+            scale);
         var contentHeight = lines.Length * 7.0f * scale;
         var y = verticalAlign switch
         {
@@ -94,5 +106,22 @@ internal static class UiFallbackFont
             }
             y += 7.0f * scale;
         }
+    }
+
+    private static string[] Lines(
+        UiElement element,
+        string text,
+        float fontSize,
+        float maximumWidth,
+        float scale)
+    {
+        if (element.TextLayoutCache.TryGet(CacheKey, text, fontSize, maximumWidth, out var cached))
+            return cached;
+        var lines = UiTextWrap.Lines(
+            text,
+            maximumWidth,
+            line => line.Length * 6.0f * scale);
+        element.TextLayoutCache.Store(CacheKey, text, fontSize, maximumWidth, lines);
+        return lines;
     }
 }

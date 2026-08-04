@@ -7,7 +7,23 @@ namespace Vecxy.UI;
 
 internal static class UiBitmapFont
 {
-    public static Vector2 Measure(UiFontAsset font, string text, float fontSize)
+    public static Vector2 Measure(
+        UiElement element,
+        UiFontAsset font,
+        string text,
+        float fontSize,
+        float maximumWidth = float.PositiveInfinity)
+    {
+        var lines = Lines(element, font, text, fontSize, maximumWidth);
+        var width = 0.0f;
+        foreach (var line in lines)
+            width = Math.Max(width, MeasureUnwrapped(font, line, fontSize).X);
+        return new Vector2(
+            width,
+            lines.Length * font.LineHeight * (fontSize / font.SourceSize));
+    }
+
+    private static Vector2 MeasureUnwrapped(UiFontAsset font, string text, float fontSize)
     {
         var scale = fontSize / font.SourceSize;
         var width = 0.0f;
@@ -45,6 +61,7 @@ internal static class UiBitmapFont
 
     public static void Paint(
         UiRenderer renderer,
+        UiElement element,
         UiFontAsset font,
         Texture texture,
         string text,
@@ -53,19 +70,25 @@ internal static class UiBitmapFont
         Vector4 color,
         Rect clip,
         string textAlign,
-        string verticalAlign)
+        string verticalAlign,
+        bool wrap)
     {
         var textureWidth = Math.Max(1, font.TextureWidth);
         var textureHeight = Math.Max(1, font.TextureHeight);
         var scale = fontSize / font.SourceSize;
-        var lines = text.Replace("\r", string.Empty).Split('\n');
+        var lines = Lines(
+            element,
+            font,
+            text,
+            fontSize,
+            wrap ? bounds.Width : float.PositiveInfinity);
         var lineHeight = font.LineHeight * scale;
         var contentHeight = lines.Length * lineHeight;
         var y = AlignVertical(bounds, contentHeight, verticalAlign);
 
         foreach (var line in lines)
         {
-            var lineWidth = Measure(font, line, fontSize).X;
+            var lineWidth = MeasureUnwrapped(font, line, fontSize).X;
             var x = AlignHorizontal(bounds, lineWidth, textAlign);
             var previous = -1;
 
@@ -102,6 +125,23 @@ internal static class UiBitmapFont
             }
             y += lineHeight;
         }
+    }
+
+    private static string[] Lines(
+        UiElement element,
+        UiFontAsset font,
+        string text,
+        float fontSize,
+        float maximumWidth)
+    {
+        if (element.TextLayoutCache.TryGet(font, text, fontSize, maximumWidth, out var cached))
+            return cached;
+        var lines = UiTextWrap.Lines(
+            text,
+            maximumWidth,
+            line => MeasureUnwrapped(font, line, fontSize).X);
+        element.TextLayoutCache.Store(font, text, fontSize, maximumWidth, lines);
+        return lines;
     }
 
     private static float AlignHorizontal(Rect bounds, float width, string alignment) =>

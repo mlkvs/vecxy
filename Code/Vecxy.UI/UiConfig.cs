@@ -19,6 +19,7 @@ public sealed class UiConfig : IYamlConfig
     public float ScrollSpeed { get; set; } = 48.0f;
     public float DragScrollThreshold { get; set; } = 8.0f;
     public float ScrollDeceleration { get; set; } = 2400.0f;
+    public bool EnableShadows { get; set; } = true;
     public Dictionary<string, string> SpriteAtlases { get; set; } =
         new(StringComparer.Ordinal);
 

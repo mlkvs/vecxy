@@ -1,15 +1,24 @@
+using Vecxy.Engine;
+
 namespace Vecxy.Platforms;
 
 public static class PlatformRunner
 {
-    public static void Run(IVecxyApplication application, PlatformContext context)
+    public static void Run(
+        IVecxyApplication application,
+        PlatformContext context,
+        Engine.Engine.Options? options = null,
+        IEngineSplashScreen? splashScreen = null)
     {
         ArgumentNullException.ThrowIfNull(application);
         ArgumentNullException.ThrowIfNull(context);
 
+        options ??= application.CreateEngineOptions(context);
         using var engine = new Engine.Engine(
-            application.CreateEngineOptions(context),
-            application.CreateLayers(context));
+            options,
+            application.CreateLayers(context),
+            context.AssetsDirectory,
+            splashScreen);
         engine.Run();
     }
 

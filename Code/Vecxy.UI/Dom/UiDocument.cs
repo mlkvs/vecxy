@@ -14,6 +14,8 @@ public sealed class UiDocument : IDisposable
     private readonly Config _yogaConfig;
     private readonly AssetRef<UiDocumentAsset> _source;
     private readonly List<AssetRef<UiStyleSheetAsset>> _styleAssets = [];
+    private readonly Dictionary<string, AssetRef<UiDocumentAsset>> _componentAssets =
+        new(StringComparer.Ordinal);
     private readonly List<UiStyleSheet> _styleSheets = [];
     private readonly Dictionary<string, AssetRef<TextureAsset>> _imageAssets =
         new(StringComparer.Ordinal);
@@ -23,9 +25,24 @@ public sealed class UiDocument : IDisposable
         new(StringComparer.Ordinal);
     private readonly Dictionary<string, UiKeyframes> _keyframes =
         new(StringComparer.Ordinal);
+    private readonly Dictionary<string, UiElement> _idCache =
+        new(StringComparer.Ordinal);
+    private readonly List<UiElement> _activeAnimationElements = [];
     private int _sourceVersion;
     private int[] _styleVersions = [];
     private UiConfig _settings = new();
+    private bool _resourceResolutionPending;
+    private int _resolvedTreeVersion = int.MinValue;
+    private int _resolvedPseudoState = int.MinValue;
+    private int _styleResolutionVersion;
+    private int _lastLayoutVersion = int.MinValue;
+    private int _lastCanvasWidth;
+    private int _lastCanvasHeight;
+    private bool _layoutValid;
+    private bool _animationSyncPending = true;
+    private long _stylePasses;
+    private long _layoutPasses;
+    private long _animationTreeScans;
     private bool _disposed;
 
     public string Path => _source.Metadata.Path;
@@ -33,6 +50,13 @@ public sealed class UiDocument : IDisposable
     public bool IsVisible { get; set; } = true;
     public event Action<UiDocument>? Reloaded;
     internal float LayoutScale { get; private set; } = 1.0f;
+    internal int ActiveAnimationCount => _activeAnimationElements.Count;
+    internal int StyleVersion => Root.StyleVersion;
+    internal int LayoutVersion => Root.LayoutVersion;
+    internal int VisualVersion => Root.VisualVersion;
+    internal long StylePasses => _stylePasses;
+    internal long LayoutPasses => _layoutPasses;
+    internal long AnimationTreeScans => _animationTreeScans;
 
     internal UiDocument(
         IAssetsManager assets,
@@ -53,11 +77,110 @@ public sealed class UiDocument : IDisposable
         ArgumentException.ThrowIfNullOrWhiteSpace(selector);
 
         if (selector[0] == '#')
-            return Root.DescendantsAndSelf().FirstOrDefault(element => element.Id == selector[1..]);
+        {
+            var id = selector[1..];
+            if (_idCache.TryGetValue(id, out var cached) && IsAttached(cached))
+                return cached;
+            var found = Root.DescendantsAndSelf().FirstOrDefault(element => element.Id == id);
+            if (found is not null)
+                _idCache[id] = found;
+            else
+                _idCache.Remove(id);
+            return found;
+        }
         if (selector[0] == '.')
             return Root.DescendantsAndSelf().FirstOrDefault(element => element.Classes.Contains(selector[1..]));
         return Root.DescendantsAndSelf().FirstOrDefault(element =>
             string.Equals(element.TagName, selector, StringComparison.OrdinalIgnoreCase));
+    }
+
+    public IReadOnlyList<UiElement> QueryAll(string selector)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        ArgumentException.ThrowIfNullOrWhiteSpace(selector);
+        return Root.DescendantsAndSelf()
+            .Where(element => MatchesSimpleSelector(element, selector))
+            .ToArray();
+    }
+
+    public IReadOnlyList<T> QueryAll<T>(string selector) where T : UiElement =>
+        QueryAll(selector).OfType<T>().ToArray();
+
+    public T? Query<T>(string selector) where T : UiElement => Query(selector) as T;
+
+    public T GetElementById<T>(string id) where T : UiElement
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(id);
+        return Query<T>($"#{id}") ?? throw new InvalidDataException(
+            $"Required {typeof(T).Name} with id '{id}' is missing from {Path}.");
+    }
+
+    public UiElement Instantiate(
+        string componentPath,
+        UiElement parent,
+        IReadOnlyDictionary<string, string>? parameters = null)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        ArgumentException.ThrowIfNullOrWhiteSpace(componentPath);
+        ArgumentNullException.ThrowIfNull(parent);
+
+        var path = ResolveRelativePath(Path, componentPath);
+        if (!_componentAssets.TryGetValue(path, out var component))
+        {
+            component = _assets.Load<UiDocumentAsset>(path);
+            _componentAssets.Add(path, component);
+        }
+        var source = ApplyParameters(component.Value.Source, parameters);
+        var parsed = XDocument.Parse(source, LoadOptions.SetLineInfo | LoadOptions.PreserveWhitespace);
+        var sourceRoot = parsed.Root ?? throw new InvalidDataException(
+            $"UI component has no root element: {path}");
+        var instance = ParseElement(sourceRoot);
+        parent.Add(instance);
+        // Resolution is intentionally deferred until the next UI update. Building a
+        // component tree must result in one style/layout pass, not one pass per instance.
+        _resourceResolutionPending = true;
+        return instance;
+    }
+
+    public T Instantiate<T>(
+        string componentPath,
+        UiElement parent,
+        IReadOnlyDictionary<string, string>? parameters = null) where T : UiElement =>
+        Instantiate(componentPath, parent, parameters) as T ??
+        throw new InvalidDataException($"Component root is not a {typeof(T).Name}: {componentPath}");
+
+    public UiElement CreateElement(
+        string tagName,
+        IReadOnlyDictionary<string, string>? attributes = null,
+        string? text = null)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        ArgumentException.ThrowIfNullOrWhiteSpace(tagName);
+        _resourceResolutionPending = true;
+        return CreateTypedElement(tagName, attributes ?? new Dictionary<string, string>(), text);
+    }
+
+    public UiPanel CreatePanel(IReadOnlyDictionary<string, string>? attributes = null) =>
+        (UiPanel)CreateElement("panel", attributes);
+
+    public UiText CreateText(string text = "", IReadOnlyDictionary<string, string>? attributes = null) =>
+        (UiText)CreateElement("text", attributes, text);
+
+    public UiButton CreateButton(string label = "", IReadOnlyDictionary<string, string>? attributes = null)
+    {
+        var button = (UiButton)CreateElement("button", attributes);
+        if (label.Length > 0)
+            button.Add(CreateText(label));
+        return button;
+    }
+
+    public UiImage CreateImage(string source, IReadOnlyDictionary<string, string>? attributes = null)
+    {
+        var values = new Dictionary<string, string>(attributes ?? new Dictionary<string, string>(), StringComparer.OrdinalIgnoreCase)
+        {
+            ["src"] = source
+        };
+        return (UiImage)CreateElement("image", values);
     }
 
     internal void Refresh()
@@ -74,11 +197,29 @@ public sealed class UiDocument : IDisposable
             stylesChanged = _styleAssets[index].Version != _styleVersions[index];
 
         if (stylesChanged)
+        {
             ReloadStyles();
+            return;
+        }
 
-        UiStyleResolver.Resolve(Root, _styleSheets);
-        ResolveFonts();
-        ResolveIntrinsicImages();
+        var (treeVersion, pseudoState) = ComputeStyleState();
+        var treeChanged = treeVersion != _resolvedTreeVersion;
+        if (treeChanged || pseudoState != _resolvedPseudoState)
+        {
+            UiStyleResolver.Resolve(Root, _styleSheets);
+            _stylePasses++;
+            unchecked { _styleResolutionVersion++; }
+            _layoutValid = false;
+            _animationSyncPending = true;
+        }
+        if (treeChanged || _resourceResolutionPending)
+        {
+            ResolveFonts();
+            ResolveIntrinsicImages();
+            _resourceResolutionPending = false;
+        }
+        _resolvedTreeVersion = treeVersion;
+        _resolvedPseudoState = pseudoState;
     }
 
     internal void Layout(int width, int height, UiConfig? settings = null)
@@ -87,7 +228,18 @@ public sealed class UiDocument : IDisposable
         Refresh();
         var canvas = UiCanvas.Resolve(Root, width, height, _settings);
         LayoutScale = canvas.Scale;
-        UiLayout.Calculate(Root, canvas.Width, canvas.Height);
+        if (_layoutValid &&
+            _lastLayoutVersion == Root.LayoutVersion &&
+            _lastCanvasWidth == canvas.Width &&
+            _lastCanvasHeight == canvas.Height)
+            return;
+        UiLayout.Calculate(Root, canvas.Width, canvas.Height, _settings.EnableShadows);
+        _layoutPasses++;
+        _lastLayoutVersion = Root.LayoutVersion;
+        _lastCanvasWidth = canvas.Width;
+        _lastCanvasHeight = canvas.Height;
+        _layoutValid = true;
+        _animationSyncPending = true;
     }
 
     internal void UpdateAnimations(
@@ -98,17 +250,68 @@ public sealed class UiDocument : IDisposable
     {
         _settings = settings;
         var canvas = UiCanvas.Resolve(Root, width, height, settings);
-        // Animation callbacks are allowed to remove their element from the DOM.
-        foreach (var element in Root.DescendantsAndSelf().ToArray())
+        if (_animationSyncPending)
         {
-            element.AnimationRuntime.Update(
-                element,
-                _keyframes,
-                deltaTime,
-                canvas.Width,
-                canvas.Height);
+            _animationTreeScans++;
+            _activeAnimationElements.Clear();
+            // Animation callbacks may remove their element, so only the occasional
+            // full synchronization takes a stable snapshot of the tree.
+            foreach (var element in Root.VisibleDescendantsAndSelf().ToArray())
+            {
+                UpdateAnimationElement(element, deltaTime, canvas.Width, canvas.Height);
+                if (element.AnimationRuntime.IsActive && IsAttached(element))
+                    _activeAnimationElements.Add(element);
+            }
+            _animationSyncPending = false;
+            return;
+        }
+
+        for (var index = _activeAnimationElements.Count - 1; index >= 0; index--)
+        {
+            var element = _activeAnimationElements[index];
+            if (!IsAttached(element))
+            {
+                _activeAnimationElements.RemoveAt(index);
+                continue;
+            }
+            UpdateAnimationElement(element, deltaTime, canvas.Width, canvas.Height);
+            if (!element.AnimationRuntime.IsActive || !IsAttached(element))
+                _activeAnimationElements.RemoveAt(index);
         }
     }
+
+    /// <summary>
+    /// Restarts an element's resolved CSS animation without changing its classes or
+    /// forcing a synchronization scan of the document tree.
+    /// </summary>
+    public void RestartAnimation(UiElement element)
+    {
+        ArgumentNullException.ThrowIfNull(element);
+        if (!IsAttached(element))
+            throw new InvalidOperationException("The UI element does not belong to this document.");
+
+        element.AnimationRuntime.Restart(element);
+        if (element.AnimationRuntime.IsActive && !_activeAnimationElements.Contains(element))
+            _activeAnimationElements.Add(element);
+        element.InvalidateVisual();
+    }
+
+    private void UpdateAnimationElement(UiElement element, float deltaTime, float width, float height)
+    {
+        if (element.AnimationRuntime.Update(element, _keyframes, deltaTime, width, height))
+            element.InvalidateVisual();
+    }
+
+    internal int GeometryVersion => HashCode.Combine(
+        _sourceVersion,
+        _styleResolutionVersion,
+        Root.StyleVersion,
+        Root.PseudoVersion,
+        Root.LayoutVersion,
+        Root.VisualVersion,
+        IsVisible);
+
+    internal int RenderVersion => HashCode.Combine(GeometryVersion, Root.ScrollVersion);
 
     internal Vector2 ToLayoutPoint(Vector2 outputPoint) =>
         outputPoint / Math.Max(0.0001f, LayoutScale);
@@ -247,6 +450,10 @@ public sealed class UiDocument : IDisposable
         var replacement = ParseElement(sourceRoot);
         Root?.ReleaseLayout();
         Root = replacement;
+        _idCache.Clear();
+        _activeAnimationElements.Clear();
+        _animationSyncPending = true;
+        _layoutValid = false;
         _sourceVersion = _source.Version;
 
         foreach (var style in _styleAssets)
@@ -277,25 +484,54 @@ public sealed class UiDocument : IDisposable
             StringComparer.OrdinalIgnoreCase);
         var tagName = source.Name.LocalName.ToLowerInvariant();
         var directText = string.Concat(source.Nodes().OfType<XText>().Select(text => text.Value)).Trim();
-        var element = new UiElement(
-            _yogaConfig,
-            tagName,
-            attributes,
-            tagName == "text" ? directText : null);
+        var element = CreateTypedElement(tagName, attributes, tagName == "text" ? directText : null);
 
         foreach (var child in source.Elements())
             element.Add(ParseElement(child));
 
         if (tagName != "text" && directText.Length > 0)
         {
-            element.Add(new UiElement(
-                _yogaConfig,
-                "text",
-                new Dictionary<string, string>(),
-                directText));
+            element.Add(CreateTypedElement("text", new Dictionary<string, string>(), directText));
         }
 
         return element;
+    }
+
+    private UiElement CreateTypedElement(
+        string tagName,
+        IReadOnlyDictionary<string, string> attributes,
+        string? text = null) => tagName.ToLowerInvariant() switch
+    {
+        "panel" => new UiPanel(_yogaConfig, attributes, text),
+        "text" => new UiText(_yogaConfig, attributes, text),
+        "button" => new UiButton(_yogaConfig, attributes, text),
+        "image" => new UiImage(_yogaConfig, attributes, text),
+        "progress" => new UiProgress(_yogaConfig, attributes, text),
+        "radial-progress" => new UiRadialProgress(_yogaConfig, attributes, text),
+        _ => new UiElement(_yogaConfig, tagName, attributes, text)
+    };
+
+    private static bool MatchesSimpleSelector(UiElement element, string selector)
+    {
+        if (selector[0] == '#')
+            return element.Id == selector[1..];
+        if (selector[0] == '.')
+            return element.Classes.Contains(selector[1..]);
+        return string.Equals(element.TagName, selector, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string ApplyParameters(
+        string source,
+        IReadOnlyDictionary<string, string>? parameters)
+    {
+        if (parameters is null)
+            return source;
+        foreach (var (name, value) in parameters)
+            source = source.Replace(
+                $"{{{{{name}}}}}",
+                System.Security.SecurityElement.Escape(value) ?? string.Empty,
+                StringComparison.Ordinal);
+        return source;
     }
 
     private void ReloadStyles()
@@ -329,9 +565,32 @@ public sealed class UiDocument : IDisposable
 
         _styleVersions = _styleAssets.Select(style => style.Version).ToArray();
         UiStyleResolver.Resolve(Root, _styleSheets);
+        unchecked { _styleResolutionVersion++; }
         ResolveFonts();
         ResolveIntrinsicImages();
+        _resourceResolutionPending = false;
+        CaptureResolvedStyleState();
+        _layoutValid = false;
+        _animationSyncPending = true;
     }
+
+    private bool IsAttached(UiElement element)
+    {
+        for (var current = element; current is not null; current = current.Parent)
+        {
+            if (ReferenceEquals(current, Root))
+                return true;
+        }
+        return false;
+    }
+
+    private void CaptureResolvedStyleState()
+    {
+        (_resolvedTreeVersion, _resolvedPseudoState) = ComputeStyleState();
+    }
+
+    private (int TreeVersion, int PseudoState) ComputeStyleState()
+        => (Root.StyleVersion, Root.PseudoVersion);
 
     private void ResolveIntrinsicImages()
     {
@@ -409,6 +668,8 @@ public sealed class UiDocument : IDisposable
         Root?.ReleaseLayout();
         foreach (var style in _styleAssets)
             style.Dispose();
+        foreach (var component in _componentAssets.Values)
+            component.Dispose();
         foreach (var image in _imageAssets.Values)
             image.Dispose();
         foreach (var atlas in _spriteAtlases.Values)
@@ -416,6 +677,7 @@ public sealed class UiDocument : IDisposable
         foreach (var font in _fontAssets.Values)
             font.Dispose();
         _styleAssets.Clear();
+        _componentAssets.Clear();
         _imageAssets.Clear();
         _spriteAtlases.Clear();
         _fontAssets.Clear();

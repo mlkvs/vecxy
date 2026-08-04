@@ -2,7 +2,7 @@ splits:
   leftWidth: 0.19
   rightWidth: 0.28
   bottomHeight: 0.20
-  topHeight: 0.12
+  topHeight: 0.32
 
 windows:
   GameView:
@@ -19,7 +19,7 @@ windows:
     visible: true
   Rendering Statistics:
     dock: top
-    visible: false
+    visible: true
   Render Settings:
     dock: right
     visible: true

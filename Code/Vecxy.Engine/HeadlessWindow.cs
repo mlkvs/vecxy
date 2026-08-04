@@ -35,6 +35,10 @@ internal sealed class HeadlessWindow(IWindow.Options options) : IWindow
     {
     }
 
+    public void SuppressNextSwap()
+    {
+    }
+
     public void SwapBuffers()
     {
     }

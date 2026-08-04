@@ -18,6 +18,7 @@
       <ProjectReference Include="..\Vecxy.Physics\Vecxy.Physics.csproj" />
       <ProjectReference Include="..\Vecxy.Rendering\Vecxy.Rendering.csproj" />
       <ProjectReference Include="..\Vecxy.Scene\Vecxy.Scene.csproj" />
+      <ProjectReference Include="..\Vecxy.UI\Vecxy.UI.csproj" />
     </ItemGroup>
 
 </Project>

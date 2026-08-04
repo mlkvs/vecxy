@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <style name="VecxyTheme" parent="android:style/Theme.Material.Light.NoActionBar">
+    <item name="android:fontFamily">sans</item>
+    <item name="android:windowActionModeOverlay">true</item>
+    <item name="android:windowFullscreen">true</item>
+    <item name="android:windowNoTitle">true</item>
+    <item name="android:windowBackground">#FFFFFFFF</item>
+    <item name="android:windowSplashScreenBackground">#FFFFFFFF</item>
+    <item name="android:windowSplashScreenAnimatedIcon">@drawable/vecxy_splash_logo</item>
+    <item name="android:windowSplashScreenBehavior">icon_preferred</item>
+    <item name="android:forceDarkAllowed">false</item>
+    <item name="android:colorAccent">#4FCC63</item>
+    <item name="android:navigationBarColor">#FFFFFFFF</item>
+    <item name="android:statusBarColor">#FFFFFFFF</item>
+  </style>
+</resources>

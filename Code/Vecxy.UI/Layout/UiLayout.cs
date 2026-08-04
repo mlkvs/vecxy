@@ -9,35 +9,32 @@ namespace Vecxy.UI;
 
 internal static class UiLayout
 {
-    public static void Calculate(UiElement root, int width, int height)
+    public static void Calculate(UiElement root, int width, int height, bool enableShadows = true)
     {
-        ApplyRecursive(root, width, height);
+        ApplyRecursive(root, width, height, enableShadows, null);
         YGNodeStyleSetWidth(root.YogaNode, width);
         YGNodeStyleSetHeight(root.YogaNode, height);
         YGNodeCalculateLayout(root.YogaNode, width, height, YGDirection.LTR);
-        ReadRecursive(root, 0.0f, 0.0f, width, height);
+        ReadRecursive(root, 0.0f, 0.0f, width, height, null);
         for (var pass = 0; pass < 3 && UiGridLayout.PlaceGrids(root, width, height); pass++)
         {
             YGNodeCalculateLayout(root.YogaNode, width, height, YGDirection.LTR);
-            ReadRecursive(root, 0.0f, 0.0f, width, height);
+            ReadRecursive(root, 0.0f, 0.0f, width, height, null);
         }
-        UpdateScrollExtents(root);
+        UpdateScrollExtents(root, null);
     }
 
-    private static void ApplyRecursive(UiElement element, float viewportWidth, float viewportHeight)
+    private static void ApplyRecursive(
+        UiElement element,
+        float viewportWidth,
+        float viewportHeight,
+        bool enableShadows,
+        UiElement? virtualViewport)
     {
+        if (virtualViewport is not null && IsOutsideVirtualViewport(element, virtualViewport))
+            return;
         var node = element.YogaNode;
         var style = element.ComputedStyle;
-        style.FontSize = Math.Max(1.0f, ResolvePoints(style.FontSizeLength, viewportWidth, viewportHeight));
-        style.BorderWidth = Math.Max(0.0f, ResolvePoints(style.BorderWidthLength, viewportWidth, viewportHeight));
-        style.BoxShadows = style.BoxShadowDefinitions.Select(shadow => new UiResolvedBoxShadow(
-            ResolvePoints(shadow.OffsetX, viewportWidth, viewportHeight),
-            ResolvePoints(shadow.OffsetY, viewportWidth, viewportHeight),
-            Math.Max(0.0f, ResolvePoints(shadow.BlurRadius, viewportWidth, viewportHeight)),
-            ResolvePoints(shadow.SpreadRadius, viewportWidth, viewportHeight),
-            shadow.Color,
-            shadow.Inset)).ToArray();
-
         YGNodeStyleSetDisplay(node, style.Display switch
         {
             "none" => YGDisplay.None,
@@ -45,6 +42,31 @@ internal static class UiLayout
             "contents" => YGDisplay.Contents,
             _ => YGDisplay.Flex
         });
+        if (style.Display == "none")
+            return;
+        style.FontSize = Math.Max(1.0f, ResolvePoints(style.FontSizeLength, viewportWidth, viewportHeight));
+        style.BorderWidth = Math.Max(0.0f, ResolvePoints(style.BorderWidthLength, viewportWidth, viewportHeight));
+        if (!enableShadows || style.BoxShadowDefinitions.Count == 0)
+        {
+            style.BoxShadows = Array.Empty<UiResolvedBoxShadow>();
+        }
+        else
+        {
+            var resolvedShadows = new UiResolvedBoxShadow[style.BoxShadowDefinitions.Count];
+            for (var index = 0; index < resolvedShadows.Length; index++)
+            {
+                var shadow = style.BoxShadowDefinitions[index];
+                resolvedShadows[index] = new UiResolvedBoxShadow(
+                    ResolvePoints(shadow.OffsetX, viewportWidth, viewportHeight),
+                    ResolvePoints(shadow.OffsetY, viewportWidth, viewportHeight),
+                    Math.Max(0.0f, ResolvePoints(shadow.BlurRadius, viewportWidth, viewportHeight)),
+                    ResolvePoints(shadow.SpreadRadius, viewportWidth, viewportHeight),
+                    shadow.Color,
+                    shadow.Inset);
+            }
+            style.BoxShadows = resolvedShadows;
+        }
+
         YGNodeStyleSetPositionType(node, style.Position switch
         {
             "absolute" or "fixed" => YGPositionType.Absolute,
@@ -104,8 +126,9 @@ internal static class UiLayout
         else if (YGNodeHasMeasureFunc(node))
             YGNodeSetMeasureFunc(node, null);
 
+        var childVirtualViewport = element.UsesVirtualization ? element : virtualViewport;
         foreach (var child in element.Children)
-            ApplyRecursive(child, viewportWidth, viewportHeight);
+            ApplyRecursive(child, viewportWidth, viewportHeight, enableShadows, childVirtualViewport);
     }
 
     private static YGSize MeasureText(
@@ -119,9 +142,12 @@ internal static class UiLayout
         if (element is null)
             return default;
 
+        var wraps = element.ComputedStyle.WhiteSpace is "normal" or "pre-wrap" &&
+                    widthMode is MeasureMode.AtMost or MeasureMode.Exactly;
+        var wrappingWidth = wraps ? availableWidth : float.PositiveInfinity;
         var size = element.Font is { } font
-            ? UiBitmapFont.Measure(font, element.Text, element.ComputedStyle.FontSize)
-            : UiFallbackFont.Measure(element.Text, element.ComputedStyle.FontSize);
+            ? UiBitmapFont.Measure(element, font, element.Text, element.ComputedStyle.FontSize, wrappingWidth)
+            : UiFallbackFont.Measure(element, element.Text, element.ComputedStyle.FontSize, wrappingWidth);
         if (widthMode == MeasureMode.Exactly)
             size.X = availableWidth;
         else if (widthMode == MeasureMode.AtMost)
@@ -158,7 +184,8 @@ internal static class UiLayout
         float parentX,
         float parentY,
         float viewportWidth,
-        float viewportHeight)
+        float viewportHeight,
+        UiElement? virtualViewport)
     {
         var left = parentX + YGNodeLayoutGetLeft(element.YogaNode);
         var top = parentY + YGNodeLayoutGetTop(element.YogaNode);
@@ -168,6 +195,10 @@ internal static class UiLayout
             Math.Max(0.0f, YGNodeLayoutGetWidth(element.YogaNode)),
             Math.Max(0.0f, YGNodeLayoutGetHeight(element.YogaNode)));
         var style = element.ComputedStyle;
+        if (style.Display == "none")
+            return;
+        if (virtualViewport is not null && IsOutsideVirtualViewport(element, virtualViewport))
+            return;
         style.BorderRadius = Math.Max(0.0f, style.BorderRadiusLength.Unit == EUiLengthUnit.Percent
             ? Math.Min(element.Bounds.Width, element.Bounds.Height) * style.BorderRadiusLength.Value * 0.01f
             : ResolvePoints(style.BorderRadiusLength, element.Bounds.Width, element.Bounds.Height));
@@ -177,23 +208,59 @@ internal static class UiLayout
             viewportWidth,
             viewportHeight);
 
+        var childVirtualViewport = element.UsesVirtualization ? element : virtualViewport;
         foreach (var child in element.Children)
-            ReadRecursive(child, left, top, viewportWidth, viewportHeight);
+            ReadRecursive(child, left, top, viewportWidth, viewportHeight, childVirtualViewport);
     }
 
-    private static void UpdateScrollExtents(UiElement element)
+    private static void UpdateScrollExtents(UiElement element, UiElement? virtualViewport)
     {
+        if (element.ComputedStyle.Display == "none")
+            return;
+        if (virtualViewport is not null && IsOutsideVirtualViewport(element, virtualViewport))
+            return;
+        var childVirtualViewport = element.UsesVirtualization ? element : virtualViewport;
         foreach (var child in element.Children)
-            UpdateScrollExtents(child);
+            UpdateScrollExtents(child, childVirtualViewport);
 
         var width = element.Bounds.Width;
         var height = element.Bounds.Height;
+        var rightPadding = YGNodeLayoutGetPadding(element.YogaNode, YGEdge.Right);
+        var bottomPadding = YGNodeLayoutGetPadding(element.YogaNode, YGEdge.Bottom);
         foreach (var child in element.Children.Where(child => child.ComputedStyle.Display != "none"))
         {
-            width = Math.Max(width, child.Bounds.Right - element.Bounds.Left);
-            height = Math.Max(height, child.Bounds.Bottom - element.Bounds.Top);
+            var childClipsX = child.ComputedStyle.OverflowX is "hidden" or "scroll" or "auto";
+            var childClipsY = child.ComputedStyle.OverflowY is "hidden" or "scroll" or "auto";
+            var childWidth = childClipsX ? child.Bounds.Width : Math.Max(child.Bounds.Width, child.ScrollExtent.X);
+            var childHeight = childClipsY ? child.Bounds.Height : Math.Max(child.Bounds.Height, child.ScrollExtent.Y);
+            width = Math.Max(width, child.Bounds.Left - element.Bounds.Left + childWidth + rightPadding);
+            height = Math.Max(height, child.Bounds.Top - element.Bounds.Top + childHeight + bottomPadding);
         }
         element.UpdateScrollExtent(new Vector2(width, height));
+    }
+
+    private static bool IsOutsideVirtualViewport(UiElement element, UiElement viewport)
+    {
+        if (element.Bounds.Width <= 0.0f || element.Bounds.Height <= 0.0f ||
+            viewport.Bounds.Width <= 0.0f || viewport.Bounds.Height <= 0.0f)
+            return false;
+
+        var bounds = element.Bounds with
+        {
+            X = element.Bounds.X - viewport.ScrollOffset.X,
+            Y = element.Bounds.Y - viewport.ScrollOffset.Y
+        };
+        var clipsX = viewport.ComputedStyle.OverflowX is "scroll" or "auto";
+        var clipsY = viewport.ComputedStyle.OverflowY is "scroll" or "auto";
+        if (clipsX &&
+            (bounds.Right < viewport.Bounds.Left - viewport.Bounds.Width ||
+             bounds.Left > viewport.Bounds.Right + viewport.Bounds.Width))
+            return true;
+        if (clipsY &&
+            (bounds.Bottom < viewport.Bounds.Top - viewport.Bounds.Height ||
+             bounds.Top > viewport.Bounds.Bottom + viewport.Bounds.Height))
+            return true;
+        return false;
     }
 
     private static void SetFlexBasis(Node node, UiLength value, float viewportWidth, float viewportHeight)

@@ -132,6 +132,8 @@ internal static class UiAnimationParser
 
 internal sealed class UiAnimationRuntime
 {
+    private static readonly string[] AnimatedProperties =
+        ["color", "background-color", "opacity", "transform"];
     private readonly Dictionary<string, Transition> _transitions =
         new(StringComparer.OrdinalIgnoreCase);
     private Snapshot _target = new(Vector4.One, Vector4.Zero, 1.0f, UiTransform.Identity);
@@ -140,6 +142,7 @@ internal sealed class UiAnimationRuntime
     private float _animationElapsed;
     private int _lastIteration = -1;
     private bool _animationRunning;
+    private bool _restartRequested;
     private bool _wasVisible;
     private bool _initialized;
 
@@ -147,14 +150,25 @@ internal sealed class UiAnimationRuntime
     public Vector4 BackgroundColor => _visual.BackgroundColor;
     public float Opacity => _visual.Opacity;
     public UiTransform Transform => _visual.Transform;
+    public bool IsActive => _animationRunning || _transitions.Count > 0;
 
-    public void Update(
+    public void Restart(UiElement element)
+    {
+        _restartRequested = true;
+        StartAnimation(
+            element,
+            element.ComputedStyle.Animation,
+            element.IsVisible && element.ComputedStyle.Visibility != "hidden");
+    }
+
+    public bool Update(
         UiElement element,
         IReadOnlyDictionary<string, UiKeyframes> keyframes,
         float deltaTime,
         float viewportWidth,
         float viewportHeight)
     {
+        var previousVisual = _visual;
         var style = element.ComputedStyle;
         var transformWidth = element.Bounds.Width > 0.0f ? element.Bounds.Width : viewportWidth;
         var transformHeight = element.Bounds.Height > 0.0f ? element.Bounds.Height : viewportHeight;
@@ -165,21 +179,37 @@ internal sealed class UiAnimationRuntime
             viewportWidth,
             viewportHeight);
         var visible = style.Display != "none" && style.Visibility != "hidden";
+        var manual = element.Attributes.GetValueOrDefault("animation-trigger")
+            ?.Equals("manual", StringComparison.OrdinalIgnoreCase) == true;
         if (!_initialized)
         {
             _initialized = true;
             _target = _visual = target;
             _wasVisible = visible;
-            StartAnimation(element, style.Animation, visible);
+            if (manual && !_restartRequested)
+            {
+                _animation = style.Animation;
+                _animationRunning = false;
+            }
+            else
+            {
+                StartAnimation(element, style.Animation, visible);
+            }
         }
         else
         {
             BeginTransitions(style.Transitions, _target, target);
             _target = target;
-            if (style.Animation != _animation || visible && !_wasVisible)
+            if (!manual && (style.Animation != _animation || visible && !_wasVisible))
                 StartAnimation(element, style.Animation, visible);
+            else if (manual && style.Animation != _animation)
+            {
+                _animation = style.Animation;
+                _animationRunning = false;
+            }
             _wasVisible = visible;
         }
+        _restartRequested = false;
 
         UpdateTransitions(element, Math.Max(0.0f, deltaTime));
         ApplyAnimation(
@@ -190,6 +220,7 @@ internal sealed class UiAnimationRuntime
             transformHeight,
             viewportWidth,
             viewportHeight);
+        return previousVisual != _visual;
     }
 
     private void BeginTransitions(
@@ -197,7 +228,7 @@ internal sealed class UiAnimationRuntime
         Snapshot previousTarget,
         Snapshot target)
     {
-        foreach (var property in new[] { "color", "background-color", "opacity", "transform" })
+        foreach (var property in AnimatedProperties)
         {
             if (Snapshot.PropertyEquals(previousTarget, target, property))
                 continue;
@@ -221,8 +252,10 @@ internal sealed class UiAnimationRuntime
 
     private void UpdateTransitions(UiElement element, float deltaTime)
     {
-        foreach (var (property, transition) in _transitions.ToArray())
+        foreach (var property in AnimatedProperties)
         {
+            if (!_transitions.TryGetValue(property, out var transition))
+                continue;
             var updated = transition with { Elapsed = transition.Elapsed + deltaTime };
             _transitions[property] = updated;
             if (updated.Elapsed < 0.0f)
@@ -238,7 +271,7 @@ internal sealed class UiAnimationRuntime
             element.RaiseTransitionEnded(new UiTransitionEvent(property, updated.Duration));
         }
 
-        foreach (var property in new[] { "color", "background-color", "opacity", "transform" })
+        foreach (var property in AnimatedProperties)
         {
             if (!_transitions.ContainsKey(property))
                 _visual = _visual.WithProperty(_target, property);
@@ -309,8 +342,8 @@ internal sealed class UiAnimationRuntime
         float viewportWidth,
         float viewportHeight)
     {
-        var frames = animation.Frames.OrderBy(frame => frame.Offset).ToArray();
-        if (frames.Length == 0)
+        var frames = animation.Frames;
+        if (frames.Count == 0)
             return fallback;
         var before = frames.LastOrDefault(frame => frame.Offset <= progress) ?? frames[0];
         var after = frames.FirstOrDefault(frame => frame.Offset >= progress) ?? frames[^1];

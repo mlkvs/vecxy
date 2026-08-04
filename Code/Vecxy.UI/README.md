@@ -92,8 +92,12 @@ public sealed class HudLayer(IUiManager ui) : AAppLayer
         }
     }
 
-    private void Bind(UiDocument document) =>
-        document.Query("#inventory")!.Clicked += OpenInventory;
+    private void Bind(UiDocument document)
+    {
+        var inventory = document.GetElementById<UiButton>("inventory");
+        inventory.Clicked += OpenInventory;
+        inventory.Label = "OPEN INVENTORY";
+    }
 
     private void OpenInventory(UiElement _) { }
 }
@@ -102,6 +106,45 @@ public sealed class HudLayer(IUiManager ui) : AAppLayer
 XML and linked CSS assets are hot-reloaded. A document rebuilt after an XML change
 also rebuilds its element instances and raises `Reloaded`, allowing game code to
 rebind callbacks. CSS-only changes keep the DOM.
+
+## Typed retained elements
+
+XML tags are materialized as `UiPanel`, `UiText`, `UiButton`, `UiImage`,
+`UiProgress`, and `UiRadialProgress`. Resolve stable references once after loading
+the document and update their properties directly:
+
+```csharp
+var title = document.GetElementById<UiText>("title");
+var buy = document.GetElementById<UiButton>("buy");
+var icon = document.GetElementById<UiImage>("icon");
+var progress = document.GetElementById<UiProgress>("progress");
+
+title.Value = "Spirit Core";
+buy.Label = "BUY · 120";
+buy.IsEnabled = money >= 120;
+icon.Source = "Textures/core.png";
+progress.Progress = 0.75f;
+title.Style.Color = "#ffe29a";
+```
+
+All mutations made during a game update are retained and coalesced into one UI
+refresh before the next frame. Static frames reuse resolved styles, Yoga layout,
+tessellated geometry, GPU buffers, animation candidates, and hit-test order.
+Application code should not rebuild or `Render` its UI every tick.
+
+Reusable XML fragments can be represented by a small typed component class:
+
+```csharp
+public sealed class ShopCard(UiElement root) : UiComponent(root)
+{
+    public UiText Price { get; } = root.Query<UiText>(".price")!;
+    public UiButton Buy { get; } = root.Query<UiButton>(".buy")!;
+}
+
+var card = new ShopCard(document.Instantiate("Components/ShopCard.xml", list));
+card.Price.Value = "120";
+card.Buy.Clicked += _ => Purchase();
+```
 
 ## Elements and selectors
 
@@ -131,6 +174,8 @@ supported.
   `border-color`, `border-width`, `font-family`, `font-size`, `opacity`,
   `overflow`, `overflow-x`, `overflow-y`, `visibility`, `z-index`, and
   `pointer-events`. Images support `fill`, `contain`, and `cover`.
+- Text supports `white-space: normal` for measured word wrapping. Wrapped lines
+  use the same layout in Yoga measurement and rendering.
 - Scrolling: nested clipping, mouse wheel input, per-axis scroll offsets,
   mouse/touch drag with inertial deceleration, programmatic `ScrollTo`/`ScrollBy`,
   scroll events, and rendered scrollbars with `scrollbar-width` and
@@ -257,6 +302,20 @@ toast.AnimationIteration += (_, animation) => { };
 toast.AnimationEnded += (_, animation) => toast.RemoveFromParent();
 button.TransitionEnded += (_, transition) => { };
 panel.Scrolled += _ => { };
+```
+
+Runtime code can update text, attributes, classes and individual inline styles.
+It can also instantiate reusable XML components into an existing container:
+
+```csharp
+var list = document.Query("#shop-list")!;
+var card = document.Instantiate(
+    "Components/ShopCard.xml",
+    list,
+    new Dictionary<string, string> { ["name"] = "Spirit pill" });
+card.Query(".buy-button");
+card.SetStyle("opacity", "0.5");
+card.ToggleClass("sold-out", true);
 ```
 
 Elements also expose `Focused`, `Blurred`, `DragStarted`, `DragEnded`, and

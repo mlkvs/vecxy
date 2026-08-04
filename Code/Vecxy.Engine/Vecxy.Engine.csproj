@@ -5,8 +5,9 @@
     </PropertyGroup>
 
     <ItemGroup>
+      <PackageReference Include="StbImageSharp" Version="2.30.15" />
       <ProjectReference Include="..\Vecxy.Assets\Vecxy.Assets.csproj" />
-      <ProjectReference Include="..\Vecxy.Audio\Vecxy.Audio.csproj" Condition="'$(TargetPlatformIdentifier)' != 'android'" />
+      <ProjectReference Include="..\Vecxy.Audio\Vecxy.Audio.csproj" />
       <ProjectReference Include="..\Vecxy.Input\Vecxy.Input.csproj" />
       <ProjectReference Include="..\Vecxy.Kernel\Vecxy.Kernel.csproj" />
       <ProjectReference Include="..\Vecxy.Physics\Vecxy.Physics.csproj" />

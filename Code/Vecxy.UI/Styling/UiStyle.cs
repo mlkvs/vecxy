@@ -112,6 +112,7 @@ public sealed class UiComputedStyle
     public string AlignSelf { get; set; } = "auto";
     public string TextAlign { get; set; } = "left";
     public string VerticalAlign { get; set; } = "top";
+    public string WhiteSpace { get; set; } = "nowrap";
     public string OverflowX { get; set; } = "visible";
     public string OverflowY { get; set; } = "visible";
     public string PointerEvents { get; set; } = "auto";
@@ -184,6 +185,7 @@ public sealed class UiComputedStyle
         style.FontSizeLength = parent.FontSizeLength;
         style.FontFamily = parent.FontFamily;
         style.TextAlign = parent.TextAlign;
+        style.WhiteSpace = parent.WhiteSpace;
         foreach (var (name, value) in parent.Variables)
             style.Variables[name] = value;
 
@@ -671,6 +673,12 @@ internal static class UiStyleResolver
         var style = UiComputedStyle.Inherit(parentStyle);
         var declarations = new Dictionary<string, Winner>(StringComparer.OrdinalIgnoreCase);
 
+        if (element.Attributes.TryGetValue("hidden", out var hidden) &&
+            !hidden.Equals("false", StringComparison.OrdinalIgnoreCase))
+        {
+            declarations["display"] = new Winner(1000, int.MaxValue - 1, "none");
+        }
+
         foreach (var sheet in sheets)
         {
             foreach (var rule in sheet.Rules)
@@ -747,6 +755,7 @@ internal static class UiStyleResolver
             case "align-self": style.AlignSelf = value; break;
             case "text-align": style.TextAlign = value.ToLowerInvariant(); break;
             case "vertical-align": style.VerticalAlign = value.ToLowerInvariant(); break;
+            case "white-space": style.WhiteSpace = value.ToLowerInvariant(); break;
             case "place-content": ApplyPlaceContent(style, value); break;
             case "overflow": style.OverflowX = style.OverflowY = value.ToLowerInvariant(); break;
             case "overflow-x": style.OverflowX = value.ToLowerInvariant(); break;
@@ -943,11 +952,35 @@ internal static class UiStyleResolver
     private static void ApplyFlex(UiComputedStyle style, string value)
     {
         var values = value.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (values.Length == 1 && values[0].Equals("none", StringComparison.OrdinalIgnoreCase))
+        {
+            style.FlexGrow = 0.0f;
+            style.FlexShrink = 0.0f;
+            style.FlexBasis = UiLength.Auto;
+            return;
+        }
+        if (values.Length == 1 && values[0].Equals("auto", StringComparison.OrdinalIgnoreCase))
+        {
+            style.FlexGrow = 1.0f;
+            style.FlexShrink = 1.0f;
+            style.FlexBasis = UiLength.Auto;
+            return;
+        }
         if (values.Length > 0 && TryFloat(values[0], out var grow))
+        {
             style.FlexGrow = grow;
+            // CSS defines `flex: <number>` as `<number> 1 0`.
+            if (values.Length == 1)
+            {
+                style.FlexShrink = 1.0f;
+                style.FlexBasis = UiLength.Pixels(0.0f);
+            }
+        }
         if (values.Length > 1 && TryFloat(values[1], out var shrink))
             style.FlexShrink = shrink;
-        if (values.Length > 2 && UiLength.TryParse(values[2], out var basis))
+        if (values.Length == 2)
+            style.FlexBasis = UiLength.Pixels(0.0f);
+        else if (values.Length > 2 && UiLength.TryParse(values[2], out var basis))
             style.FlexBasis = basis;
     }
 

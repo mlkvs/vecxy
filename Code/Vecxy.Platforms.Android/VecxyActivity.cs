@@ -3,6 +3,7 @@ using Android.Content.PM;
 using Android.Util;
 using Android.Views;
 using Silk.NET.Windowing.Sdl.Android;
+using Vecxy.Engine;
 using Vecxy.Kernel;
 
 namespace Vecxy.Platforms.Android;
@@ -12,7 +13,7 @@ namespace Vecxy.Platforms.Android;
     Exported = true,
     HardwareAccelerated = true,
     ConfigurationChanges = SilkActivity.ConfigChangesFlags,
-    Theme = "@android:style/Theme.Black.NoTitleBar.Fullscreen")]
+    Theme = "@style/VecxyTheme")]
 public sealed class VecxyActivity : SilkActivity
 {
     private const string LogTag = "Vecxy.Android";
@@ -27,18 +28,32 @@ public sealed class VecxyActivity : SilkActivity
                 throw new InvalidOperationException("Android files directory is unavailable.");
             var assetManager = Assets ??
                 throw new InvalidOperationException("Android asset manager is unavailable.");
+            var context = new PlatformContext(
+                PlatformKind.Android,
+                Path.Combine(filesDirectory, "Assets"));
+
+            phase = "resolving the game application";
+            var application = AndroidApplicationResolver.Create();
+            var options = application.CreateEngineOptions(context);
+            IEngineSplashScreen? splashScreen = options.ShowSplashScreen
+                ? AndroidEngineSplashScreen.Attach(
+                    this,
+                    assetManager,
+                    options.SplashScreenLogoPath)
+                : null;
+
             phase = "extracting packaged assets";
             var assetsDirectory = AndroidAssetExtractor.Extract(
                 assetManager,
                 filesDirectory,
                 GetInstalledPackageVersion());
 
-            phase = "resolving the game application";
-            var application = AndroidApplicationResolver.Create();
             phase = "running the game application";
             PlatformRunner.Run(
                 application,
-                new PlatformContext(PlatformKind.Android, assetsDirectory));
+                context with { AssetsDirectory = assetsDirectory },
+                options,
+                splashScreen);
         }
         catch (Exception exception)
         {

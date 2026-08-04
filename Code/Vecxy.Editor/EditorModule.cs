@@ -1,6 +1,7 @@
 using System.Numerics;
 using System.Reflection;
 using System.Runtime.InteropServices;
+using System.Text;
 using Autofac;
 using ImGuiNET;
 using Vecxy.Assets;
@@ -11,6 +12,7 @@ using Vecxy.Kernel;
 using Vecxy.Physics;
 using Vecxy.Rendering;
 using Vecxy.Scene;
+using Vecxy.UI;
 
 namespace Vecxy.Editor;
 
@@ -26,7 +28,8 @@ public sealed class EditorModule(
     ImGuiRenderer imgui,
     GizmoRenderer gizmos,
     DebugConsolePanel debugConsolePanel,
-    IDebugConsole debugConsole) :
+    IDebugConsole debugConsole,
+    IUiDiagnostics uiDiagnostics) :
     IModule,
     IModule.IUpdatable,
     IEditorGui,
@@ -664,8 +667,131 @@ public sealed class EditorModule(
         ImGui.Text($"Render items: {statistics.RenderItems}");
         ImGui.Text($"Draw calls: {statistics.DrawCalls}");
 
+        DrawUiStatistics(uiDiagnostics.Statistics);
+
         ImGui.End();
     }
+
+    private static void DrawUiStatistics(UiPerformanceStatistics statistics)
+    {
+        ImGui.Separator();
+        if (!ImGui.CollapsingHeader("Vecxy.UI", ImGuiTreeNodeFlags.DefaultOpen))
+            return;
+
+        ImGui.Text($"UI frame: {statistics.Frame} ({statistics.FrameDeltaMilliseconds:F2} ms delta)");
+        ImGui.Text($"Documents: {statistics.ActiveDocuments}/{statistics.Documents.Count}");
+        ImGui.Text($"Elements: {statistics.Elements} total, {statistics.VisibleElements} visible, {statistics.InteractiveElements} interactive");
+        ImGui.Text($"Animations: {statistics.ActiveAnimations}");
+        ImGui.Text($"Geometry: {statistics.Vertices:N0} vertices, {statistics.Indices:N0} indices");
+        ImGui.Text($"Batches: {statistics.Batches}, texture switches: {statistics.TextureSwitches}");
+        ImGui.Text($"Shadows: {statistics.ShadowDefinitions} definitions, {statistics.ShadowLayers} generated layers");
+        ImGui.Text($"Layer cache: {statistics.LayerRebuilds} rebuilds, {statistics.LayerCacheHits} hits, {statistics.CompositeDrawCalls} composites");
+        ImGui.Text($"Cache totals: {statistics.TotalLayerRebuilds:N0} rebuilds, {statistics.TotalLayerCacheHits:N0} hits");
+        ImGui.Text($"Layer memory: {FormatBytes(statistics.LayerMemoryBytes)}, content: {statistics.ContentPixels:N0} px");
+        ImGui.Text($"GPU upload this frame: {FormatBytes(statistics.UploadBytes)}");
+        ImGui.Text($"Managed allocations: update {FormatBytes(statistics.UpdateAllocatedBytes)} / avg {FormatBytes((long)statistics.AverageUpdateAllocatedBytes)} / peak {FormatBytes(statistics.PeakUpdateAllocatedBytes)}");
+        ImGui.Text($"Managed allocations: render {FormatBytes(statistics.RenderAllocatedBytes)} / avg {FormatBytes((long)statistics.AverageRenderAllocatedBytes)} / peak {FormatBytes(statistics.PeakRenderAllocatedBytes)}");
+
+        if (ImGui.Button("Reset UI peaks"))
+            statistics.ResetPeaks();
+        ImGui.SameLine();
+        if (ImGui.Button("Copy UI report"))
+            ImGui.SetClipboardText(BuildUiReport(statistics));
+
+        ImGui.Separator();
+        ImGui.Text("CPU phase                         current      average         peak");
+        DrawUiTiming("Total update", statistics.UpdateCpu);
+        DrawUiTiming("  Layout/style", statistics.LayoutCpu);
+        DrawUiTiming("  Animations", statistics.AnimationCpu);
+        DrawUiTiming("  Hit testing", statistics.HitTestCpu);
+        DrawUiTiming("  Input total", statistics.InputCpu);
+        DrawUiTiming("Total render", statistics.RenderCpu);
+        DrawUiTiming("  Tessellation", statistics.TessellationCpu);
+        DrawUiTiming("  Buffer upload", statistics.UploadCpu);
+        DrawUiTiming("  Layer redraw", statistics.LayerDrawCpu);
+        DrawUiTiming("  Composite", statistics.CompositeCpu);
+        ImGui.TextDisabled("GPU commands are asynchronous; layer pixels, batches and upload size expose likely GPU pressure.");
+
+        ImGui.Separator();
+        ImGui.Text("Documents");
+        for (var index = 0; index < statistics.Documents.Count; index++)
+        {
+            var document = statistics.Documents[index];
+            var state = !document.Visible
+                ? "hidden"
+                : document.RebuiltThisFrame ? "REBUILT" : "cached";
+            var flags = document.RebuiltThisFrame
+                ? ImGuiTreeNodeFlags.DefaultOpen
+                : ImGuiTreeNodeFlags.None;
+            if (!ImGui.TreeNodeEx($"{document.Path} [{state}]##ui_document_{index}", flags))
+                continue;
+
+            ImGui.Text($"DOM: {document.Elements} total / {document.VisibleElements} visible / {document.InteractiveElements} interactive");
+            ImGui.Text($"Content: {document.TextElements} text, {document.ImageElements} images, {document.ActiveAnimations} animations");
+            ImGui.Text($"Geometry: {document.Vertices:N0} vertices, {document.Indices:N0} indices, {document.Batches} batches");
+            ImGui.Text($"State changes: style {document.StyleChangesThisFrame}, layout {document.LayoutChangesThisFrame}, visual {document.VisualChangesThisFrame}");
+            ImGui.Text($"Pass totals: style {document.StylePasses:N0}, layout {document.LayoutPasses:N0}, animation tree scans {document.AnimationTreeScans:N0}");
+            ImGui.Text($"Shadows: {document.ShadowDefinitions} definitions -> {document.ShadowLayers} geometry layers");
+            ImGui.Text($"Textures: {document.TextureSwitches} switches, rounded clip batches: {document.RoundedClipBatches}");
+            ImGui.Text($"Layer: {document.LayerWidth}x{document.LayerHeight}, {FormatBytes(document.LayerBytes)}, content {document.ContentPixels:N0} px");
+            ImGui.Text($"Upload: {FormatBytes(document.UploadBytes)}, rebuilds/hits: {document.Rebuilds:N0}/{document.CacheHits:N0}, last rebuild frame: {document.LastRebuildFrame:N0}");
+            ImGui.TreePop();
+        }
+    }
+
+    private static void DrawUiTiming(string label, UiTimingStatistics timing) =>
+        ImGui.Text($"{label,-28} {timing.CurrentMilliseconds,8:F3} ms {timing.AverageMilliseconds,8:F3} ms {timing.PeakMilliseconds,8:F3} ms");
+
+    private static string FormatBytes(long bytes)
+    {
+        if (bytes >= 1024L * 1024L)
+            return $"{bytes / (1024.0 * 1024.0):F2} MiB";
+        if (bytes >= 1024L)
+            return $"{bytes / 1024.0:F1} KiB";
+        return $"{bytes} B";
+    }
+
+    private static string BuildUiReport(UiPerformanceStatistics statistics)
+    {
+        var report = new StringBuilder(2048);
+        report.AppendLine("Vecxy.UI performance report");
+        report.AppendLine($"Frame: {statistics.Frame}; delta: {statistics.FrameDeltaMilliseconds:F3} ms");
+        report.AppendLine($"Documents: {statistics.ActiveDocuments}/{statistics.Documents.Count}; elements: {statistics.Elements}/{statistics.VisibleElements} visible/{statistics.InteractiveElements} interactive; animations: {statistics.ActiveAnimations}");
+        report.AppendLine($"Geometry: {statistics.Vertices} vertices; {statistics.Indices} indices; {statistics.Batches} batches; {statistics.TextureSwitches} texture switches");
+        report.AppendLine($"Shadows: {statistics.ShadowDefinitions} definitions; {statistics.ShadowLayers} generated layers");
+        report.AppendLine($"Cache: {statistics.LayerRebuilds} rebuilds; {statistics.LayerCacheHits} hits; {statistics.CompositeDrawCalls} composites; totals={statistics.TotalLayerRebuilds}/{statistics.TotalLayerCacheHits}");
+        report.AppendLine($"Memory: {statistics.LayerMemoryBytes} layer bytes; {statistics.ContentPixels} content pixels; {statistics.UploadBytes} upload bytes");
+        report.AppendLine($"Allocations update: current={statistics.UpdateAllocatedBytes}; avg={statistics.AverageUpdateAllocatedBytes:F0}; peak={statistics.PeakUpdateAllocatedBytes} bytes");
+        report.AppendLine($"Allocations render: current={statistics.RenderAllocatedBytes}; avg={statistics.AverageRenderAllocatedBytes:F0}; peak={statistics.PeakRenderAllocatedBytes} bytes");
+        AppendTiming(report, "update", statistics.UpdateCpu);
+        AppendTiming(report, "layout/style", statistics.LayoutCpu);
+        AppendTiming(report, "animations", statistics.AnimationCpu);
+        AppendTiming(report, "hit-test", statistics.HitTestCpu);
+        AppendTiming(report, "input", statistics.InputCpu);
+        AppendTiming(report, "render", statistics.RenderCpu);
+        AppendTiming(report, "tessellation", statistics.TessellationCpu);
+        AppendTiming(report, "upload", statistics.UploadCpu);
+        AppendTiming(report, "layer draw", statistics.LayerDrawCpu);
+        AppendTiming(report, "composite", statistics.CompositeCpu);
+
+        for (var index = 0; index < statistics.Documents.Count; index++)
+        {
+            var document = statistics.Documents[index];
+            report.AppendLine();
+            report.AppendLine($"[{index}] {document.Path}: visible={document.Visible}; rebuilt={document.RebuiltThisFrame}; rebuilds={document.Rebuilds}; cacheHits={document.CacheHits}; lastRebuildFrame={document.LastRebuildFrame}");
+            report.AppendLine($"DOM={document.Elements}/{document.VisibleElements} visible/{document.InteractiveElements} interactive; text={document.TextElements}; images={document.ImageElements}; animations={document.ActiveAnimations}");
+            report.AppendLine($"Changes: style={document.StyleChangesThisFrame}; layout={document.LayoutChangesThisFrame}; visual={document.VisualChangesThisFrame}; passes={document.StylePasses}/{document.LayoutPasses}; animationScans={document.AnimationTreeScans}");
+            report.AppendLine($"Geometry={document.Vertices} vertices/{document.Indices} indices/{document.Batches} batches; textureSwitches={document.TextureSwitches}; roundedClipBatches={document.RoundedClipBatches}");
+            report.AppendLine($"Shadows={document.ShadowDefinitions}/{document.ShadowLayers} layers; layer={document.LayerWidth}x{document.LayerHeight}/{document.LayerBytes} bytes; contentPixels={document.ContentPixels}; uploadBytes={document.UploadBytes}");
+        }
+        return report.ToString();
+    }
+
+    private static void AppendTiming(
+        StringBuilder report,
+        string name,
+        UiTimingStatistics timing) =>
+        report.AppendLine($"CPU {name}: current={timing.CurrentMilliseconds:F3} ms; avg={timing.AverageMilliseconds:F3} ms; peak={timing.PeakMilliseconds:F3} ms");
 
     private void DrawGameViewWindow()
     {

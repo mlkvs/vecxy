@@ -85,7 +85,7 @@ public sealed class EditorLayoutConfig : IYamlConfig
                 ["Hierarchy"] = new() { Dock = "left", Visible = true },
                 ["Inspector"] = new() { Dock = "right", Visible = true },
                 ["Configs"] = new() { Dock = "bottom", Visible = true },
-                ["Rendering Statistics"] = new() { Dock = "top", Visible = false },
+                ["Rendering Statistics"] = new() { Dock = "top", Visible = true },
                 ["Render Settings"] = new() { Dock = "right", Visible = true },
                 ["Debug Console"] = new() { Dock = "bottom", Visible = true }
             },
@@ -105,7 +105,7 @@ public sealed class EditorLayoutSplits
     public float LeftWidth { get; set; } = 0.19f;
     public float RightWidth { get; set; } = 0.28f;
     public float BottomHeight { get; set; } = 0.20f;
-    public float TopHeight { get; set; } = 0.12f;
+    public float TopHeight { get; set; } = 0.32f;
 
     public void Validate()
     {

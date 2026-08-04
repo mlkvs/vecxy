@@ -1,19 +1,22 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework Condition="'$(VecxyPlatform)' != 'Android'">net10.0</TargetFramework>
+    <TargetFramework Condition="'$(VecxyPlatform)' == 'Android'">net10.0-android</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <NoWarn>$(NoWarn);CS8600;CS8603;CS8625</NoWarn>
+  </PropertyGroup>
 
-    <PropertyGroup>
-        <TargetFramework>net10.0</TargetFramework>
-        <ImplicitUsings>enable</ImplicitUsings>
-        <Nullable>enable</Nullable>
-    </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Vecxy.Assets\Vecxy.Assets.csproj" />
+    <ProjectReference Include="..\Vecxy.Kernel\Vecxy.Kernel.csproj" />
+  </ItemGroup>
 
-    <ItemGroup>
-        <ProjectReference Include="..\Vecxy.Kernel\Vecxy.Kernel.csproj"/>
-
-        <None Include="../../FMODEngine/api/core/lib/x86_64/libfmod.so">
-            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-            <TargetPath>libfmod.so</TargetPath>
-        </None>
-    </ItemGroup>
-
+  <ItemGroup Condition="'$(TargetPlatformIdentifier)' != 'android'">
+    <None Include="../../FMODEngine/api/core/lib/x86_64/libfmod.so">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <TargetPath>libfmod.so</TargetPath>
+    </None>
+  </ItemGroup>
 
 </Project>
