@@ -1,3 +1,5 @@
+using System.Numerics;
+
 namespace Vecxy.Scene;
 
 public abstract class AComponent
@@ -173,5 +175,39 @@ public abstract class AComponent
         Start();
 
         return _active && _enabled && !_destroyed;
+    }
+    
+    public interface IPrototype
+    {
+        public interface IOptions;
+        
+        public class Context
+        {
+            public SceneInstance? Scene { get; init; }
+            public SceneObject? Parent { get; init; }
+
+            public Vector3 Position = Vector3.Zero;
+            public Quaternion Rotation { get; init; } = Quaternion.Identity;
+            public Vector3 Scale { get; set; } = Vector3.One;
+        }
+        
+        Type ComponentType { get; }
+
+        public void Configure(AComponent component, IOptions options);
+        public AComponent Instantiate(Context ctx);
+    }
+    
+    public abstract class APrototype<TComponent, TOptions, TContext> : IPrototype
+        where TComponent : AComponent
+        where TOptions : IPrototype.IOptions
+        where  TContext : IPrototype.Context
+    {
+        public Type ComponentType => typeof(TComponent);
+
+        void IPrototype.Configure(AComponent component, IPrototype.IOptions options) => Configure((TComponent)component, (TOptions)options);
+        AComponent IPrototype.Instantiate(IPrototype.Context ctx) => Instantiate((TContext)ctx);
+
+        protected abstract TComponent Instantiate(TContext ctx);
+        protected abstract void Configure(TComponent component, TOptions options);
     }
 }

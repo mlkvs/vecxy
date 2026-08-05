@@ -62,6 +62,7 @@ public sealed class SceneObject
         _components.Add(Transform);
     }
 
+    // TODO: Добавить возможность передавать инит параметры компонента
     public T AddComponent<T>() where T : AComponent, new()
     {
         return AddComponent(new T());

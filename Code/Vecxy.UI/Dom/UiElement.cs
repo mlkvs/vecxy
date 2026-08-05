@@ -7,29 +7,6 @@ namespace Vecxy.UI;
 
 public class UiElement
 {
-    private readonly List<UiElement> _children = [];
-    private readonly Dictionary<string, string> _attributes;
-    private readonly HashSet<string> _classes;
-    private readonly Dictionary<string, string> _inlineStyles;
-    private UiElement[] _paintOrder = [];
-    private UiElement[] _hitTestOrder = [];
-    private int _childOrderSignature = int.MinValue;
-    private int _childrenRevision;
-    private string _text = string.Empty;
-    private float _progress;
-    private Vector2 _intrinsicSize;
-    private int _styleVersion;
-    private int _pseudoVersion;
-    private int _layoutVersion;
-    private int _visualVersion;
-    private int _scrollVersion;
-    private bool _isHovered;
-    private bool _isActive;
-    private bool _isFocused;
-    private bool _isFocusVisible;
-    private bool _isDragging;
-    private bool _isDropTarget;
-
     internal Node YogaNode { get; }
     internal Vector2 IntrinsicSize
     {
@@ -188,6 +165,29 @@ public class UiElement
     public event Action<UiElement, UiTouchEvent>? TouchMoved;
     public event Action<UiElement, UiTouchEvent>? TouchEnded;
     public event Action<UiElement, UiTouchEvent>? TouchCancelled;
+    
+    private readonly List<UiElement> _children = [];
+    private readonly Dictionary<string, string> _attributes;
+    private readonly HashSet<string> _classes;
+    private readonly Dictionary<string, string> _inlineStyles;
+    private UiElement[] _paintOrder = [];
+    private UiElement[] _hitTestOrder = [];
+    private int _childOrderSignature = int.MinValue;
+    private int _childrenRevision;
+    private string _text = string.Empty;
+    private float _progress;
+    private Vector2 _intrinsicSize;
+    private int _styleVersion;
+    private int _pseudoVersion;
+    private int _layoutVersion;
+    private int _visualVersion;
+    private int _scrollVersion;
+    private bool _isHovered;
+    private bool _isActive;
+    private bool _isFocused;
+    private bool _isFocusVisible;
+    private bool _isDragging;
+    private bool _isDropTarget;
 
     public void SetAttribute(string name, string value)
     {

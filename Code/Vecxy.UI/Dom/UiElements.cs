@@ -110,18 +110,20 @@ public sealed class UiInlineStyle
         Width = $"{Math.Clamp(fraction, 0.0f, 1.0f) * 100.0f:0.##}%";
 }
 
+//public class PathAttribute
+
 /// <summary>
 /// Base class for a reusable, strongly typed view over an XML component.
 /// Element references are resolved once when the component is attached.
 /// </summary>
-public abstract class UiComponent
+public abstract class AUiComponent
 {
     private readonly Dictionary<string, List<UiElement>> _classes =
         new(StringComparer.Ordinal);
     private readonly Dictionary<string, UiElement> _ids =
         new(StringComparer.Ordinal);
 
-    protected UiComponent(UiElement root)
+    protected AUiComponent(UiElement root)
     {
         Root = root;
         foreach (var element in root.DescendantsAndSelf())
