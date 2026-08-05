@@ -28,7 +28,7 @@ public abstract class AModuleDefinition<TModule> : ADefinition
 {
     protected virtual IReadOnlyList<Type> Exports => [];
 
-    protected abstract void RegisterModule(ContainerBuilder builder);
+    protected virtual void RegisterModule(ContainerBuilder builder) { }
 
     public sealed override void RegisterLocal(ContainerBuilder builder)
     {

@@ -4,6 +4,7 @@ using Vecxy.Audio;
 using Vecxy.Input;
 using Vecxy.Interaction;
 using Vecxy.Kernel;
+using Vecxy.Messaging;
 using Vecxy.Physics;
 using Vecxy.Rendering;
 using Vecxy.Scene;
@@ -35,7 +36,8 @@ public sealed class EngineLayer(
                 new PhysicsModule.Definition(physics),
                 new UiModule.Definition(),
                 new PointerInteractionModule.Definition(),
-                new AudioModule.Definition()
+                new AudioModule.Definition(),
+                new MessagingModule.Definition()
             ];
         }
     }
