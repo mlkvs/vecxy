@@ -41,6 +41,14 @@ public sealed class ScenesModule(
             typeof(ISceneManager)
         ];
 
+        public override void RegisterGlobal(ContainerBuilder builder)
+        {
+            builder
+                .RegisterType<ComponentInstantiator>()
+                .As<IComponentInstantiator>()
+                .SingleInstance();
+        }
+
         protected override void RegisterModule(ContainerBuilder builder)
         {
             builder

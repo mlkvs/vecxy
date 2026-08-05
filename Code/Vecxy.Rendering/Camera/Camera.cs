@@ -5,6 +5,43 @@ namespace Vecxy.Rendering;
 
 public sealed class Camera : AComponent
 {
+    public class Prototype : APrototype<Camera, Prototype.Options>
+    {
+        public class Options : IPrototype.IOptions
+        {
+            public ECameraProjection Projection { get; set; } = ECameraProjection.Perspective;
+            public Vector4 ClearColor { get; set; } = new(0.02f, 0.03f, 0.05f, 1.0f);
+            
+            public float FieldOfView { get; set; } = 60.0f;
+            public float NearPlane { get; set; } = 0.1f;
+            public float FarPlane { get; set; } = 100.0f;
+            public float OrthographicSize { get; set; } = 10.0f;
+        }
+
+        protected override Camera Instantiate(InstantiateContext ctx)
+        {
+            if (ctx.Scene == null)
+            {
+                throw new NotImplementedException();
+            }
+            
+            var cameraObject = ctx.Scene.CreateObject("Camera");
+            cameraObject.Transform.Position = ctx.Position;
+            
+            return cameraObject.AddComponent<Camera>();
+        }
+
+        protected override void Configure(Camera component, Options options)
+        {
+            component.Projection = options.Projection;
+            component.OrthographicSize = options.OrthographicSize;
+            component.FieldOfView = options.FieldOfView;
+            component.NearPlane = options.NearPlane;
+            component.FarPlane = options.FarPlane;
+            component.ClearColor = options.ClearColor;
+        }
+    }
+    
     private float _fieldOfView = 60.0f;
     private float _nearPlane = 0.1f;
     private float _farPlane = 1000.0f;
