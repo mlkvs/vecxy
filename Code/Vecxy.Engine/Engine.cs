@@ -9,12 +9,12 @@ public sealed class Engine : IDisposable
 {
     public sealed class Options
     {
-        public IWindow.Options Window = new();
-        public int TargetFrameRate { get; init; } = 60;
-        public bool Headless { get; init; }
-        public bool ShowSplashScreen { get; init; } = true;
-        public string SplashScreenLogoPath { get; init; } = "Textures/Logo.jpeg";
-        public Action<ContainerBuilder>? ConfigureServices { get; init; }
+        public IWindow.Options Window = new("Window", 800, 600);
+        public int TargetFrameRate { get; set; } = 60;
+        public bool Headless { get; set; } = false;
+        public bool ShowSplashScreen { get; set; } = true;
+        public string SplashScreenLogoPath { get; set; } = "Textures/Logo.jpeg";
+        public Action<ContainerBuilder>? ConfigureServices { get; set; }
     }
 
     private readonly Options _options;

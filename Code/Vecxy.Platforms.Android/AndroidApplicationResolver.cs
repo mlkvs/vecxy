@@ -5,7 +5,7 @@ namespace Vecxy.Platforms.Android;
 
 internal static class AndroidApplicationResolver
 {
-    public static IVecxyApplication Create()
+    public static IEntryPoint Create()
     {
         var candidates = AppDomain.CurrentDomain
             .GetAssemblies()
@@ -20,17 +20,17 @@ internal static class AndroidApplicationResolver
                 type.IsDefined(
                     typeof(VecxyApplicationAttribute),
                     inherit: false) &&
-                typeof(IVecxyApplication).IsAssignableFrom(type) &&
+                typeof(IEntryPoint).IsAssignableFrom(type) &&
                 type.GetConstructor(Type.EmptyTypes) is not null)
             .ToArray();
 
         return candidates.Length switch
         {
-            1 => (IVecxyApplication)Activator.CreateInstance(candidates[0])!,
+            1 => (IEntryPoint)Activator.CreateInstance(candidates[0])!,
 
             0 => throw new InvalidOperationException(
                 $"No class marked with [{nameof(VecxyApplicationAttribute)}] " +
-                $"and implementing {nameof(IVecxyApplication)} was found."),
+                $"and implementing {nameof(IEntryPoint)} was found."),
 
             _ => throw new InvalidOperationException(
                 $"Multiple classes marked with " +

@@ -34,7 +34,11 @@ public sealed class VecxyActivity : SilkActivity
 
             phase = "resolving the game application";
             var application = AndroidApplicationResolver.Create();
-            var options = application.CreateEngineOptions(context);
+            var options = new Engine.Engine.Options();
+            var layers = new List<AAppLayer.IDefinition>();
+
+            application.OnConfigureEngine(context, options);
+            
             IEngineSplashScreen? splashScreen = options.ShowSplashScreen
                 ? AndroidEngineSplashScreen.Attach(
                     this,

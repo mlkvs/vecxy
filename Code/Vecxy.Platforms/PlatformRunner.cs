@@ -5,7 +5,7 @@ namespace Vecxy.Platforms;
 public static class PlatformRunner
 {
     public static void Run(
-        IVecxyApplication application,
+        IEntryPoint application,
         PlatformContext context,
         Engine.Engine.Options? options = null,
         IEngineSplashScreen? splashScreen = null)
@@ -13,17 +13,25 @@ public static class PlatformRunner
         ArgumentNullException.ThrowIfNull(application);
         ArgumentNullException.ThrowIfNull(context);
 
-        options ??= application.CreateEngineOptions(context);
-        using var engine = new Engine.Engine(
+        options ??= new Engine.Engine.Options();
+        var layers = new List<AAppLayer.IDefinition>();
+
+        application.OnConfigureEngine(context, options);
+        application.OnConfigureLayers(context, layers);
+        
+        using var engine = new Engine.Engine
+        (
             options,
-            application.CreateLayers(context),
+            layers,
             context.AssetsDirectory,
-            splashScreen);
+            splashScreen
+        );
+        
         engine.Run();
     }
 
     public static void RunDesktop<TApplication>()
-        where TApplication : IVecxyApplication, new()
+        where TApplication : IEntryPoint, new()
     {
         var assetsDirectory = Path.GetFullPath(
             Path.Combine(AppContext.BaseDirectory, "Assets"));
