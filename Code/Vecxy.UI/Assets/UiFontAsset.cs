@@ -69,7 +69,9 @@ internal readonly record struct UiFontGlyph(
 public sealed class UiFontAssetImporter : IAssetImporter<UiFontAsset>
 {
     private const float TrueTypeSourceSize = 64.0f;
-    private const int TrueTypeAtlasSize = 2048;
+    // The supported Latin/Cyrillic ranges at the 64 px source size fit into a
+    // 1024² atlas. The previous 2048² RGBA allocation consumed 16 MiB per font.
+    private const int TrueTypeAtlasSize = 1024;
     private static readonly (int First, int Count)[] TrueTypeRanges =
     [
         (0x20, 0x7f - 0x20),
@@ -236,12 +238,29 @@ public sealed class UiFontAssetImporter : IAssetImporter<UiFontAsset>
         }
 
         var kernings = new Dictionary<long, float>();
-        foreach (var first in glyphs.Keys)
-        foreach (var second in glyphs.Keys)
+        var codepointsByGlyph = new Dictionary<int, int>();
+        foreach (var codepoint in glyphs.Keys)
         {
-            var amount = StbTrueType.stbtt_GetCodepointKernAdvance(fontInfo, first, second) * fontScale;
-            if (amount != 0)
-                kernings[((long)first << 32) | (uint)second] = amount;
+            var glyphIndex = StbTrueType.stbtt_FindGlyphIndex(fontInfo, codepoint);
+            if (glyphIndex != 0)
+                codepointsByGlyph.TryAdd(glyphIndex, codepoint);
+        }
+        var kerningCount = StbTrueType.stbtt_GetKerningTableLength(fontInfo);
+        if (kerningCount > 0)
+        {
+            var entries = new stbtt_kerningentry[kerningCount];
+            fixed (stbtt_kerningentry* entryPointer = entries)
+                kerningCount = StbTrueType.stbtt_GetKerningTable(fontInfo, entryPointer, kerningCount);
+            for (var index = 0; index < kerningCount; index++)
+            {
+                var entry = entries[index];
+                if (entry.advance != 0 &&
+                    codepointsByGlyph.TryGetValue(entry.glyph1, out var first) &&
+                    codepointsByGlyph.TryGetValue(entry.glyph2, out var second))
+                {
+                    kernings[((long)first << 32) | (uint)second] = entry.advance * fontScale;
+                }
+            }
         }
 
         var rgba = new byte[alpha.Length * 4];

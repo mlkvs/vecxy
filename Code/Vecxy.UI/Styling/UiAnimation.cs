@@ -29,6 +29,14 @@ internal sealed record UiKeyframe(
     float Offset,
     IReadOnlyDictionary<string, string> Declarations);
 
+[Flags]
+internal enum UiAnimationChange
+{
+    None = 0,
+    Paint = 1,
+    Composite = 2
+}
+
 public readonly record struct UiAnimationEvent(
     string Name,
     float ElapsedTime,
@@ -161,7 +169,7 @@ internal sealed class UiAnimationRuntime
             element.IsVisible && element.ComputedStyle.Visibility != "hidden");
     }
 
-    public bool Update(
+    public UiAnimationChange Update(
         UiElement element,
         IReadOnlyDictionary<string, UiKeyframes> keyframes,
         float deltaTime,
@@ -220,7 +228,14 @@ internal sealed class UiAnimationRuntime
             transformHeight,
             viewportWidth,
             viewportHeight);
-        return previousVisual != _visual;
+        var changes = UiAnimationChange.None;
+        if (previousVisual.Color != _visual.Color ||
+            previousVisual.BackgroundColor != _visual.BackgroundColor)
+            changes |= UiAnimationChange.Paint;
+        if (previousVisual.Opacity != _visual.Opacity ||
+            previousVisual.Transform != _visual.Transform)
+            changes |= UiAnimationChange.Composite;
+        return changes;
     }
 
     private void BeginTransitions(

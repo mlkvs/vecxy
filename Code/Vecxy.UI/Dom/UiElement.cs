@@ -26,13 +26,25 @@ public class UiElement
     internal bool IsFocusVisible { get => _isFocusVisible; set => SetPseudoState(ref _isFocusVisible, value); }
     internal bool IsDragging { get => _isDragging; set => SetPseudoState(ref _isDragging, value); }
     internal bool IsDropTarget { get => _isDropTarget; set => SetPseudoState(ref _isDropTarget, value); }
-    internal UiComputedStyle ComputedStyle { get; set; } = new();
+    internal UiComputedStyle ComputedStyle
+    {
+        get => _computedStyle;
+        set
+        {
+            _computedStyle = value;
+            unchecked { _computedStyleVersion++; }
+        }
+    }
     internal UiAnimationRuntime AnimationRuntime { get; } = new();
     internal UiTextLayoutCache TextLayoutCache { get; } = new();
     internal int StyleVersion => _styleVersion;
     internal int PseudoVersion => _pseudoVersion;
     internal int LayoutVersion => _layoutVersion;
     internal int VisualVersion => _visualVersion;
+    internal int LocalVisualVersion => _localVisualVersion;
+    internal int ComputedStyleVersion => _computedStyleVersion;
+    internal int BoundsVersion => _boundsVersion;
+    internal int CompositeVersion => _compositeVersion;
     internal int ScrollVersion => _scrollVersion;
     internal Vector4 RenderColor => AnimationRuntime.Color;
     internal Vector4 RenderBackgroundColor => AnimationRuntime.BackgroundColor;
@@ -50,7 +62,17 @@ public class UiElement
     public UiInlineStyle Style { get; }
     public UiElement? Parent { get; private set; }
     public IReadOnlyList<UiElement> Children => _children;
-    public Rect Bounds { get; internal set; }
+    public Rect Bounds
+    {
+        get => _bounds;
+        internal set
+        {
+            if (_bounds == value)
+                return;
+            _bounds = value;
+            unchecked { _boundsVersion++; }
+        }
+    }
     public Vector2 ScrollOffset { get; private set; }
     public Vector2 ScrollExtent { get; private set; }
     public bool CanScrollHorizontally =>
@@ -151,6 +173,7 @@ public class UiElement
     }
 
     public event Action<UiElement>? Clicked;
+    public event Action<UiElement, Vector2>? ClickedAt;
     public event Action<UiElement>? Focused;
     public event Action<UiElement>? Blurred;
     public event Action<UiElement>? Scrolled;
@@ -181,7 +204,13 @@ public class UiElement
     private int _pseudoVersion;
     private int _layoutVersion;
     private int _visualVersion;
+    private int _localVisualVersion;
+    private int _computedStyleVersion;
+    private int _boundsVersion;
+    private int _compositeVersion;
     private int _scrollVersion;
+    private Rect _bounds;
+    private UiComputedStyle _computedStyle = new();
     private bool _isHovered;
     private bool _isActive;
     private bool _isFocused;
@@ -267,8 +296,7 @@ public class UiElement
         _inlineStyles[propertyName] = value;
         SynchronizeInlineStyleAttribute();
         InvalidateStyle();
-        InvalidateLayout();
-        InvalidateVisual();
+        InvalidateForStyleProperty(propertyName);
     }
 
     public bool RemoveStyle(string propertyName)
@@ -278,12 +306,26 @@ public class UiElement
             return false;
         SynchronizeInlineStyleAttribute();
         InvalidateStyle();
-        InvalidateLayout();
-        InvalidateVisual();
+        InvalidateForStyleProperty(propertyName);
         return true;
     }
 
     public bool RemoveFromParent()
+    {
+        if (!DetachFromParent())
+            return false;
+
+        YGNodeFreeRecursive(YogaNode);
+        return true;
+    }
+
+    /// <summary>
+    /// Unmounts this subtree without destroying its retained Yoga nodes. The same
+    /// element can later be mounted again with <see cref="Add"/> or <see cref="Insert"/>.
+    /// Use this for windows and virtualized content that should not participate in
+    /// style, layout, hit testing, or rendering while it is off screen.
+    /// </summary>
+    public bool DetachFromParent()
     {
         if (Parent is not { } parent)
             return false;
@@ -295,7 +337,6 @@ public class UiElement
         parent.InvalidateLayout();
         parent.InvalidateVisual();
         Parent = null;
-        YGNodeFreeRecursive(YogaNode);
         return true;
     }
 
@@ -323,15 +364,41 @@ public class UiElement
     }
 
     public void Add(UiElement child)
+        => Insert(_children.Count, child);
+
+    public void Insert(int index, UiElement child)
     {
         ArgumentNullException.ThrowIfNull(child);
         if (child.Parent is not null)
             throw new InvalidOperationException("UI element already has a parent.");
+        if ((uint)index > (uint)_children.Count)
+            throw new ArgumentOutOfRangeException(nameof(index));
 
         child.Parent = this;
-        _children.Add(child);
+        _children.Insert(index, child);
         unchecked { _childrenRevision++; }
-        YGNodeInsertChild(YogaNode, child.YogaNode, (nuint)(_children.Count - 1));
+        YGNodeInsertChild(YogaNode, child.YogaNode, (nuint)index);
+        InvalidateStyle();
+        InvalidateLayout();
+        InvalidateVisual();
+    }
+
+    public void MoveChild(UiElement child, int index)
+    {
+        ArgumentNullException.ThrowIfNull(child);
+        if (!ReferenceEquals(child.Parent, this))
+            throw new InvalidOperationException("UI element is not a child of this parent.");
+        if ((uint)index >= (uint)_children.Count)
+            throw new ArgumentOutOfRangeException(nameof(index));
+        var current = _children.IndexOf(child);
+        if (current == index)
+            return;
+
+        YGNodeRemoveChild(YogaNode, child.YogaNode);
+        _children.RemoveAt(current);
+        _children.Insert(index, child);
+        YGNodeInsertChild(YogaNode, child.YogaNode, (nuint)index);
+        unchecked { _childrenRevision++; }
         InvalidateStyle();
         InvalidateLayout();
         InvalidateVisual();
@@ -412,8 +479,20 @@ public class UiElement
 
     internal void InvalidateVisual()
     {
+        unchecked { _localVisualVersion++; }
+        PropagateVisualInvalidation();
+    }
+
+    private void PropagateVisualInvalidation()
+    {
         unchecked { _visualVersion++; }
-        Parent?.InvalidateVisual();
+        Parent?.PropagateVisualInvalidation();
+    }
+
+    internal void InvalidateComposite()
+    {
+        unchecked { _compositeVersion++; }
+        Parent?.InvalidateComposite();
     }
 
     private void InvalidateScroll()
@@ -440,6 +519,47 @@ public class UiElement
             return;
         field = value;
         InvalidatePseudoState();
+        // A selector may change layout as well as paint. Selector dependency
+        // metadata will make this narrower in UI2; the legacy path stays correct.
+        InvalidateLayout();
+        InvalidateVisual();
+    }
+
+    private void InvalidateForStyleProperty(string propertyName)
+    {
+        propertyName = propertyName.Trim().ToLowerInvariant();
+        if (propertyName is "opacity" or "transform")
+        {
+            // Rebuild once so draw batches become associated with the new
+            // composite owner. Subsequent animation frames stay composite-only.
+            InvalidateVisual();
+            InvalidateComposite();
+            return;
+        }
+        if (propertyName is
+            "color" or "background-color" or "background-image" or
+            "background-size" or "background-position" or "border-color" or
+            "border-radius" or "box-shadow" or "visibility" or "object-fit" or
+            "scrollbar-color" or "scrollbar-track-color" or "z-index")
+        {
+            InvalidateVisual();
+            return;
+        }
+        if (propertyName is "pointer-events")
+        {
+            InvalidateComposite();
+            return;
+        }
+        if (propertyName is "animation" or "transition")
+        {
+            InvalidateVisual();
+            InvalidateComposite();
+            return;
+        }
+
+        // Sizing, spacing, flow, grid and typography can affect measurement.
+        InvalidateLayout();
+        InvalidateVisual();
     }
 
     internal UiElement? HitTest(Vector2 point) =>
@@ -517,12 +637,13 @@ public class UiElement
         (TagName is "button" or "input" or "select" or "slider" ||
          Clicked is not null || Attributes.ContainsKey("action") || Attributes.ContainsKey("tabindex"));
 
-    internal void RaiseClicked()
+    internal void RaiseClicked(Vector2 position)
     {
         if (TagName == "input" &&
             Attributes.GetValueOrDefault("type")?.Equals("checkbox", StringComparison.OrdinalIgnoreCase) == true)
             IsChecked = !IsChecked;
         Clicked?.Invoke(this);
+        ClickedAt?.Invoke(this, position);
     }
 
     public void ScrollTo(Vector2 offset)

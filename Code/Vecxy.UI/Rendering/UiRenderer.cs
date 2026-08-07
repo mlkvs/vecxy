@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Numerics;
 using System.Runtime.InteropServices;
+using System.Runtime.CompilerServices;
 using Silk.NET.OpenGL;
 using Vecxy.Assets;
 using Vecxy.Kernel;
@@ -11,10 +12,12 @@ namespace Vecxy.UI;
 
 internal sealed class UiRenderer : IDisposable
 {
-    private const int VertexStride = 8;
+    private const int VertexStride = 9;
     private const int MaxRoundedClips = 8;
+    private const int MaxTextureSlots = 16;
     private readonly GraphicsDevice _device;
     private readonly UiPerformanceStatistics _statistics;
+    private readonly RenderTexture _primitiveAtlas;
     private readonly List<float> _vertices = [];
     private readonly List<uint> _indices = [];
     private readonly List<Batch> _batches = [];
@@ -22,10 +25,15 @@ internal sealed class UiRenderer : IDisposable
     private readonly List<Vector2> _roundedOuter = new(24);
     private readonly List<Vector2> _roundedInner = new(24);
     private readonly UiClipState?[] _roundedClipStack = new UiClipState[MaxRoundedClips];
+    private readonly ConditionalWeakTable<UiElement, ElementPaintCache> _paintCaches = new();
+    private readonly Dictionary<RenderTexture, int> _textureSlots = new(ReferenceEqualityComparer.Instance);
+    private readonly List<RenderTexture> _geometryTextures = [];
     private Matrix3x2 _transform = Matrix3x2.Identity;
     private UiAxisClipState? _axisClip;
     private UiClipState? _roundedClip;
     private UiScrollState? _scrollState;
+    private UiElement? _paintElement;
+    private float _paintScale = 1.0f;
     private uint _program;
     private uint _whiteTexture;
     private uint _layerVertexArray;
@@ -35,8 +43,11 @@ internal sealed class UiRenderer : IDisposable
     private readonly Dictionary<UiDocument, LayerCache> _documentLayers =
         new(ReferenceEqualityComparer.Instance);
     private int _viewportUniform;
-    private int _textureUniform;
+    private readonly int[] _textureUniforms = new int[MaxTextureSlots];
     private int _translationUniform;
+    private int _transformAUniform;
+    private int _transformBUniform;
+    private int _opacityUniform;
     private int _roundedClipCountUniform;
     private readonly int[] _roundedClipBoundsUniforms = new int[MaxRoundedClips];
     private readonly int[] _roundedClipRadiusUniforms = new int[MaxRoundedClips];
@@ -47,12 +58,60 @@ internal sealed class UiRenderer : IDisposable
     private int _shadowDefinitions;
     private int _shadowLayers;
     private bool _shadowsEnabled = true;
+    private bool _forceBatchBoundary;
     private bool _disposed;
 
-    public UiRenderer(GraphicsDevice device, UiPerformanceStatistics statistics)
+    public UiRenderer(
+        GraphicsDevice device,
+        ITextureResolver textures,
+        UiPerformanceStatistics statistics)
     {
         _device = device;
         _statistics = statistics;
+        _primitiveAtlas = textures.Resolve(CreatePrimitiveAtlas());
+    }
+
+    private static TextureAsset CreatePrimitiveAtlas()
+    {
+        const int width = 96;
+        const int height = 48;
+        var pixels = new byte[width * height * 4];
+
+        // 32x32 white rounded-rectangle mask at (0, 0), radius 8.
+        WriteRoundedMask(pixels, width, 0, 0, 32, 8.0f, 0.0f);
+        // 48x48 soft shadow mask at (40, 0). The central opaque area is hidden
+        // behind the panel; the outer alpha ramp is the reusable blurred edge.
+        WriteRoundedMask(pixels, width, 40, 0, 48, 10.0f, 8.0f);
+        return TextureAsset.FromRgba(width, height, pixels);
+    }
+
+    private static void WriteRoundedMask(
+        byte[] pixels,
+        int atlasWidth,
+        int offsetX,
+        int offsetY,
+        int size,
+        float radius,
+        float blur)
+    {
+        var inset = blur + 0.5f;
+        var half = size * 0.5f - inset;
+        for (var y = 0; y < size; y++)
+        for (var x = 0; x < size; x++)
+        {
+            var point = new Vector2(x + 0.5f - size * 0.5f, y + 0.5f - size * 0.5f);
+            var q = Vector2.Abs(point) - new Vector2(Math.Max(0.0f, half - radius));
+            var distance = MathF.Min(MathF.Max(q.X, q.Y), 0.0f) +
+                           new Vector2(MathF.Max(q.X, 0.0f), MathF.Max(q.Y, 0.0f)).Length() - radius;
+            var coverage = blur <= 0.0f
+                ? Math.Clamp(0.5f - distance, 0.0f, 1.0f)
+                : Math.Clamp(1.0f - Math.Max(0.0f, distance) / Math.Max(0.001f, blur), 0.0f, 1.0f);
+            // Smooth the alpha ramp to avoid banding when the mask is enlarged.
+            coverage = coverage * coverage * (3.0f - 2.0f * coverage);
+            var index = ((offsetY + y) * atlasWidth + offsetX + x) * 4;
+            pixels[index] = pixels[index + 1] = pixels[index + 2] = 255;
+            pixels[index + 3] = (byte)Math.Clamp((int)MathF.Round(coverage * 255.0f), 0, 255);
+        }
     }
 
     public void Draw(IReadOnlyList<UiDocument> documents, int width, int height, UiConfig? settings)
@@ -68,7 +127,6 @@ internal sealed class UiRenderer : IDisposable
         EnsureResources();
         var gl = _device.GL;
         gl.GetInteger(GetPName.DrawFramebufferBinding, out var destinationFramebuffer);
-        EnsureLayerQuad(width, height);
         RemoveUnusedLayerCaches(documents);
 
         foreach (var document in documents)
@@ -82,7 +140,7 @@ internal sealed class UiRenderer : IDisposable
                 layer = new LayerCache();
                 _documentLayers.Add(document, layer);
             }
-            EnsureLayerCache(layer, width, height, (uint)destinationFramebuffer);
+            EnsureLayerCache(layer, width, height);
             var geometrySignature = HashCode.Combine(width, height, document.GeometryVersion);
             var renderSignature = HashCode.Combine(geometrySignature, document.RenderVersion);
             documentStatistics.RebuiltThisFrame = geometrySignature != layer.GeometrySignature;
@@ -94,6 +152,8 @@ internal sealed class UiRenderer : IDisposable
                 _vertices.Clear();
                 _indices.Clear();
                 _batches.Clear();
+                _textureSlots.Clear();
+                _geometryTextures.Clear();
                 _visibleElements = 0;
                 _imageElements = 0;
                 _shadowDefinitions = 0;
@@ -110,9 +170,12 @@ internal sealed class UiRenderer : IDisposable
                     Matrix3x2.Identity,
                     null,
                     null);
+                CompactDrawBatches();
                 tessellationMilliseconds += Stopwatch.GetElapsedTime(tessellationStarted).TotalMilliseconds;
                 layer.DrawBatches.Clear();
                 layer.DrawBatches.AddRange(_batches);
+                layer.Textures.Clear();
+                layer.Textures.AddRange(_geometryTextures);
                 var uploadStarted = Stopwatch.GetTimestamp();
                 UploadGeometry(layer);
                 uploadMilliseconds += Stopwatch.GetElapsedTime(uploadStarted).TotalMilliseconds;
@@ -123,25 +186,21 @@ internal sealed class UiRenderer : IDisposable
             else
                 documentStatistics.CacheHits++;
 
-            if (renderSignature != layer.RenderSignature)
+            // UI geometry is retained in the document buffers and rendered directly
+            // into the destination framebuffer. The previous implementation allocated
+            // and cleared a full-resolution RGBA framebuffer for every document, then
+            // composited it back. Apart from the memory/bandwidth cost, that made a
+            // small changing label or animation flash an entire UI layer.
+            if (layer.IndexCount > 0)
             {
                 var layerDrawStarted = Stopwatch.GetTimestamp();
-                RenderLayerCache(
-                    layer,
-                    width,
-                    height,
-                    (uint)destinationFramebuffer,
-                    layer.ContentBounds);
+                gl.BindFramebuffer(FramebufferTarget.Framebuffer, (uint)destinationFramebuffer);
+                gl.Viewport(0, 0, (uint)width, (uint)height);
+                DrawUploadedGeometry(layer, width, height, transparentTarget: false);
                 layerDrawMilliseconds += Stopwatch.GetElapsedTime(layerDrawStarted).TotalMilliseconds;
-                layer.RenderSignature = renderSignature;
             }
-
-            if (layer.HasContent)
-            {
-                var compositeStarted = Stopwatch.GetTimestamp();
-                DrawLayerCache(layer, width, height);
-                compositeMilliseconds += Stopwatch.GetElapsedTime(compositeStarted).TotalMilliseconds;
-            }
+            layer.HasContent = layer.IndexCount > 0;
+            layer.RenderSignature = renderSignature;
             UpdateDocumentStatistics(document, layer, documentStatistics);
             _statistics.Accumulate(documentStatistics);
         }
@@ -188,56 +247,71 @@ internal sealed class UiRenderer : IDisposable
         var previousAxisClip = _axisClip;
         var previousRoundedClip = _roundedClip;
         var previousScrollState = _scrollState;
-        var renderTransform = element.RenderTransform with
-        {
-            Translation = element.RenderTransform.Translation * scale
-        };
-        _transform = renderTransform.ToMatrix(bounds) * parentTransform;
+        var previousPaintElement = _paintElement;
+        var previousPaintScale = _paintScale;
+        _paintElement = element;
+        _paintScale = scale;
+        _transform = parentTransform;
         _axisClip = axisClip;
         _roundedClip = roundedClip;
 
-        var opacity = inheritedOpacity * element.RenderOpacity;
-        if (_shadowsEnabled)
-            PaintBoxShadows(style, bounds, opacity, scale, clip, false);
+        // Opacity and transforms are composite properties. They are applied from
+        // the live element state while drawing and never baked into geometry.
+        var opacity = inheritedOpacity;
+        var elementCache = _paintCaches.GetOrCreateValue(element);
+        var paintSignature = HashCode.Combine(
+            element.LocalVisualVersion,
+            element.ComputedStyleVersion,
+            element.BoundsVersion,
+            element.Progress,
+            scale,
+            _shadowsEnabled);
         var isRadialProgress = element.TagName == "radial-progress";
-        if (!isRadialProgress)
+        if (!TryAppendCached(elementCache.Background, paintSignature, clip))
         {
-            var renderedBackground = element.RenderBackgroundColor;
-            var background = renderedBackground with { W = renderedBackground.W * opacity };
-            if (background.W > 0.001f)
-                AddRoundedQuad(bounds, background, null, clip, style.BorderRadius * scale);
+            var capture = BeginPaintCapture();
+            if (_shadowsEnabled)
+                PaintBoxShadows(style, bounds, opacity, scale, clip, false);
+            if (!isRadialProgress)
+            {
+                var renderedBackground = element.RenderBackgroundColor;
+                var background = renderedBackground with { W = renderedBackground.W * opacity };
+                if (background.W > 0.001f)
+                    AddRoundedQuad(bounds, background, null, clip, style.BorderRadius * scale);
+            }
+
+            var image = document.ResolveImage(element);
+            if (image is { } resolvedImage)
+            {
+                _imageElements++;
+                var (imageBounds, imageUv) = FitImage(
+                    bounds,
+                    resolvedImage.Uv,
+                    resolvedImage.Size,
+                    element.TagName == "image" ? style.ObjectFit : style.BackgroundSize,
+                    element.TagName == "image" ? "center" : style.BackgroundPosition);
+                AddRoundedTextured(
+                    imageBounds,
+                    Vector4.One with { W = opacity },
+                    resolvedImage.Texture,
+                    imageUv,
+                    clip,
+                    style.BorderRadius * scale);
+            }
+
+            if (_shadowsEnabled)
+                PaintBoxShadows(style, bounds, opacity, scale, clip, true);
+
+            if (isRadialProgress)
+                PaintRadialProgress(element, style, bounds, opacity, scale, clip);
+            else if (style.BorderWidth > 0.0f && style.BorderColor.W > 0.001f)
+                AddBorder(bounds, style.BorderWidth * scale, style.BorderRadius * scale, style.BorderColor with { W = style.BorderColor.W * opacity }, clip);
+            EndPaintCapture(elementCache.Background, paintSignature, capture);
         }
-
-        var image = document.ResolveImage(element);
-        if (image is { } resolvedImage)
-        {
-            _imageElements++;
-            var (imageBounds, imageUv) = FitImage(
-                bounds,
-                resolvedImage.Uv,
-                resolvedImage.Size,
-                element.TagName == "image" ? style.ObjectFit : style.BackgroundSize,
-                element.TagName == "image" ? "center" : style.BackgroundPosition);
-            AddRoundedTextured(
-                imageBounds,
-                Vector4.One with { W = opacity },
-                resolvedImage.Texture,
-                imageUv,
-                clip,
-                style.BorderRadius * scale);
-        }
-
-        if (_shadowsEnabled)
-            PaintBoxShadows(style, bounds, opacity, scale, clip, true);
-
-        if (isRadialProgress)
-            PaintRadialProgress(element, style, bounds, opacity, scale, clip);
-        else if (style.BorderWidth > 0.0f && style.BorderColor.W > 0.001f)
-            AddBorder(bounds, style.BorderWidth * scale, style.BorderRadius * scale, style.BorderColor with { W = style.BorderColor.W * opacity }, clip);
 
         var clipsChildrenX = style.OverflowX is "hidden" or "scroll" or "auto";
         var clipsChildrenY = style.OverflowY is "hidden" or "scroll" or "auto";
-        var transformedBounds = TransformBounds(bounds, _transform);
+        var transformedBounds = bounds;
         var childClip = ClipAxes(clip, transformedBounds, clipsChildrenX, clipsChildrenY);
         var childAxisClip = axisClip;
         if (clipsChildrenX || clipsChildrenY)
@@ -247,30 +321,38 @@ internal sealed class UiRenderer : IDisposable
                 transformedBounds,
                 clipsChildrenX,
                 clipsChildrenY,
+                element,
+                scale,
                 _scrollState);
         }
         var childRoundedClip = roundedClip;
-        if ((clipsChildrenX || clipsChildrenY) && style.BorderRadius > 0.0f &&
-            Matrix3x2.Invert(_transform, out var inverseTransform))
+        if ((clipsChildrenX || clipsChildrenY) && style.BorderRadius > 0.0f)
         {
             childRoundedClip = new UiClipState(
                 roundedClip,
                 bounds,
                 style.BorderRadius * scale,
-                inverseTransform,
+                element,
+                scale,
                 _scrollState);
             _roundedClip = childRoundedClip;
         }
 
         if (element.TagName == "text" && element.Text.Length > 0)
         {
-            var renderedColor = element.RenderColor;
-            var color = renderedColor with { W = renderedColor.W * opacity };
-            var textBounds = TextContentBounds(document, element, style, bounds, scale);
-            if (element.Font is { } font && document.ResolveFontTexture(element) is { } fontTexture)
-                UiBitmapFont.Paint(this, element, font, fontTexture, element.Text, textBounds, style.FontSize * scale, color, clip, style.TextAlign, style.VerticalAlign, style.WhiteSpace is "normal" or "pre-wrap");
-            else
-                UiFallbackFont.Paint(this, element, element.Text, textBounds, style.FontSize * scale, color, clip, style.TextAlign, style.VerticalAlign, style.WhiteSpace is "normal" or "pre-wrap");
+            var textSignature = HashCode.Combine(paintSignature, element.Text);
+            if (!TryAppendCached(elementCache.Text, textSignature, clip))
+            {
+                var capture = BeginPaintCapture();
+                var renderedColor = element.RenderColor;
+                var color = renderedColor with { W = renderedColor.W * opacity };
+                var textBounds = TextContentBounds(document, element, style, bounds, scale);
+                if (element.Font is { } font && document.ResolveFontTexture(element) is { } fontTexture)
+                    UiBitmapFont.Paint(this, element, font, fontTexture, element.Text, textBounds, style.FontSize * scale, color, clip, style.TextAlign, style.VerticalAlign, style.WhiteSpace is "normal" or "pre-wrap");
+                else
+                    UiFallbackFont.Paint(this, element, element.Text, textBounds, style.FontSize * scale, color, clip, style.TextAlign, style.VerticalAlign, style.WhiteSpace is "normal" or "pre-wrap");
+                EndPaintCapture(elementCache.Text, textSignature, capture);
+            }
         }
 
         if (style.OverflowX is "scroll" or "auto" || style.OverflowY is "scroll" or "auto")
@@ -291,10 +373,14 @@ internal sealed class UiRenderer : IDisposable
 
         // Scrollbars belong to the viewport, not to its translated contents.
         _scrollState = previousScrollState;
+        _paintElement = element;
+        _paintScale = scale;
         PaintScrollbars(element, bounds, opacity, scale, clip);
         _transform = previousTransform;
         _axisClip = previousAxisClip;
         _roundedClip = previousRoundedClip;
+        _paintElement = previousPaintElement;
+        _paintScale = previousPaintScale;
     }
 
     private void PaintBoxShadows(
@@ -347,20 +433,20 @@ internal sealed class UiRenderer : IDisposable
                 continue;
             }
 
-            var layers = Math.Clamp((int)MathF.Ceiling(blur * 0.5f), 4, 16);
-            _shadowLayers += layers;
-            for (var layerIndex = layers; layerIndex >= 1; layerIndex--)
-            {
-                var amount = layerIndex / (float)layers;
-                var expansion = blur * amount;
-                var alphaWeight = (1.0f - amount * 0.72f) / layers;
-                AddRoundedQuad(
-                    Expand(shadowBounds, expansion),
-                    color with { W = color.W * alphaWeight },
-                    null,
-                    clip,
-                    radius + expansion);
-            }
+            // A blurred shadow is a single reusable 9-slice alpha mask from the
+            // primitive atlas. The legacy renderer emitted up to sixteen expanded
+            // rounded meshes for one shadow, multiplying vertices and overdraw.
+            _shadowLayers++;
+            var expansion = Math.Max(1.0f, blur);
+            AddNineSlice(
+                Expand(shadowBounds, expansion),
+                color,
+                _primitiveAtlas,
+                new Vector4(40.0f / 96.0f, 0.0f, 88.0f / 96.0f, 1.0f),
+                48.0f,
+                16.0f,
+                Math.Max(1.0f, radius + expansion),
+                clip);
         }
     }
 
@@ -696,7 +782,63 @@ internal sealed class UiRenderer : IDisposable
             AddQuad(bounds, color, texture, clip, false, uv, sampler);
             return;
         }
+        if (texture is null && uv is null)
+        {
+            AddNineSlice(
+                bounds,
+                color,
+                _primitiveAtlas,
+                new Vector4(0.0f, 0.0f, 32.0f / 96.0f, 32.0f / 48.0f),
+                32.0f,
+                8.0f,
+                radius,
+                clip);
+            return;
+        }
         AddRoundedGeometry(bounds, color, texture, uv ?? new Vector4(0, 0, 1, 1), clip, radius, sampler);
+    }
+
+    private void AddNineSlice(
+        Rect bounds,
+        Vector4 color,
+        RenderTexture texture,
+        Vector4 uv,
+        float sourceSize,
+        float sourceBorder,
+        float destinationBorder,
+        Rect clip)
+    {
+        if (bounds.Width <= 0.0f || bounds.Height <= 0.0f)
+            return;
+        var borderX = Math.Min(Math.Max(0.0f, destinationBorder), bounds.Width * 0.5f);
+        var borderY = Math.Min(Math.Max(0.0f, destinationBorder), bounds.Height * 0.5f);
+        Span<float> xs = [bounds.Left, bounds.Left + borderX, bounds.Right - borderX, bounds.Right];
+        Span<float> ys = [bounds.Top, bounds.Top + borderY, bounds.Bottom - borderY, bounds.Bottom];
+        var sourceRatio = sourceBorder / Math.Max(1.0f, sourceSize);
+        var uBorder = (uv.Z - uv.X) * sourceRatio;
+        var vBorder = (uv.W - uv.Y) * sourceRatio;
+        Span<float> us = [uv.X, uv.X + uBorder, uv.Z - uBorder, uv.Z];
+        Span<float> vs = [uv.Y, uv.Y + vBorder, uv.W - vBorder, uv.W];
+
+        var firstVertex = (uint)(_vertices.Count / VertexStride);
+        for (var y = 0; y < 4; y++)
+        for (var x = 0; x < 4; x++)
+            AddVertex(xs[x], ys[y], us[x], vs[y], color);
+
+        var indexStart = _indices.Count;
+        for (var y = 0; y < 3; y++)
+        for (var x = 0; x < 3; x++)
+        {
+            var topLeft = firstVertex + (uint)(y * 4 + x);
+            var bottomLeft = topLeft + 4;
+            _indices.Add(topLeft);
+            _indices.Add(bottomLeft);
+            _indices.Add(bottomLeft + 1);
+            _indices.Add(bottomLeft + 1);
+            _indices.Add(topLeft + 1);
+            _indices.Add(topLeft);
+        }
+        AddBatch(texture, TextureSamplerState.LinearClamp, clip, indexStart, 54);
     }
 
     private void AddRoundedGeometry(
@@ -856,13 +998,31 @@ internal sealed class UiRenderer : IDisposable
         int indexStart,
         int indexCount)
     {
-        if (_batches.Count > 0 &&
-            ReferenceEquals(_batches[^1].Texture, texture) &&
+        var compositeElement = FindCompositeElement(_paintElement);
+        var textureSlot = ResolveTextureSlot(texture);
+        for (var index = indexStart; index < indexStart + indexCount; index++)
+        {
+            var vertex = checked((int)_indices[index]);
+            _vertices[vertex * VertexStride + 8] = textureSlot;
+        }
+        AddDrawBatch(texture, sampler, clip, indexStart, indexCount, compositeElement);
+    }
+
+    private void AddDrawBatch(
+        RenderTexture? texture,
+        TextureSamplerState? sampler,
+        Rect clip,
+        int indexStart,
+        int indexCount,
+        UiElement? compositeElement)
+    {
+        if (!_forceBatchBoundary &&
+            _batches.Count > 0 &&
             _batches[^1].Clip == clip &&
-            _batches[^1].Sampler == sampler &&
             ReferenceEquals(_batches[^1].AxisClip, _axisClip) &&
             ReferenceEquals(_batches[^1].RoundedClip, _roundedClip) &&
-            ReferenceEquals(_batches[^1].ScrollState, _scrollState))
+            ReferenceEquals(_batches[^1].ScrollState, _scrollState) &&
+            ReferenceEquals(_batches[^1].Element, compositeElement))
         {
             _batches[^1] = _batches[^1] with { IndexCount = _batches[^1].IndexCount + indexCount };
         }
@@ -875,9 +1035,152 @@ internal sealed class UiRenderer : IDisposable
                 _axisClip,
                 _roundedClip,
                 _scrollState,
+                compositeElement,
+                _paintScale,
                 indexStart,
                 indexCount));
         }
+        _forceBatchBoundary = false;
+    }
+
+    private int ResolveTextureSlot(RenderTexture? texture)
+    {
+        if (texture is null)
+            return 0;
+        if (_textureSlots.TryGetValue(texture, out var slot))
+            return slot;
+        slot = _geometryTextures.Count + 1;
+        if (slot >= MaxTextureSlots)
+            throw new InvalidOperationException(
+                $"A UI document uses more than {MaxTextureSlots - 1} texture atlases. " +
+                "Pack source images into configured .atlas assets.");
+        _textureSlots.Add(texture, slot);
+        _geometryTextures.Add(texture);
+        return slot;
+    }
+
+    private void CompactDrawBatches()
+    {
+        if (_batches.Count < 2)
+            return;
+
+        var write = 0;
+        for (var read = 1; read < _batches.Count; read++)
+        {
+            var previous = _batches[write];
+            var current = _batches[read];
+            if (previous.IndexStart + previous.IndexCount == current.IndexStart &&
+                previous.Clip == current.Clip &&
+                ReferenceEquals(previous.AxisClip, current.AxisClip) &&
+                ReferenceEquals(previous.RoundedClip, current.RoundedClip) &&
+                ReferenceEquals(previous.ScrollState, current.ScrollState) &&
+                ReferenceEquals(previous.Element, current.Element))
+            {
+                _batches[write] = previous with
+                {
+                    IndexCount = previous.IndexCount + current.IndexCount
+                };
+                continue;
+            }
+
+            write++;
+            if (write != read)
+                _batches[write] = current;
+        }
+
+        if (write + 1 < _batches.Count)
+            _batches.RemoveRange(write + 1, _batches.Count - write - 1);
+    }
+
+    private PaintCapture BeginPaintCapture()
+    {
+        _forceBatchBoundary = true;
+        return new PaintCapture(
+            _vertices.Count,
+            _indices.Count,
+            _batches.Count,
+            _vertices.Count / VertexStride,
+            _imageElements,
+            _shadowLayers);
+    }
+
+    private bool TryAppendCached(PaintCacheEntry cache, int signature, Rect clip)
+    {
+        if (!cache.HasValue || cache.Signature != signature)
+            return false;
+        var baseVertex = (uint)(_vertices.Count / VertexStride);
+        var indexStart = _indices.Count;
+        for (var index = 0; index < cache.Vertices.Length; index++)
+        {
+            if (index % VertexStride != 8)
+            {
+                _vertices.Add(cache.Vertices[index]);
+                continue;
+            }
+            var oldSlot = (int)(cache.Vertices[index] + 0.5f);
+            _vertices.Add(oldSlot <= 0
+                ? 0.0f
+                : ResolveTextureSlot(cache.Textures[oldSlot - 1]));
+        }
+        foreach (var index in cache.Indices)
+            _indices.Add(baseVertex + index);
+        _forceBatchBoundary = true;
+        var compositeElement = FindCompositeElement(_paintElement);
+        foreach (var batch in cache.Batches)
+            AddDrawBatch(
+                batch.Texture,
+                batch.Sampler,
+                clip,
+                indexStart + batch.IndexStart,
+                batch.IndexCount,
+                compositeElement);
+        _imageElements += cache.ImageElements;
+        _shadowLayers += cache.ShadowLayers;
+        _forceBatchBoundary = false;
+        return true;
+    }
+
+    private void EndPaintCapture(
+        PaintCacheEntry cache,
+        int signature,
+        PaintCapture capture)
+    {
+        cache.HasValue = true;
+        cache.Signature = signature;
+        cache.ImageElements = _imageElements - capture.ImageElementStart;
+        cache.ShadowLayers = _shadowLayers - capture.ShadowLayerStart;
+        cache.Textures = _geometryTextures.ToArray();
+        cache.Vertices = CollectionsMarshal.AsSpan(_vertices)[capture.VertexStart..].ToArray();
+        var sourceIndices = CollectionsMarshal.AsSpan(_indices)[capture.IndexStart..];
+        cache.Indices = new uint[sourceIndices.Length];
+        for (var index = 0; index < sourceIndices.Length; index++)
+            cache.Indices[index] = sourceIndices[index] - (uint)capture.BaseVertex;
+        var batchCount = _batches.Count - capture.BatchStart;
+        cache.Batches = new CachedPaintBatch[batchCount];
+        for (var index = 0; index < batchCount; index++)
+        {
+            var batch = _batches[capture.BatchStart + index];
+            cache.Batches[index] = new CachedPaintBatch(
+                batch.Texture,
+                batch.Sampler,
+                batch.IndexStart - capture.IndexStart,
+                batch.IndexCount);
+        }
+        _forceBatchBoundary = false;
+    }
+
+    private static UiElement? FindCompositeElement(UiElement? element)
+    {
+        for (var current = element; current is not null; current = current.Parent)
+        {
+            if (current.RenderOpacity != 1.0f ||
+                current.RenderTransform != UiTransform.Identity ||
+                current.AnimationRuntime.IsActive ||
+                current.ComputedStyle.Animation != UiAnimationDefinition.None ||
+                current.ComputedStyle.Transitions.Count > 0)
+                return current;
+        }
+        return null;
     }
 
     private void AddVertex(float x, float y, float u, float v, Vector4 color)
@@ -891,6 +1194,7 @@ internal sealed class UiRenderer : IDisposable
         _vertices.Add(color.Y);
         _vertices.Add(color.Z);
         _vertices.Add(color.W);
+        _vertices.Add(0.0f);
     }
 
     private unsafe void UploadGeometry(LayerCache layer)
@@ -900,40 +1204,102 @@ internal sealed class UiRenderer : IDisposable
         gl.BindVertexArray(layer.VertexArray);
         gl.BindBuffer(BufferTargetARB.ArrayBuffer, layer.VertexBuffer);
         var vertexSpan = CollectionsMarshal.AsSpan(_vertices);
+        var previousVertices = layer.VertexData.AsSpan(0, layer.VertexDataLength);
         var requiredVertexBytes = checked((nuint)(_vertices.Count * sizeof(float)));
-        EnsureBufferCapacity(
+        var vertexReallocated = EnsureBufferCapacity(
             gl,
             BufferTargetARB.ArrayBuffer,
             requiredVertexBytes,
             ref layer.VertexBufferCapacity);
-        fixed (float* vertices = vertexSpan)
+        var vertexStart = vertexReallocated ? 0 : FirstDifference(previousVertices, vertexSpan);
+        var vertexEnd = vertexStart < 0
+            ? -1
+            : vertexReallocated
+                ? vertexSpan.Length
+                : previousVertices.Length != vertexSpan.Length
+                    ? vertexSpan.Length
+                    : LastDifference(previousVertices, vertexSpan, vertexStart);
+        var uploadedBytes = 0L;
+        if (vertexStart >= 0 && vertexEnd > vertexStart)
         {
-            if (requiredVertexBytes > 0)
+            fixed (float* vertices = vertexSpan)
                 gl.BufferSubData(
-                BufferTargetARB.ArrayBuffer,
-                0,
-                requiredVertexBytes,
-                vertices);
+                    BufferTargetARB.ArrayBuffer,
+                    checked((nint)(vertexStart * sizeof(float))),
+                    checked((nuint)((vertexEnd - vertexStart) * sizeof(float))),
+                    vertices + vertexStart);
+            uploadedBytes += checked((long)(vertexEnd - vertexStart) * sizeof(float));
         }
+        EnsureCpuCapacity(ref layer.VertexData, vertexSpan.Length);
+        vertexSpan.CopyTo(layer.VertexData);
+        layer.VertexDataLength = vertexSpan.Length;
 
         gl.BindBuffer(BufferTargetARB.ElementArrayBuffer, layer.IndexBuffer);
         var indexSpan = CollectionsMarshal.AsSpan(_indices);
+        var previousIndices = layer.IndexData.AsSpan(0, layer.IndexDataLength);
         var requiredIndexBytes = checked((nuint)(_indices.Count * sizeof(uint)));
-        EnsureBufferCapacity(
+        var indexReallocated = EnsureBufferCapacity(
             gl,
             BufferTargetARB.ElementArrayBuffer,
             requiredIndexBytes,
             ref layer.IndexBufferCapacity);
-        fixed (uint* indices = indexSpan)
+        var indexStart = indexReallocated ? 0 : FirstDifference(previousIndices, indexSpan);
+        var indexEnd = indexStart < 0
+            ? -1
+            : indexReallocated
+                ? indexSpan.Length
+                : previousIndices.Length != indexSpan.Length
+                    ? indexSpan.Length
+                    : LastDifference(previousIndices, indexSpan, indexStart);
+        if (indexStart >= 0 && indexEnd > indexStart)
         {
-            if (requiredIndexBytes > 0)
+            fixed (uint* indices = indexSpan)
                 gl.BufferSubData(
-                BufferTargetARB.ElementArrayBuffer,
-                0,
-                requiredIndexBytes,
-                indices);
+                    BufferTargetARB.ElementArrayBuffer,
+                    checked((nint)(indexStart * sizeof(uint))),
+                    checked((nuint)((indexEnd - indexStart) * sizeof(uint))),
+                    indices + indexStart);
+            uploadedBytes += checked((long)(indexEnd - indexStart) * sizeof(uint));
         }
+        EnsureCpuCapacity(ref layer.IndexData, indexSpan.Length);
+        indexSpan.CopyTo(layer.IndexData);
+        layer.IndexDataLength = indexSpan.Length;
+        layer.LastUploadBytes = uploadedBytes;
         layer.IndexCount = _indices.Count;
+    }
+
+    private static int FirstDifference<T>(ReadOnlySpan<T> previous, ReadOnlySpan<T> current)
+        where T : IEquatable<T>
+    {
+        var shared = Math.Min(previous.Length, current.Length);
+        for (var index = 0; index < shared; index++)
+            if (!previous[index].Equals(current[index]))
+                return index;
+        return previous.Length == current.Length ? -1 : shared;
+    }
+
+    private static int LastDifference<T>(ReadOnlySpan<T> previous, ReadOnlySpan<T> current, int first)
+        where T : IEquatable<T>
+    {
+        var previousIndex = previous.Length - 1;
+        var currentIndex = current.Length - 1;
+        while (previousIndex >= first && currentIndex >= first &&
+               previous[previousIndex].Equals(current[currentIndex]))
+        {
+            previousIndex--;
+            currentIndex--;
+        }
+        return currentIndex + 1;
+    }
+
+    private static void EnsureCpuCapacity<T>(ref T[] values, int required)
+    {
+        if (values.Length >= required)
+            return;
+        var capacity = Math.Max(16, values.Length);
+        while (capacity < required)
+            capacity *= 2;
+        values = new T[capacity];
     }
 
     private unsafe void DrawUploadedGeometry(
@@ -946,7 +1312,12 @@ internal sealed class UiRenderer : IDisposable
         gl.BindVertexArray(layer.VertexArray);
         gl.UseProgram(_program);
         gl.Uniform2(_viewportUniform, (float)width, (float)height);
-        gl.Uniform1(_textureUniform, 0);
+        for (var slot = 0; slot < MaxTextureSlots; slot++)
+            gl.Uniform1(_textureUniforms[slot], slot);
+        gl.ActiveTexture(TextureUnit.Texture0);
+        gl.BindTexture(TextureTarget.Texture2D, _whiteTexture);
+        for (var index = 0; index < layer.Textures.Count; index++)
+            layer.Textures[index].Bind((uint)(index + 1), TextureSamplerState.LinearClamp);
         gl.Disable(EnableCap.DepthTest);
         gl.DepthMask(false);
         gl.Enable(EnableCap.Blend);
@@ -969,22 +1340,21 @@ internal sealed class UiRenderer : IDisposable
             ApplyRoundedClips(gl, batch.RoundedClip);
             var translation = ResolveScrollTranslation(batch.ScrollState);
             gl.Uniform2(_translationUniform, translation.X, translation.Y);
+            var transform = ResolveRenderTransform(batch.Element, batch.Scale);
+            gl.Uniform4(
+                _transformAUniform,
+                transform.M11,
+                transform.M21,
+                transform.M31,
+                transform.M12);
+            gl.Uniform2(_transformBUniform, transform.M22, transform.M32);
+            gl.Uniform1(_opacityUniform, ResolveRenderOpacity(batch.Element));
             var resolvedClip = ResolveAxisClip(batch.AxisClip, width, height);
             var x = Math.Clamp((int)MathF.Floor(resolvedClip.X), 0, width);
             var y = Math.Clamp((int)MathF.Floor(height - resolvedClip.Bottom), 0, height);
             var right = Math.Clamp((int)MathF.Ceiling(resolvedClip.Right), 0, width);
             var top = Math.Clamp((int)MathF.Ceiling(height - resolvedClip.Top), 0, height);
             gl.Scissor(x, y, (uint)Math.Max(0, right - x), (uint)Math.Max(0, top - y));
-
-            if (batch.Texture is null)
-            {
-                gl.ActiveTexture(TextureUnit.Texture0);
-                gl.BindTexture(TextureTarget.Texture2D, _whiteTexture);
-            }
-            else
-            {
-                batch.Texture.Bind(0, batch.Sampler ?? TextureSamplerState.Default);
-            }
 
             gl.DrawElements(
                 PrimitiveType.Triangles,
@@ -1017,6 +1387,8 @@ internal sealed class UiRenderer : IDisposable
         gl.EnableVertexAttribArray(1);
         gl.VertexAttribPointer(2, 4, VertexAttribPointerType.Float, false, stride, (void*)(4 * sizeof(float)));
         gl.EnableVertexAttribArray(2);
+        gl.VertexAttribPointer(3, 1, VertexAttribPointerType.Float, false, stride, (void*)(8 * sizeof(float)));
+        gl.EnableVertexAttribArray(3);
         gl.BindVertexArray(0);
     }
 
@@ -1026,6 +1398,28 @@ internal sealed class UiRenderer : IDisposable
         for (; state is not null; state = state.Parent)
             translation -= state.Element.ScrollOffset * state.Scale;
         return translation;
+    }
+
+    private static Matrix3x2 ResolveRenderTransform(UiElement? element, float scale)
+    {
+        var result = Matrix3x2.Identity;
+        for (var current = element; current is not null; current = current.Parent)
+        {
+            var transform = current.RenderTransform with
+            {
+                Translation = current.RenderTransform.Translation * scale
+            };
+            result *= transform.ToMatrix(Scale(current.Bounds, scale));
+        }
+        return result;
+    }
+
+    private static float ResolveRenderOpacity(UiElement? element)
+    {
+        var opacity = 1.0f;
+        for (var current = element; current is not null; current = current.Parent)
+            opacity *= current.RenderOpacity;
+        return Math.Clamp(opacity, 0.0f, 1.0f);
     }
 
     private static bool IsOutsideVirtualViewport(
@@ -1074,7 +1468,9 @@ internal sealed class UiRenderer : IDisposable
         var clip = new Rect(0, 0, width, height);
         for (; state is not null; state = state.Parent)
         {
-            var bounds = state.Bounds;
+            var bounds = TransformBounds(
+                state.Bounds,
+                ResolveRenderTransform(state.Element, state.Scale));
             var translation = ResolveScrollTranslation(state.ScrollState);
             bounds = bounds with { X = bounds.X + translation.X, Y = bounds.Y + translation.Y };
             clip = ClipAxes(clip, bounds, state.ClipX, state.ClipY);
@@ -1082,57 +1478,12 @@ internal sealed class UiRenderer : IDisposable
         return clip;
     }
 
-    private unsafe void EnsureLayerCache(
-        LayerCache layer,
-        int width,
-        int height,
-        uint destinationFramebuffer)
+    private static void EnsureLayerCache(LayerCache layer, int width, int height)
     {
         width = Math.Max(1, width);
         height = Math.Max(1, height);
-        if (layer.Framebuffer != 0 && layer.Width == width && layer.Height == height)
+        if (layer.Width == width && layer.Height == height)
             return;
-
-        var gl = _device.GL;
-        layer.Dispose(gl);
-
-        layer.Framebuffer = gl.GenFramebuffer();
-        layer.Texture = gl.GenTexture();
-        gl.BindFramebuffer(FramebufferTarget.Framebuffer, layer.Framebuffer);
-        gl.BindTexture(TextureTarget.Texture2D, layer.Texture);
-        gl.TexImage2D(
-            TextureTarget.Texture2D,
-            0,
-            InternalFormat.Rgba8,
-            (uint)width,
-            (uint)height,
-            0,
-            PixelFormat.Rgba,
-            PixelType.UnsignedByte,
-            null);
-        gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Nearest);
-        gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Nearest);
-        gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)TextureWrapMode.ClampToEdge);
-        gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)TextureWrapMode.ClampToEdge);
-        gl.FramebufferTexture2D(
-            FramebufferTarget.Framebuffer,
-            FramebufferAttachment.ColorAttachment0,
-            TextureTarget.Texture2D,
-            layer.Texture,
-            0);
-        var status = gl.CheckFramebufferStatus(FramebufferTarget.Framebuffer);
-        gl.BindFramebuffer(FramebufferTarget.Framebuffer, destinationFramebuffer);
-        gl.Viewport(0, 0, (uint)width, (uint)height);
-        if (status != GLEnum.FramebufferComplete)
-            throw new InvalidOperationException($"UI layer framebuffer is incomplete: {status}.");
-
-        gl.BindFramebuffer(FramebufferTarget.Framebuffer, layer.Framebuffer);
-        gl.Viewport(0, 0, (uint)width, (uint)height);
-        gl.Disable(EnableCap.ScissorTest);
-        gl.ClearColor(0.0f, 0.0f, 0.0f, 0.0f);
-        gl.Clear(ClearBufferMask.ColorBufferBit);
-        gl.BindFramebuffer(FramebufferTarget.Framebuffer, destinationFramebuffer);
-        gl.Viewport(0, 0, (uint)width, (uint)height);
 
         layer.Width = width;
         layer.Height = height;
@@ -1169,7 +1520,8 @@ internal sealed class UiRenderer : IDisposable
         gl.BindVertexArray(_layerVertexArray);
         gl.UseProgram(_program);
         gl.Uniform2(_viewportUniform, (float)width, (float)height);
-        gl.Uniform1(_textureUniform, 0);
+        for (var slot = 0; slot < MaxTextureSlots; slot++)
+            gl.Uniform1(_textureUniforms[slot], slot);
         gl.Uniform2(_translationUniform, 0.0f, 0.0f);
         gl.Uniform1(_roundedClipCountUniform, 0);
         gl.ActiveTexture(TextureUnit.Texture0);
@@ -1252,15 +1604,9 @@ internal sealed class UiRenderer : IDisposable
         }
 
         var textureSwitches = 0;
-        RenderTexture? previousTexture = null;
-        var hasPrevious = false;
         var roundedClipBatches = 0;
         foreach (var batch in _batches)
         {
-            if (hasPrevious && !ReferenceEquals(previousTexture, batch.Texture))
-                textureSwitches++;
-            previousTexture = batch.Texture;
-            hasPrevious = true;
             if (batch.RoundedClip is not null)
                 roundedClipBatches++;
         }
@@ -1277,8 +1623,6 @@ internal sealed class UiRenderer : IDisposable
         layer.Batches = _batches.Count;
         layer.TextureSwitches = textureSwitches;
         layer.RoundedClipBatches = roundedClipBatches;
-        layer.LastUploadBytes = checked((long)_vertices.Count * sizeof(float) +
-                                        (long)_indices.Count * sizeof(uint));
     }
 
     private static void UpdateDocumentStatistics(
@@ -1308,7 +1652,8 @@ internal sealed class UiRenderer : IDisposable
         statistics.AnimationTreeScans = document.AnimationTreeScans;
         statistics.LayerWidth = layer.Width;
         statistics.LayerHeight = layer.Height;
-        statistics.LayerBytes = checked((long)layer.Width * layer.Height * 4);
+        // Documents render directly and no longer own a full-resolution RGBA layer.
+        statistics.LayerBytes = 0;
         statistics.ContentPixels = checked((long)MathF.Ceiling(layer.ContentBounds.Width) *
                                            (long)MathF.Ceiling(layer.ContentBounds.Height));
         statistics.UploadBytes = statistics.RebuiltThisFrame ? layer.LastUploadBytes : 0;
@@ -1360,18 +1705,19 @@ internal sealed class UiRenderer : IDisposable
         gl.Scissor(x, y, (uint)Math.Max(0, right - x), (uint)Math.Max(0, top - y));
     }
 
-    private static unsafe void EnsureBufferCapacity(
+    private static unsafe bool EnsureBufferCapacity(
         GL gl,
         BufferTargetARB target,
         nuint required,
         ref nuint capacity)
     {
         if (required <= capacity)
-            return;
+            return false;
         capacity = 4096;
         while (capacity < required)
             capacity *= 2;
         gl.BufferData(target, capacity, null, BufferUsageARB.DynamicDraw);
+        return true;
     }
 
     private unsafe void EnsureResources()
@@ -1382,8 +1728,12 @@ internal sealed class UiRenderer : IDisposable
         var gl = _device.GL;
         _program = BuildProgram(gl);
         _viewportUniform = gl.GetUniformLocation(_program, "uViewport");
-        _textureUniform = gl.GetUniformLocation(_program, "uTexture");
+        for (var slot = 0; slot < MaxTextureSlots; slot++)
+            _textureUniforms[slot] = gl.GetUniformLocation(_program, $"uTextures[{slot}]");
         _translationUniform = gl.GetUniformLocation(_program, "uTranslation");
+        _transformAUniform = gl.GetUniformLocation(_program, "uTransformA");
+        _transformBUniform = gl.GetUniformLocation(_program, "uTransformB");
+        _opacityUniform = gl.GetUniformLocation(_program, "uOpacity");
         _roundedClipCountUniform = gl.GetUniformLocation(_program, "uRoundedClipCount");
         for (var index = 0; index < MaxRoundedClips; index++)
         {
@@ -1403,6 +1753,8 @@ internal sealed class UiRenderer : IDisposable
         gl.EnableVertexAttribArray(1);
         gl.VertexAttribPointer(2, 4, VertexAttribPointerType.Float, false, stride, (void*)(4 * sizeof(float)));
         gl.EnableVertexAttribArray(2);
+        gl.VertexAttribPointer(3, 1, VertexAttribPointerType.Float, false, stride, (void*)(8 * sizeof(float)));
+        gl.EnableVertexAttribArray(3);
         gl.BindVertexArray(0);
 
         _whiteTexture = gl.GenTexture();
@@ -1435,24 +1787,34 @@ internal sealed class UiRenderer : IDisposable
             layout(location = 0) in vec2 aPosition;
             layout(location = 1) in vec2 aUv;
             layout(location = 2) in vec4 aColor;
+            layout(location = 3) in float aTextureSlot;
             uniform vec2 uViewport;
             uniform vec2 uTranslation;
+            uniform vec4 uTransformA;
+            uniform vec2 uTransformB;
+            uniform float uOpacity;
             out vec2 vUv;
             out vec4 vColor;
+            flat out int vTextureSlot;
             void main() {
-                vec2 position = aPosition + uTranslation;
+                vec2 position = vec2(
+                    aPosition.x * uTransformA.x + aPosition.y * uTransformA.y + uTransformA.z,
+                    aPosition.x * uTransformA.w + aPosition.y * uTransformB.x + uTransformB.y);
+                position += uTranslation;
                 vec2 ndc = vec2(position.x / uViewport.x * 2.0 - 1.0,
                                 1.0 - position.y / uViewport.y * 2.0);
                 gl_Position = vec4(ndc, 0.0, 1.0);
                 vUv = aUv;
-                vColor = aColor;
+                vColor = vec4(aColor.rgb, aColor.a * uOpacity);
+                vTextureSlot = int(aTextureSlot + 0.5);
             }
             """;
         var fragmentSource = """
             #version 330 core
             in vec2 vUv;
             in vec4 vColor;
-            uniform sampler2D uTexture;
+            flat in int vTextureSlot;
+            uniform sampler2D uTextures[16];
             uniform vec2 uViewport;
             uniform int uRoundedClipCount;
             uniform vec4 uRoundedClipBounds[8];
@@ -1478,17 +1840,36 @@ internal sealed class UiRenderer : IDisposable
                     if (distance > 0.0)
                         discard;
                 }
-                oColor = texture(uTexture, vUv) * vColor;
+                vec4 sampled;
+                switch (vTextureSlot) {
+                    case 1: sampled = texture(uTextures[1], vUv); break;
+                    case 2: sampled = texture(uTextures[2], vUv); break;
+                    case 3: sampled = texture(uTextures[3], vUv); break;
+                    case 4: sampled = texture(uTextures[4], vUv); break;
+                    case 5: sampled = texture(uTextures[5], vUv); break;
+                    case 6: sampled = texture(uTextures[6], vUv); break;
+                    case 7: sampled = texture(uTextures[7], vUv); break;
+                    case 8: sampled = texture(uTextures[8], vUv); break;
+                    case 9: sampled = texture(uTextures[9], vUv); break;
+                    case 10: sampled = texture(uTextures[10], vUv); break;
+                    case 11: sampled = texture(uTextures[11], vUv); break;
+                    case 12: sampled = texture(uTextures[12], vUv); break;
+                    case 13: sampled = texture(uTextures[13], vUv); break;
+                    case 14: sampled = texture(uTextures[14], vUv); break;
+                    case 15: sampled = texture(uTextures[15], vUv); break;
+                    default: sampled = texture(uTextures[0], vUv); break;
+                }
+                oColor = sampled * vColor;
             }
             """;
 #if ANDROID
         vertexSource = vertexSource.Replace(
             "#version 330 core",
-            "#version 300 es\nprecision highp float;",
+            "#version 300 es\nprecision highp float;\nprecision highp int;",
             StringComparison.Ordinal);
         fragmentSource = fragmentSource.Replace(
             "#version 330 core",
-            "#version 300 es\nprecision highp float;",
+            "#version 300 es\nprecision highp float;\nprecision highp int;",
             StringComparison.Ordinal);
 #endif
         var vertex = Compile(gl, ShaderType.VertexShader, vertexSource);
@@ -1548,7 +1929,10 @@ internal sealed class UiRenderer : IDisposable
         {
             var item = _roundedClipStack[count - index - 1]!;
             var translation = ResolveScrollTranslation(item.ScrollState);
-            var inverseTransform = Matrix3x2.CreateTranslation(-translation) * item.InverseTransform;
+            var renderTransform = ResolveRenderTransform(item.Element, item.Scale);
+            if (!Matrix3x2.Invert(renderTransform, out var inverseRenderTransform))
+                inverseRenderTransform = Matrix3x2.Identity;
+            var inverseTransform = Matrix3x2.CreateTranslation(-translation) * inverseRenderTransform;
             var radius = ClampRadius(item.Bounds, item.Radius);
             gl.Uniform4(
                 _roundedClipBoundsUniforms[index],
@@ -1631,8 +2015,42 @@ internal sealed class UiRenderer : IDisposable
         UiAxisClipState? AxisClip,
         UiClipState? RoundedClip,
         UiScrollState? ScrollState,
+        UiElement? Element,
+        float Scale,
         int IndexStart,
         int IndexCount);
+
+    private readonly record struct PaintCapture(
+        int VertexStart,
+        int IndexStart,
+        int BatchStart,
+        int BaseVertex,
+        int ImageElementStart,
+        int ShadowLayerStart);
+
+    private readonly record struct CachedPaintBatch(
+        RenderTexture? Texture,
+        TextureSamplerState? Sampler,
+        int IndexStart,
+        int IndexCount);
+
+    private sealed class PaintCacheEntry
+    {
+        public bool HasValue;
+        public int Signature;
+        public float[] Vertices = [];
+        public uint[] Indices = [];
+        public CachedPaintBatch[] Batches = [];
+        public RenderTexture[] Textures = [];
+        public int ImageElements;
+        public int ShadowLayers;
+    }
+
+    private sealed class ElementPaintCache
+    {
+        public PaintCacheEntry Background { get; } = new();
+        public PaintCacheEntry Text { get; } = new();
+    }
 
     private sealed class LayerCache
     {
@@ -1649,6 +2067,7 @@ internal sealed class UiRenderer : IDisposable
         public int GeometrySignature = int.MinValue;
         public int RenderSignature = int.MinValue;
         public List<Batch> DrawBatches { get; } = [];
+        public List<RenderTexture> Textures { get; } = [];
         public bool HasContent;
         public Rect ContentBounds;
         public int Elements;
@@ -1664,6 +2083,10 @@ internal sealed class UiRenderer : IDisposable
         public int TextureSwitches;
         public int RoundedClipBatches;
         public long LastUploadBytes;
+        public float[] VertexData = [];
+        public uint[] IndexData = [];
+        public int VertexDataLength;
+        public int IndexDataLength;
 
         public void Dispose(GL gl)
         {
@@ -1677,6 +2100,7 @@ internal sealed class UiRenderer : IDisposable
             VertexBufferCapacity = IndexBufferCapacity = 0;
             IndexCount = 0;
             DrawBatches.Clear();
+            Textures.Clear();
             Width = Height = 0;
             GeometrySignature = int.MinValue;
             RenderSignature = int.MinValue;
@@ -1688,6 +2112,9 @@ internal sealed class UiRenderer : IDisposable
             Vertices = Indices = Batches = 0;
             TextureSwitches = RoundedClipBatches = 0;
             LastUploadBytes = 0;
+            VertexData = [];
+            IndexData = [];
+            VertexDataLength = IndexDataLength = 0;
         }
     }
 
@@ -1695,7 +2122,8 @@ internal sealed class UiRenderer : IDisposable
         UiClipState? Parent,
         Rect Bounds,
         float Radius,
-        Matrix3x2 InverseTransform,
+        UiElement Element,
+        float Scale,
         UiScrollState? ScrollState);
 
     private sealed record UiAxisClipState(
@@ -1703,6 +2131,8 @@ internal sealed class UiRenderer : IDisposable
         Rect Bounds,
         bool ClipX,
         bool ClipY,
+        UiElement Element,
+        float Scale,
         UiScrollState? ScrollState);
 
     private sealed record UiScrollState(

@@ -90,7 +90,7 @@ public sealed class UiModule :
         _renderer = renderer;
         _overlays = overlays;
         _textures = textures;
-        _uiRenderer = new UiRenderer(graphics.GraphicsDevice, _statistics);
+        _uiRenderer = new UiRenderer(graphics.GraphicsDevice, textures, _statistics);
         _yogaConfig.SetUseWebDefaults(false);
         _yogaConfig.SetPointScaleFactor(1.0f);
     }
@@ -290,7 +290,7 @@ public sealed class UiModule :
                     SetDropTarget(null);
                 }
                 else if (!pointerCancelled && ReferenceEquals(releasedElement, hit))
-                    releasedElement.RaiseClicked();
+                    releasedElement.RaiseClicked(pointer);
             }
             _scrollCandidate = null;
             _pressedDocument = null;

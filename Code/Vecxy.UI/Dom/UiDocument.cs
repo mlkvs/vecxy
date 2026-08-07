@@ -16,6 +16,8 @@ public sealed class UiDocument : IDisposable
     private readonly List<AssetRef<UiStyleSheetAsset>> _styleAssets = [];
     private readonly Dictionary<string, AssetRef<UiDocumentAsset>> _componentAssets =
         new(StringComparer.Ordinal);
+    private readonly Dictionary<string, ComponentTemplate> _componentTemplates =
+        new(StringComparer.Ordinal);
     private readonly List<UiStyleSheet> _styleSheets = [];
     private readonly Dictionary<string, AssetRef<TextureAsset>> _imageAssets =
         new(StringComparer.Ordinal);
@@ -130,11 +132,18 @@ public sealed class UiDocument : IDisposable
             component = _assets.Load<UiDocumentAsset>(path);
             _componentAssets.Add(path, component);
         }
-        var source = ApplyParameters(component.Value.Source, parameters);
-        var parsed = XDocument.Parse(source, LoadOptions.SetLineInfo | LoadOptions.PreserveWhitespace);
-        var sourceRoot = parsed.Root ?? throw new InvalidDataException(
-            $"UI component has no root element: {path}");
-        var instance = ParseElement(sourceRoot);
+        if (!_componentTemplates.TryGetValue(path, out var template) ||
+            template.Version != component.Version)
+        {
+            var parsed = XDocument.Parse(
+                component.Value.Source,
+                LoadOptions.SetLineInfo | LoadOptions.PreserveWhitespace);
+            var sourceRoot = parsed.Root ?? throw new InvalidDataException(
+                $"UI component has no root element: {path}");
+            template = new ComponentTemplate(component.Version, sourceRoot);
+            _componentTemplates[path] = template;
+        }
+        var instance = ParseElement(template.Root, parameters);
         parent.Add(instance);
         // Resolution is intentionally deferred until the next UI update. Building a
         // component tree must result in one style/layout pass, not one pass per instance.
@@ -204,12 +213,16 @@ public sealed class UiDocument : IDisposable
 
         var (treeVersion, pseudoState) = ComputeStyleState();
         var treeChanged = treeVersion != _resolvedTreeVersion;
-        if (treeChanged || pseudoState != _resolvedPseudoState)
+        var pseudoChanged = pseudoState != _resolvedPseudoState;
+        if (treeChanged || pseudoChanged)
         {
             UiStyleResolver.Resolve(Root, _styleSheets);
             _stylePasses++;
             unchecked { _styleResolutionVersion++; }
-            _layoutValid = false;
+            // Mutations already carry their precise layout dirty bit. Pseudo
+            // selectors remain conservative because they may target layout fields.
+            if (pseudoChanged)
+                _layoutValid = false;
             _animationSyncPending = true;
         }
         if (treeChanged || _resourceResolutionPending)
@@ -293,25 +306,28 @@ public sealed class UiDocument : IDisposable
         element.AnimationRuntime.Restart(element);
         if (element.AnimationRuntime.IsActive && !_activeAnimationElements.Contains(element))
             _activeAnimationElements.Add(element);
-        element.InvalidateVisual();
+        element.InvalidateComposite();
     }
 
     private void UpdateAnimationElement(UiElement element, float deltaTime, float width, float height)
     {
-        if (element.AnimationRuntime.Update(element, _keyframes, deltaTime, width, height))
+        var changes = element.AnimationRuntime.Update(element, _keyframes, deltaTime, width, height);
+        if ((changes & UiAnimationChange.Paint) != 0)
             element.InvalidateVisual();
+        if ((changes & UiAnimationChange.Composite) != 0)
+            element.InvalidateComposite();
     }
 
     internal int GeometryVersion => HashCode.Combine(
         _sourceVersion,
-        _styleResolutionVersion,
-        Root.StyleVersion,
-        Root.PseudoVersion,
         Root.LayoutVersion,
         Root.VisualVersion,
         IsVisible);
 
-    internal int RenderVersion => HashCode.Combine(GeometryVersion, Root.ScrollVersion);
+    internal int RenderVersion => HashCode.Combine(
+        GeometryVersion,
+        Root.ScrollVersion,
+        Root.CompositeVersion);
 
     internal Vector2 ToLayoutPoint(Vector2 outputPoint) =>
         outputPoint / Math.Max(0.0001f, LayoutScale);
@@ -334,6 +350,17 @@ public sealed class UiDocument : IDisposable
             source = ParseUrl(element.ComputedStyle.BackgroundImage);
         if (string.IsNullOrWhiteSpace(source))
             return null;
+
+        // Individual source files remain convenient for authors and configs, but
+        // configured atlases are the runtime representation. Resolve by stable file
+        // stem so existing content automatically benefits from atlas batching.
+        var inferredSprite = System.IO.Path.GetFileNameWithoutExtension(source);
+        if (!string.IsNullOrWhiteSpace(inferredSprite))
+        {
+            foreach (var configuredAtlas in _settings.SpriteAtlases.Keys)
+                if (ResolveSprite(configuredAtlas, inferredSprite) is { } packed)
+                    return packed;
+        }
 
         var path = ResolveRelativePath(Path, source);
         var asset = GetImageAsset(path);
@@ -368,11 +395,16 @@ public sealed class UiDocument : IDisposable
 
         if (atlas.HasError || !atlas.Value.Sprites.TryGetValue(spriteName, out var sprite))
             return null;
-        var textureAsset = atlas.Value.Texture;
-        var width = Math.Max(1, textureAsset.Value.Width);
-        var height = Math.Max(1, textureAsset.Value.Height);
+        var atlasValue = atlas.Value;
+        var textureAsset = atlasValue.EmbeddedTexture ?? atlasValue.TextureReference?.Value;
+        if (textureAsset is null)
+            return null;
+        var width = Math.Max(1, textureAsset.Width);
+        var height = Math.Max(1, textureAsset.Height);
         return new UiResolvedImage(
-            _textures.Resolve(textureAsset),
+            atlasValue.EmbeddedTexture is { } embedded
+                ? _textures.Resolve(embedded)
+                : _textures.Resolve(atlasValue.TextureReference!),
             new Vector4(
                 sprite.X / (float)width,
                 sprite.Y / (float)height,
@@ -476,18 +508,22 @@ public sealed class UiDocument : IDisposable
             Reloaded?.Invoke(this);
     }
 
-    private UiElement ParseElement(XElement source)
+    private UiElement ParseElement(
+        XElement source,
+        IReadOnlyDictionary<string, string>? parameters = null)
     {
         var attributes = source.Attributes().ToDictionary(
             attribute => attribute.Name.LocalName,
-            attribute => attribute.Value,
+            attribute => ApplyParameters(attribute.Value, parameters),
             StringComparer.OrdinalIgnoreCase);
         var tagName = source.Name.LocalName.ToLowerInvariant();
-        var directText = string.Concat(source.Nodes().OfType<XText>().Select(text => text.Value)).Trim();
+        var directText = ApplyParameters(
+            string.Concat(source.Nodes().OfType<XText>().Select(text => text.Value)).Trim(),
+            parameters);
         var element = CreateTypedElement(tagName, attributes, tagName == "text" ? directText : null);
 
         foreach (var child in source.Elements())
-            element.Add(ParseElement(child));
+            element.Add(ParseElement(child, parameters));
 
         if (tagName != "text" && directText.Length > 0)
         {
@@ -529,7 +565,7 @@ public sealed class UiDocument : IDisposable
         foreach (var (name, value) in parameters)
             source = source.Replace(
                 $"{{{{{name}}}}}",
-                System.Security.SecurityElement.Escape(value) ?? string.Empty,
+                value,
                 StringComparison.Ordinal);
         return source;
     }
@@ -566,6 +602,7 @@ public sealed class UiDocument : IDisposable
         _styleVersions = _styleAssets.Select(style => style.Version).ToArray();
         UiStyleResolver.Resolve(Root, _styleSheets);
         unchecked { _styleResolutionVersion++; }
+        Root.InvalidateVisual();
         ResolveFonts();
         ResolveIntrinsicImages();
         _resourceResolutionPending = false;
@@ -678,11 +715,14 @@ public sealed class UiDocument : IDisposable
             font.Dispose();
         _styleAssets.Clear();
         _componentAssets.Clear();
+        _componentTemplates.Clear();
         _imageAssets.Clear();
         _spriteAtlases.Clear();
         _fontAssets.Clear();
         _source.Dispose();
     }
+
+    private sealed record ComponentTemplate(int Version, XElement Root);
 }
 
 internal readonly record struct UiResolvedImage(
