@@ -2,12 +2,22 @@
 	<PropertyGroup>
 		<Configurations>Debug;Release</Configurations>
 		<Platforms>AnyCPU</Platforms>
-		<TargetFramework>net10.0</TargetFramework>
+		<TargetFramework Condition="'$(VecxyPlatform)' != 'Android'">net10.0</TargetFramework>
+		<TargetFramework Condition="'$(VecxyPlatform)' == 'Android'">net10.0-android</TargetFramework>
 		<ImplicitUsings>enable</ImplicitUsings>
 		<Nullable>enable</Nullable>
 		<AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+		<!--
+			Android SDK/JDK можно переопределить снаружи через свойства сборки
+			(-p:AndroidSdkDirectory=... и -p:JavaSdkDirectory=...) или переменные окружения.
+			Ниже идут только fallback-пути для локальных окружений.
+		-->
+		<AndroidSdkDirectory Condition="'$(AndroidSdkDirectory)' == '' and '$(ANDROID_SDK_ROOT)' != ''">$(ANDROID_SDK_ROOT)</AndroidSdkDirectory>
+		<AndroidSdkDirectory Condition="'$(AndroidSdkDirectory)' == '' and '$(ANDROID_HOME)' != ''">$(ANDROID_HOME)</AndroidSdkDirectory>
 		<AndroidSdkDirectory Condition="'$(AndroidSdkDirectory)' == '' and Exists('$(HOME)/.local/share/android-sdk')">$(HOME)/.local/share/android-sdk</AndroidSdkDirectory>
+		<JavaSdkDirectory Condition="'$(JavaSdkDirectory)' == '' and '$(JAVA_HOME)' != ''">$(JAVA_HOME)</JavaSdkDirectory>
 		<JavaSdkDirectory Condition="'$(JavaSdkDirectory)' == '' and Exists('$(HOME)/.local/share/android-jdk')">$(HOME)/.local/share/android-jdk</JavaSdkDirectory>
+		<JavaSdkDirectory Condition="'$(JavaSdkDirectory)' == '' and Exists('/usr/lib/jvm/java-25-openjdk')">/usr/lib/jvm/java-25-openjdk</JavaSdkDirectory>
 	</PropertyGroup>
 
 	<ItemGroup>
