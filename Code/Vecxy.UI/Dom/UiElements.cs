@@ -40,6 +40,8 @@ public sealed class UiButton : UiElement
 
 public sealed class UiImage : UiElement
 {
+    private Vecxy.Rendering.Texture? _texture;
+
     internal UiImage(Config config, IReadOnlyDictionary<string, string> attributes, string? text = null)
         : base(config, "image", attributes, text)
     {
@@ -55,6 +57,19 @@ public sealed class UiImage : UiElement
     {
         get => Attributes.GetValueOrDefault("sprite") ?? string.Empty;
         set => SetAttribute("sprite", value);
+    }
+
+    /// <summary>Runtime texture, such as a camera render target.</summary>
+    public Vecxy.Rendering.Texture? Texture
+    {
+        get => _texture;
+        set
+        {
+            if (ReferenceEquals(_texture, value))
+                return;
+            _texture = value;
+            InvalidateVisual();
+        }
     }
 }
 

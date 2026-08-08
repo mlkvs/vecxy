@@ -334,6 +334,14 @@ public sealed class UiDocument : IDisposable
 
     internal UiResolvedImage? ResolveImage(UiElement element)
     {
+        if (element is UiImage { Texture: { } runtimeTexture })
+        {
+            return new UiResolvedImage(
+                runtimeTexture,
+                new Vector4(0, 1, 1, 0),
+                new Vector2(element.Bounds.Width, element.Bounds.Height));
+        }
+
         if (element.Attributes.GetValueOrDefault("sprite") is { Length: > 0 } spriteSource)
         {
             var separator = spriteSource.LastIndexOf('#');

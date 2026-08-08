@@ -683,12 +683,22 @@ internal sealed class UiRenderer : IDisposable
             AddArcRing(center, radius, thickness, -MathF.PI * 0.5f, MathF.PI * 1.5f, track, clip);
         if (progress.W > 0.001f && element.Progress > 0.001f)
         {
+            var clockwiseDepletion = element.Attributes.TryGetValue(
+                "clockwise-depletion",
+                out var depletionValue) &&
+                !depletionValue.Equals("false", StringComparison.OrdinalIgnoreCase);
+            var start = clockwiseDepletion
+                ? -MathF.PI * 0.5f + MathF.Tau * (1.0f - element.Progress)
+                : -MathF.PI * 0.5f;
+            var end = clockwiseDepletion
+                ? MathF.PI * 1.5f
+                : -MathF.PI * 0.5f + MathF.Tau * element.Progress;
             AddArcRing(
                 center,
                 radius,
                 thickness,
-                -MathF.PI * 0.5f,
-                -MathF.PI * 0.5f + MathF.Tau * element.Progress,
+                start,
+                end,
                 progress,
                 clip);
         }
