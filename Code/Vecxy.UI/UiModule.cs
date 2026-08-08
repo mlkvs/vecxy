@@ -290,7 +290,8 @@ public sealed class UiModule :
                     SetDropTarget(null);
                 }
                 else if (!pointerCancelled && ReferenceEquals(releasedElement, hit))
-                    releasedElement.RaiseClicked(pointer);
+                    releasedElement.RaiseClicked(
+                        _pressedDocument?.ToLayoutPoint(pointer) ?? pointer);
             }
             _scrollCandidate = null;
             _pressedDocument = null;
