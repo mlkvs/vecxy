@@ -2,6 +2,7 @@ using Facebook.Yoga;
 using Vecxy.UI;
 
 StyleInvalidationIsClassified();
+ShrinkTextStyleAndSizingAreApplied();
 KeyedCollectionRetainsAndOrdersNodes();
 DetachedSubtreeCanBeMountedAgain();
 Console.WriteLine("All Vecxy.UI checks passed.");
@@ -27,6 +28,25 @@ static void StyleInvalidationIsClassified()
     panel.Style.Width = "120px";
     Check(panel.LayoutVersion > layout, "Sizing style did not invalidate layout.");
     panel.ReleaseLayout();
+}
+
+static void ShrinkTextStyleAndSizingAreApplied()
+{
+    var config = NewConfig();
+    var root = new UiPanel(config, new Dictionary<string, string> { ["class"] = "screen" });
+    var label = new UiText(config, new Dictionary<string, string>(), "Long label");
+    root.Add(label);
+    var sheet = UiStyleSheet.Parse(".screen text { white-space: nowrap; text-fit: shrink; min-font-size: 10px; }");
+    UiStyleResolver.Resolve(root, [sheet]);
+
+    Check(label.ComputedStyle.WhiteSpace == "nowrap", "Shrink text unexpectedly wraps.");
+    Check(label.ComputedStyle.TextFit == "shrink", "Text fit style was not applied.");
+    Check(label.ComputedStyle.MinFontSizeLength == UiLength.Pixels(10), "Minimum font size was not parsed.");
+    Check(Math.Abs(UiTextFit.Shrink(20, 10, new System.Numerics.Vector2(200, 20), new Vecxy.Kernel.Rect(0, 0, 100, 20)) - 10) < 0.01f,
+        "Text was not reduced to the available width.");
+    Check(Math.Abs(UiTextFit.Shrink(20, 12, new System.Numerics.Vector2(400, 20), new Vecxy.Kernel.Rect(0, 0, 100, 20)) - 12) < 0.01f,
+        "Text fit ignored its minimum font size.");
+    root.ReleaseLayout();
 }
 
 static void KeyedCollectionRetainsAndOrdersNodes()

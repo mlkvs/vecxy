@@ -113,6 +113,7 @@ public sealed class UiComputedStyle
     public string TextAlign { get; set; } = "left";
     public string VerticalAlign { get; set; } = "top";
     public string WhiteSpace { get; set; } = "nowrap";
+    public string TextFit { get; set; } = "none";
     public string OverflowX { get; set; } = "visible";
     public string OverflowY { get; set; } = "visible";
     public string PointerEvents { get; set; } = "auto";
@@ -148,6 +149,8 @@ public sealed class UiComputedStyle
     public IReadOnlyList<UiResolvedBoxShadow> BoxShadows { get; set; } = [];
     public float FontSize { get; set; } = 16.0f;
     public UiLength FontSizeLength { get; set; } = UiLength.Ui(16.0f);
+    public float MinFontSize { get; set; } = 1.0f;
+    public UiLength MinFontSizeLength { get; set; } = UiLength.Pixels(1.0f);
     public string FontFamily { get; set; } = "Vecxy Fallback";
     public float Opacity { get; set; } = 1.0f;
     public int ZIndex { get; set; }
@@ -186,6 +189,9 @@ public sealed class UiComputedStyle
         style.FontFamily = parent.FontFamily;
         style.TextAlign = parent.TextAlign;
         style.WhiteSpace = parent.WhiteSpace;
+        style.TextFit = parent.TextFit;
+        style.MinFontSize = parent.MinFontSize;
+        style.MinFontSizeLength = parent.MinFontSizeLength;
         foreach (var (name, value) in parent.Variables)
             style.Variables[name] = value;
 
@@ -756,6 +762,7 @@ internal static class UiStyleResolver
             case "text-align": style.TextAlign = value.ToLowerInvariant(); break;
             case "vertical-align": style.VerticalAlign = value.ToLowerInvariant(); break;
             case "white-space": style.WhiteSpace = value.ToLowerInvariant(); break;
+            case "text-fit": style.TextFit = value.ToLowerInvariant(); break;
             case "place-content": ApplyPlaceContent(style, value); break;
             case "overflow": style.OverflowX = style.OverflowY = value.ToLowerInvariant(); break;
             case "overflow-x": style.OverflowX = value.ToLowerInvariant(); break;
@@ -808,6 +815,7 @@ internal static class UiStyleResolver
             case "border": ApplyBorder(style, value); break;
             case "box-shadow": style.BoxShadowDefinitions = ParseBoxShadows(value); break;
             case "font-size": SetLength(value, result => style.FontSizeLength = result); break;
+            case "min-font-size": SetLength(value, result => style.MinFontSizeLength = result); break;
             case "font-family":
                 style.FontFamily = value.Split(',', 2)[0].Trim(' ', '\'', '"');
                 break;

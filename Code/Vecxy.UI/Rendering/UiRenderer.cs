@@ -347,10 +347,27 @@ internal sealed class UiRenderer : IDisposable
                 var renderedColor = element.RenderColor;
                 var color = renderedColor with { W = renderedColor.W * opacity };
                 var textBounds = TextContentBounds(document, element, style, bounds, scale);
+                var fontSize = style.FontSize * scale;
+                var minimumFontSize = style.MinFontSize * scale;
+                var wrap = style.WhiteSpace is "normal" or "pre-wrap";
                 if (element.Font is { } font && document.ResolveFontTexture(element) is { } fontTexture)
-                    UiBitmapFont.Paint(this, element, font, fontTexture, element.Text, textBounds, style.FontSize * scale, color, clip, style.TextAlign, style.VerticalAlign, style.WhiteSpace is "normal" or "pre-wrap");
+                {
+                    if (style.TextFit == "shrink" && !wrap)
+                    {
+                        var measured = UiBitmapFont.Measure(element, font, element.Text, fontSize);
+                        fontSize = UiTextFit.Shrink(fontSize, minimumFontSize, measured, textBounds);
+                    }
+                    UiBitmapFont.Paint(this, element, font, fontTexture, element.Text, textBounds, fontSize, color, clip, style.TextAlign, style.VerticalAlign, wrap);
+                }
                 else
-                    UiFallbackFont.Paint(this, element, element.Text, textBounds, style.FontSize * scale, color, clip, style.TextAlign, style.VerticalAlign, style.WhiteSpace is "normal" or "pre-wrap");
+                {
+                    if (style.TextFit == "shrink" && !wrap)
+                    {
+                        var measured = UiFallbackFont.Measure(element, element.Text, fontSize);
+                        fontSize = UiTextFit.Shrink(fontSize, minimumFontSize, measured, textBounds);
+                    }
+                    UiFallbackFont.Paint(this, element, element.Text, textBounds, fontSize, color, clip, style.TextAlign, style.VerticalAlign, wrap);
+                }
                 EndPaintCapture(elementCache.Text, textSignature, capture);
             }
         }

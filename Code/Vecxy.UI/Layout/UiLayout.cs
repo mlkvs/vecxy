@@ -45,6 +45,10 @@ internal static class UiLayout
         if (style.Display == "none")
             return;
         style.FontSize = Math.Max(1.0f, ResolvePoints(style.FontSizeLength, viewportWidth, viewportHeight));
+        style.MinFontSize = Math.Clamp(
+            ResolvePoints(style.MinFontSizeLength, viewportWidth, viewportHeight),
+            1.0f,
+            style.FontSize);
         style.BorderWidth = Math.Max(0.0f, ResolvePoints(style.BorderWidthLength, viewportWidth, viewportHeight));
         if (!enableShadows || style.BoxShadowDefinitions.Count == 0)
         {

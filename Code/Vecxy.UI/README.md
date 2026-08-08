@@ -171,11 +171,13 @@ supported.
   and percentage sizes, `fr`, `auto`, `minmax()`, and numeric `repeat()`.
 - Paint and behavior: `color`, `background`, `background-color`,
   `background-image`, `background-size`, `background-position`, `border`,
-  `border-color`, `border-width`, `font-family`, `font-size`, `opacity`,
+  `border-color`, `border-width`, `font-family`, `font-size`, `min-font-size`, `opacity`,
   `overflow`, `overflow-x`, `overflow-y`, `visibility`, `z-index`, and
   `pointer-events`. Images support `fill`, `contain`, and `cover`.
 - Text supports `white-space: normal` for measured word wrapping. Wrapped lines
   use the same layout in Yoga measurement and rendering.
+- Single-line text supports `text-fit: shrink`; when it exceeds its content box,
+  the renderer reduces the font down to `min-font-size` instead of wrapping it.
 - Scrolling: nested clipping, mouse wheel input, per-axis scroll offsets,
   mouse/touch drag with inertial deceleration, programmatic `ScrollTo`/`ScrollBy`,
   scroll events, and rendered scrollbars with `scrollbar-width` and
