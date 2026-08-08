@@ -1,5 +1,6 @@
 using System.Numerics;
 using Vecxy.Assets;
+using Vecxy.Kernel;
 using Vecxy.Scene;
 
 namespace Vecxy.Rendering;
@@ -69,6 +70,12 @@ public sealed class SpriteRenderer : AComponent, ILocalBoundsProvider
 
     public bool FlipY { get; set; }
 
+    /// <summary>
+    /// Optional source rectangle in texture pixels, measured from the top-left.
+    /// Use this to display one frame from a sprite sheet.
+    /// </summary>
+    public Rect? SourceRect { get; set; }
+
     public float AlphaCutoff
     {
         get => _alphaCutoff;
@@ -93,8 +100,25 @@ public sealed class SpriteRenderer : AComponent, ILocalBoundsProvider
         get
         {
             var asset = Texture;
-            return new Vector2(asset.Width, asset.Height) / _pixelsPerUnit;
+            var size = SourceRect is { } source
+                ? new Vector2(source.Width, source.Height)
+                : new Vector2(asset.Width, asset.Height);
+            return size / _pixelsPerUnit;
         }
+    }
+
+    public void SetFrame(int frameIndex, int frameWidth, int frameHeight)
+    {
+        if (frameIndex < 0)
+            throw new ArgumentOutOfRangeException(nameof(frameIndex));
+        if (frameWidth <= 0 || frameHeight <= 0)
+            throw new ArgumentOutOfRangeException(nameof(frameWidth));
+        var columns = Math.Max(1, Texture.Width / frameWidth);
+        SourceRect = new Rect(
+            frameIndex % columns * frameWidth,
+            frameIndex / columns * frameHeight,
+            frameWidth,
+            frameHeight);
     }
 
     public Vector3 LocalBoundsMin

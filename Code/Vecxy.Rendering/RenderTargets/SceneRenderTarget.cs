@@ -1,20 +1,22 @@
 using Silk.NET.OpenGL;
+using Vecxy.Assets;
 
 namespace Vecxy.Rendering;
 
-internal sealed class SceneRenderTarget : IRenderTarget, IDisposable
+public sealed class SceneRenderTarget : IRenderTarget, IDisposable
 {
     private readonly GraphicsDevice _device;
     private uint _framebuffer;
-    private uint _colorTexture;
+    private Texture? _colorTexture;
     private uint _depthRenderbuffer;
     private bool _disposed;
 
     public int Width { get; private set; }
     public int Height { get; private set; }
-    public uint ColorTextureHandle => _colorTexture;
+    public Texture ColorTexture => _colorTexture ??
+        throw new InvalidOperationException("Render target is not initialized.");
 
-    public SceneRenderTarget(GraphicsDevice device)
+    internal SceneRenderTarget(GraphicsDevice device)
     {
         _device = device;
     }
@@ -51,10 +53,7 @@ internal sealed class SceneRenderTarget : IRenderTarget, IDisposable
     public void BindColorTexture(uint slot)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
-
-        var gl = _device.GL;
-        gl.ActiveTexture((TextureUnit)((uint)TextureUnit.Texture0 + slot));
-        gl.BindTexture(TextureTarget.Texture2D, _colorTexture);
+        ColorTexture.Bind(slot, TextureSamplerState.PointClamp);
     }
 
     public void Present()
@@ -68,12 +67,12 @@ internal sealed class SceneRenderTarget : IRenderTarget, IDisposable
         var gl = _device.GL;
 
         _framebuffer = gl.GenFramebuffer();
-        _colorTexture = gl.GenTexture();
+        var colorHandle = gl.GenTexture();
         _depthRenderbuffer = gl.GenRenderbuffer();
 
         gl.BindFramebuffer(FramebufferTarget.Framebuffer, _framebuffer);
 
-        gl.BindTexture(TextureTarget.Texture2D, _colorTexture);
+        gl.BindTexture(TextureTarget.Texture2D, colorHandle);
         gl.TexImage2D(
             TextureTarget.Texture2D,
             0,
@@ -104,7 +103,7 @@ internal sealed class SceneRenderTarget : IRenderTarget, IDisposable
             FramebufferTarget.Framebuffer,
             FramebufferAttachment.ColorAttachment0,
             TextureTarget.Texture2D,
-            _colorTexture,
+            colorHandle,
             0);
 
         gl.BindRenderbuffer(RenderbufferTarget.Renderbuffer, _depthRenderbuffer);
@@ -127,6 +126,8 @@ internal sealed class SceneRenderTarget : IRenderTarget, IDisposable
         if (status != GLEnum.FramebufferComplete)
             throw new InvalidOperationException($"Scene framebuffer is incomplete: {status}.");
 
+        _colorTexture = new Texture(_device, colorHandle);
+
         Width = width;
         Height = height;
     }
@@ -141,11 +142,8 @@ internal sealed class SceneRenderTarget : IRenderTarget, IDisposable
             _depthRenderbuffer = 0;
         }
 
-        if (_colorTexture != 0)
-        {
-            gl.DeleteTexture(_colorTexture);
-            _colorTexture = 0;
-        }
+        _colorTexture?.Dispose();
+        _colorTexture = null;
 
         if (_framebuffer != 0)
         {

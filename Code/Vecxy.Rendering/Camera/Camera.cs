@@ -112,6 +112,8 @@ public sealed class Camera : AComponent
 
     public int Priority { get; set; }
 
+    public SceneRenderTarget? TargetTexture { get; set; }
+
     public Matrix4x4 ViewMatrix
     {
         get

@@ -26,6 +26,7 @@ uniform vec4 uColor;
 uniform float uAlphaCutoff;
 uniform int uFlipX;
 uniform int uFlipY;
+uniform vec4 uUvRect;
 
 out vec4 oColor;
 
@@ -33,11 +34,12 @@ void main()
 {
     // TextureAsset stores its first source row at v=0. The shared quad uses
     // the conventional OpenGL bottom-to-top UV direction, hence the Y flip.
-    vec2 uv = vec2(vTexCoord.x, 1.0 - vTexCoord.y);
+    vec2 frameUv = vec2(vTexCoord.x, 1.0 - vTexCoord.y);
     if (uFlipX != 0)
-        uv.x = 1.0 - uv.x;
+        frameUv.x = 1.0 - frameUv.x;
     if (uFlipY != 0)
-        uv.y = 1.0 - uv.y;
+        frameUv.y = 1.0 - frameUv.y;
+    vec2 uv = mix(uUvRect.xy, uUvRect.zw, frameUv);
 
     vec4 color = texture(uTexture, uv) * uColor;
     if (color.a <= uAlphaCutoff)

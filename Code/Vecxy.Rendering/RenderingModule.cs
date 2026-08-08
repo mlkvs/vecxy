@@ -20,6 +20,8 @@ public interface IRenderer
     GameView CreateGameView(
         IRenderTarget? target = null);
 
+    SceneRenderTarget CreateRenderTexture(int width, int height);
+
     void DestroyGameView(GameView view);
     void SetSceneViewportSize(int width, int height);
     void SetSceneViewportScreenRect(Rect? screenRect);
@@ -188,7 +190,7 @@ public sealed class RenderingModule(
     public nint SceneTextureId =>
         _presentedSceneTarget is null
             ? 0
-            : (nint)_presentedSceneTarget.ColorTextureHandle;
+            : (nint)_presentedSceneTarget.ColorTexture.Handle;
     public int GameOutputWidth => _sceneViewportWidth > 0
         ? _sceneViewportWidth
         : Math.Max(1, backbuffer.Width);
@@ -214,9 +216,8 @@ public sealed class RenderingModule(
 
     public void OnUpdate(float deltaTime)
     {
-        var activeViews =
-            _views.Count(view => view.Enabled) +
-            (FindActiveCamera() is null ? 0 : 1);
+        var activeViews = _views.Count(view => view.Enabled) +
+                          FindActiveCameras().Count;
 
         statistics.BeginFrame(
             deltaTime,
@@ -250,6 +251,8 @@ public sealed class RenderingModule(
         var renderedGameOutputView = RenderSubmittedViews(
             presentedTargets,
             out var gameOutputClearColor);
+
+        RenderOffscreenCameras(presentedTargets);
 
         var renderedScene =
             ScenePresentationEnabled && RenderActiveScene();
@@ -317,6 +320,13 @@ public sealed class RenderingModule(
             usesGameOutputTarget);
         _views.Add(view);
         return view;
+    }
+
+    public SceneRenderTarget CreateRenderTexture(int width, int height)
+    {
+        var target = new SceneRenderTarget(device);
+        target.EnsureSize(width, height);
+        return target;
     }
 
     public void DestroyGameView(GameView view)
@@ -956,6 +966,71 @@ public sealed class RenderingModule(
         return true;
     }
 
+    private void RenderOffscreenCameras(ISet<IRenderTarget> presentedTargets)
+    {
+        var scene = scenes.ActiveScene;
+        if (scene is null)
+            return;
+
+        foreach (var camera in FindActiveCameras()
+                     .Where(camera => camera.TargetTexture is not null)
+                     .OrderBy(camera => camera.Priority))
+        {
+            var target = camera.TargetTexture!;
+            RenderCameraToTarget(scene, camera, target);
+            presentedTargets.Add(target);
+        }
+    }
+
+    private void RenderCameraToTarget(
+        SceneInstance scene,
+        Camera camera,
+        SceneRenderTarget target)
+    {
+        target.Bind(device);
+        device.GL.Enable(EnableCap.DepthTest);
+        device.GL.DepthMask(true);
+        device.GL.ClearColor(
+            camera.ClearColor.X,
+            camera.ClearColor.Y,
+            camera.ClearColor.Z,
+            camera.ClearColor.W);
+        device.GL.Clear(
+            ClearBufferMask.ColorBufferBit |
+            ClearBufferMask.DepthBufferBit);
+
+        var aspectRatio = Math.Max(1, target.Width) /
+                          (float)Math.Max(1, target.Height);
+        var viewProjection = camera.ViewMatrix *
+                             camera.GetProjectionMatrix(aspectRatio);
+        var lighting = CollectLighting(scene);
+
+        DrawSprites(scene, viewProjection);
+
+        var renderers = scene.Objects
+            .Where(sceneObject => sceneObject.IsActive)
+            .Select(sceneObject => sceneObject.GetComponent<MeshRenderer>())
+            .Where(renderer => renderer is
+            {
+                IsActive: true,
+                IsConfigured: true
+            })
+            .Select(renderer => renderer!)
+            .ToArray();
+
+        foreach (var renderer in renderers
+                     .Where(renderer => GetEffectiveRenderPhase(renderer) != ERenderPhase.Transparent)
+                     .OrderBy(GetEffectiveRenderPhase))
+            Draw(renderer, camera, viewProjection, lighting);
+
+        foreach (var renderer in renderers
+                     .Where(renderer => GetEffectiveRenderPhase(renderer) == ERenderPhase.Transparent)
+                     .OrderByDescending(renderer => Vector3.DistanceSquared(
+                         renderer.Transform.WorldPosition,
+                         camera.Transform.WorldPosition)))
+            Draw(renderer, camera, viewProjection, lighting);
+    }
+
     private void DrawSkybox(
         Camera camera,
         SceneSkyboxSettings settings)
@@ -1291,6 +1366,17 @@ public sealed class RenderingModule(
                 shader.Set("uAlphaCutoff", renderer.AlphaCutoff);
                 shader.Set("uFlipX", renderer.FlipX ? 1 : 0);
                 shader.Set("uFlipY", renderer.FlipY ? 1 : 0);
+                var texture = renderer.Texture;
+                var source = renderer.SourceRect ?? new Rect(
+                    0,
+                    0,
+                    texture.Width,
+                    texture.Height);
+                shader.Set("uUvRect", new Vector4(
+                    source.X / texture.Width,
+                    source.Y / texture.Height,
+                    source.Right / texture.Width,
+                    source.Bottom / texture.Height));
                 shader.Set("uTransform", model * viewProjection);
                 _fullscreenQuad.Draw();
                 statistics.RecordDraw();
@@ -1543,10 +1629,24 @@ public sealed class RenderingModule(
             .Select(sceneObject =>
                 sceneObject.GetComponent<Camera>())
             .Where(camera =>
-                camera is { IsActive: true })
+                camera is { IsActive: true, TargetTexture: null })
             .OrderByDescending(camera =>
                 camera!.Priority)
             .FirstOrDefault();
+    }
+
+    private IReadOnlyList<Camera> FindActiveCameras()
+    {
+        var scene = scenes.ActiveScene;
+        if (scene is null)
+            return [];
+
+        return scene.Objects
+            .Where(sceneObject => sceneObject.IsActive)
+            .Select(sceneObject => sceneObject.GetComponent<Camera>())
+            .Where(camera => camera is { IsActive: true })
+            .Select(camera => camera!)
+            .ToArray();
     }
 
     private PostProcessing? FindActivePostProcessing()

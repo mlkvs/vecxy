@@ -10,6 +10,8 @@ public sealed class Texture : IDisposable
     private TextureSamplerState? _sampler;
     private bool _disposed;
 
+    internal uint Handle => _handle;
+
     internal unsafe Texture(GraphicsDevice device, TextureAsset asset)
         : this(
             device,
@@ -46,6 +48,14 @@ public sealed class Texture : IDisposable
 
         ApplySampler(TextureSamplerState.Default);
         gl.BindTexture(TextureTarget.Texture2D, 0);
+    }
+
+    internal Texture(GraphicsDevice device, uint handle)
+    {
+        _device = device;
+        _handle = handle != 0
+            ? handle
+            : throw new ArgumentOutOfRangeException(nameof(handle));
     }
 
     public void Bind(uint slot)
