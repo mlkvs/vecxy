@@ -56,6 +56,7 @@ public sealed class UiDocument : IDisposable
     internal int StyleVersion => Root.StyleVersion;
     internal int LayoutVersion => Root.LayoutVersion;
     internal int VisualVersion => Root.VisualVersion;
+    internal int HitTestVersion => Root.HitTestVersion;
     internal long StylePasses => _stylePasses;
     internal long LayoutPasses => _layoutPasses;
     internal long AnimationTreeScans => _animationTreeScans;
@@ -608,7 +609,7 @@ public sealed class UiDocument : IDisposable
         }
 
         _styleVersions = _styleAssets.Select(style => style.Version).ToArray();
-        UiStyleResolver.Resolve(Root, _styleSheets);
+        UiStyleResolver.Resolve(Root, _styleSheets, forceFullResolution: true);
         unchecked { _styleResolutionVersion++; }
         Root.InvalidateVisual();
         ResolveFonts();

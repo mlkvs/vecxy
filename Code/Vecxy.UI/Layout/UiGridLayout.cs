@@ -200,7 +200,11 @@ internal static class UiGridLayout
                     .Max(),
                 _ => 0.0f
             };
-            result[index] = Math.Max(result[index], track.Minimum);
+            // A fractional minmax() track participates in the distribution with
+            // its full fraction. Its minimum is a lower bound, not a fixed part
+            // that must be subtracted before fractions are calculated.
+            if (track.Kind != ETrack.Fr)
+                result[index] = Math.Max(result[index], track.Minimum);
             if (track.Kind == ETrack.Fr)
                 fractionTotal += Math.Max(0.0f, track.Value);
         }

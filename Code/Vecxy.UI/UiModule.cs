@@ -321,6 +321,7 @@ public sealed class UiModule :
         {
             signature.Add(document.IsVisible);
             signature.Add(document.RenderVersion);
+            signature.Add(document.HitTestVersion);
         }
         var currentSignature = signature.ToHashCode();
         if (outputPoint == _cachedHitPoint && currentSignature == _cachedHitSignature)

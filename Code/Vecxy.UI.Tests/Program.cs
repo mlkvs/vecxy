@@ -1,8 +1,13 @@
 using Facebook.Yoga;
+using Vecxy.Kernel;
 using Vecxy.UI;
 
 StyleInvalidationIsClassified();
+IncrementalStyleResolutionSkipsUnchangedBranches();
+HitTestBoundsDoNotInvalidateRendering();
+FractionalGridTracksFillAvailableWidth();
 ShrinkTextStyleAndSizingAreApplied();
+WrappedTextKeepsWordsIntact();
 KeyedCollectionRetainsAndOrdersNodes();
 DetachedSubtreeCanBeMountedAgain();
 Console.WriteLine("All Vecxy.UI checks passed.");
@@ -30,6 +35,81 @@ static void StyleInvalidationIsClassified()
     panel.ReleaseLayout();
 }
 
+static void IncrementalStyleResolutionSkipsUnchangedBranches()
+{
+    var config = NewConfig();
+    var root = new UiPanel(config, new Dictionary<string, string> { ["class"] = "screen" });
+    var changingBranch = new UiPanel(config, new Dictionary<string, string> { ["class"] = "branch" });
+    var stableBranch = new UiPanel(config, new Dictionary<string, string> { ["class"] = "branch" });
+    var changingChild = new UiText(config, new Dictionary<string, string>(), "changing");
+    var stableChild = new UiText(config, new Dictionary<string, string>(), "stable");
+    changingBranch.Add(changingChild);
+    stableBranch.Add(stableChild);
+    root.Add(changingBranch);
+    root.Add(stableBranch);
+    var sheet = UiStyleSheet.Parse(".screen { color: #111111; } .branch { position: absolute; } .branch text { color: #222222; }");
+    UiStyleResolver.Resolve(root, [sheet], forceFullResolution: true);
+
+    var rootComputedVersion = root.ComputedStyleVersion;
+    var stableBranchComputedVersion = stableBranch.ComputedStyleVersion;
+    var stableChildComputedVersion = stableChild.ComputedStyleVersion;
+    changingBranch.Style.Set("left", "12px");
+    UiStyleResolver.Resolve(root, [sheet]);
+
+    Check(root.ComputedStyleVersion == rootComputedVersion,
+        "A leaf inline-style change recomputed the document root.");
+    Check(stableBranch.ComputedStyleVersion == stableBranchComputedVersion &&
+          stableChild.ComputedStyleVersion == stableChildComputedVersion,
+        "A leaf inline-style change recomputed an unchanged sibling branch.");
+    Check(changingBranch.ComputedStyle.Inset.Left == UiLength.Pixels(12),
+        "Incremental style resolution did not update the changed branch.");
+
+    var treeStyleVersion = root.StyleVersion;
+    changingBranch.Style.Set("left", "12px");
+    Check(root.StyleVersion == treeStyleVersion,
+        "Writing an unchanged inline style invalidated the document.");
+    root.ReleaseLayout();
+}
+
+static void HitTestBoundsDoNotInvalidateRendering()
+{
+    var config = NewConfig();
+    var button = new UiButton(config, new Dictionary<string, string>());
+    var styleVersion = button.StyleVersion;
+    var layoutVersion = button.LayoutVersion;
+    var visualVersion = button.VisualVersion;
+
+    button.HitTestBounds = new Rect(20, 30, 40, 50);
+
+    Check(button.StyleVersion == styleVersion &&
+          button.LayoutVersion == layoutVersion &&
+          button.VisualVersion == visualVersion,
+        "Changing a hit-test-only rectangle invalidated rendered UI state.");
+    Check(ReferenceEquals(button.HitTest(new System.Numerics.Vector2(30, 40)), button),
+        "The hit-test-only rectangle was not used for pointer targeting.");
+    button.ReleaseLayout();
+}
+
+static void FractionalGridTracksFillAvailableWidth()
+{
+    var config = NewConfig();
+    var root = new UiPanel(config, new Dictionary<string, string> { ["class"] = "grid" });
+    for (var index = 0; index < 4; index++)
+        root.Add(new UiPanel(config, new Dictionary<string, string>()));
+    var sheet = UiStyleSheet.Parse(
+        ".grid { display: grid; grid-template-columns: repeat(4, minmax(96px, 1fr)); " +
+        "grid-auto-rows: 100px; gap: 12px; }");
+    UiStyleResolver.Resolve(root, [sheet], forceFullResolution: true);
+
+    UiLayout.Calculate(root, 500, 100, enableShadows: false);
+
+    Check(MathF.Abs(root.Children[0].Bounds.Width - 116f) < 0.01f,
+        "Fractional minmax grid columns did not consume the available width.");
+    Check(MathF.Abs(root.Children[^1].Bounds.Right - root.Bounds.Right) < 0.01f,
+        "A fractional grid left unused space at the right edge.");
+    root.ReleaseLayout();
+}
+
 static void ShrinkTextStyleAndSizingAreApplied()
 {
     var config = NewConfig();
@@ -47,6 +127,14 @@ static void ShrinkTextStyleAndSizingAreApplied()
     Check(Math.Abs(UiTextFit.Shrink(20, 12, new System.Numerics.Vector2(400, 20), new Vecxy.Kernel.Rect(0, 0, 100, 20)) - 12) < 0.01f,
         "Text fit ignored its minimum font size.");
     root.ReleaseLayout();
+}
+
+static void WrappedTextKeepsWordsIntact()
+{
+    var lines = UiTextWrap.Lines("Нефритовый лоток", 8, line => line.Length);
+
+    Check(lines.SequenceEqual(["Нефритовый", "лоток"]),
+        "Word wrapping split a lexical word into character fragments.");
 }
 
 static void KeyedCollectionRetainsAndOrdersNodes()

@@ -38,7 +38,9 @@ public class UiElement
     internal UiAnimationRuntime AnimationRuntime { get; } = new();
     internal UiTextLayoutCache TextLayoutCache { get; } = new();
     internal int StyleVersion => _styleVersion;
+    internal int LocalStyleVersion => _localStyleVersion;
     internal int PseudoVersion => _pseudoVersion;
+    internal int LocalPseudoVersion => _localPseudoVersion;
     internal int LayoutVersion => _layoutVersion;
     internal int VisualVersion => _visualVersion;
     internal int LocalVisualVersion => _localVisualVersion;
@@ -46,6 +48,7 @@ public class UiElement
     internal int BoundsVersion => _boundsVersion;
     internal int CompositeVersion => _compositeVersion;
     internal int ScrollVersion => _scrollVersion;
+    internal int HitTestVersion => _hitTestVersion;
     internal Vector4 RenderColor => AnimationRuntime.Color;
     internal Vector4 RenderBackgroundColor => AnimationRuntime.BackgroundColor;
     internal float RenderOpacity => AnimationRuntime.Opacity;
@@ -71,6 +74,23 @@ public class UiElement
                 return;
             _bounds = value;
             unchecked { _boundsVersion++; }
+        }
+    }
+    /// <summary>
+    /// Optional document-space rectangle used only for pointer hit testing.
+    /// Updating it does not invalidate style, layout, or paint, so moving
+    /// world-space interaction targets can follow a sprite every frame without
+    /// rebuilding the UI document.
+    /// </summary>
+    public Rect? HitTestBounds
+    {
+        get => _hitTestBounds;
+        set
+        {
+            if (_hitTestBounds == value)
+                return;
+            _hitTestBounds = value;
+            InvalidateHitTest();
         }
     }
     public Vector2 ScrollOffset { get; private set; }
@@ -201,7 +221,9 @@ public class UiElement
     private float _progress;
     private Vector2 _intrinsicSize;
     private int _styleVersion;
+    private int _localStyleVersion;
     private int _pseudoVersion;
+    private int _localPseudoVersion;
     private int _layoutVersion;
     private int _visualVersion;
     private int _localVisualVersion;
@@ -209,7 +231,9 @@ public class UiElement
     private int _boundsVersion;
     private int _compositeVersion;
     private int _scrollVersion;
+    private int _hitTestVersion;
     private Rect _bounds;
+    private Rect? _hitTestBounds;
     private UiComputedStyle _computedStyle = new();
     private bool _isHovered;
     private bool _isActive;
@@ -501,16 +525,34 @@ public class UiElement
         Parent?.InvalidateScroll();
     }
 
+    private void InvalidateHitTest()
+    {
+        unchecked { _hitTestVersion++; }
+        Parent?.InvalidateHitTest();
+    }
+
     private void InvalidateStyle()
     {
+        unchecked { _localStyleVersion++; }
+        PropagateStyleInvalidation();
+    }
+
+    private void PropagateStyleInvalidation()
+    {
         unchecked { _styleVersion++; }
-        Parent?.InvalidateStyle();
+        Parent?.PropagateStyleInvalidation();
     }
 
     private void InvalidatePseudoState()
     {
+        unchecked { _localPseudoVersion++; }
+        PropagatePseudoInvalidation();
+    }
+
+    private void PropagatePseudoInvalidation()
+    {
         unchecked { _pseudoVersion++; }
-        Parent?.InvalidatePseudoState();
+        Parent?.PropagatePseudoInvalidation();
     }
 
     private void SetPseudoState(ref bool field, bool value)
@@ -538,7 +580,7 @@ public class UiElement
         }
         if (propertyName is
             "color" or "background-color" or "background-image" or
-            "background-size" or "background-position" or "border-color" or
+            "background-size" or "background-position" or "background-slice" or "border-color" or
             "border-radius" or "box-shadow" or "visibility" or "object-fit" or
             "scrollbar-color" or "scrollbar-track-color" or "z-index")
         {
@@ -570,11 +612,12 @@ public class UiElement
         Vector2 translation,
         Matrix3x2 parentTransform)
     {
+        var layoutBounds = HitTestBounds ?? Bounds;
         var visualBounds = new Rect(
-            Bounds.X + translation.X,
-            Bounds.Y + translation.Y,
-            Bounds.Width,
-            Bounds.Height);
+            layoutBounds.X + translation.X,
+            layoutBounds.Y + translation.Y,
+            layoutBounds.Width,
+            layoutBounds.Height);
         if (ComputedStyle.Display == "none" ||
             ComputedStyle.Visibility == "hidden")
             return null;

@@ -226,13 +226,14 @@ internal sealed class UiRenderer : IDisposable
         UiClipState? roundedClip)
     {
         var style = element.ComputedStyle;
-        var bounds = Scale(
+        var fullBounds = Scale(
             new Rect(
                 element.Bounds.X + translation.X,
                 element.Bounds.Y + translation.Y,
                 element.Bounds.Width,
                 element.Bounds.Height),
             scale);
+        var bounds = fullBounds;
         if (element.TagName == "progress")
             bounds = bounds with { Width = bounds.Width * element.Progress };
         if (style.Display == "none" || style.Visibility == "hidden" ||
@@ -280,29 +281,64 @@ internal sealed class UiRenderer : IDisposable
                     AddRoundedQuad(bounds, background, null, clip, style.BorderRadius * scale);
             }
 
+            var renderedRadialImage = false;
             var image = document.ResolveImage(element);
             if (image is { } resolvedImage)
             {
                 _imageElements++;
-                var (imageBounds, imageUv) = FitImage(
-                    bounds,
-                    resolvedImage.Uv,
-                    resolvedImage.Size,
-                    element.TagName == "image" ? style.ObjectFit : style.BackgroundSize,
-                    element.TagName == "image" ? "center" : style.BackgroundPosition);
-                AddRoundedTextured(
-                    imageBounds,
-                    Vector4.One with { W = opacity },
-                    resolvedImage.Texture,
-                    imageUv,
-                    clip,
-                    style.BorderRadius * scale);
+                if (isRadialProgress)
+                {
+                    PaintRadialImage(element, bounds, resolvedImage, opacity, clip);
+                    renderedRadialImage = true;
+                }
+                else
+                {
+                var backgroundSlice = element.TagName == "image"
+                    ? 0.0f
+                    : UiLayout.ResolvePoints(
+                        style.BackgroundSlice,
+                        resolvedImage.Size.X,
+                        resolvedImage.Size.Y);
+                if (backgroundSlice > 0.0f)
+                {
+                    AddNineSlice(
+                        bounds,
+                        Vector4.One with { W = opacity },
+                        resolvedImage.Texture,
+                        resolvedImage.Uv,
+                        Math.Min(resolvedImage.Size.X, resolvedImage.Size.Y),
+                        backgroundSlice,
+                        backgroundSlice * scale,
+                        clip);
+                }
+                else
+                {
+                    var (imageBounds, imageUv) = element.TagName == "progress"
+                        ? (bounds, resolvedImage.Uv with
+                        {
+                            Z = float.Lerp(resolvedImage.Uv.X, resolvedImage.Uv.Z, element.Progress)
+                        })
+                        : FitImage(
+                            bounds,
+                            resolvedImage.Uv,
+                            resolvedImage.Size,
+                            element.TagName == "image" ? style.ObjectFit : style.BackgroundSize,
+                            element.TagName == "image" ? "center" : style.BackgroundPosition);
+                    AddRoundedTextured(
+                        imageBounds,
+                        Vector4.One with { W = opacity },
+                        resolvedImage.Texture,
+                        imageUv,
+                        clip,
+                        style.BorderRadius * scale);
+                }
+                }
             }
 
             if (_shadowsEnabled)
                 PaintBoxShadows(style, bounds, opacity, scale, clip, true);
 
-            if (isRadialProgress)
+            if (isRadialProgress && !renderedRadialImage)
                 PaintRadialProgress(element, style, bounds, opacity, scale, clip);
             else if (style.BorderWidth > 0.0f && style.BorderColor.W > 0.001f)
                 AddBorder(bounds, style.BorderWidth * scale, style.BorderRadius * scale, style.BorderColor with { W = style.BorderColor.W * opacity }, clip);
@@ -352,18 +388,27 @@ internal sealed class UiRenderer : IDisposable
                 var wrap = style.WhiteSpace is "normal" or "pre-wrap";
                 if (element.Font is { } font && document.ResolveFontTexture(element) is { } fontTexture)
                 {
-                    if (style.TextFit == "shrink" && !wrap)
+                    if (style.TextFit == "shrink")
                     {
-                        var measured = UiBitmapFont.Measure(element, font, element.Text, fontSize);
+                        var measured = UiBitmapFont.Measure(
+                            element,
+                            font,
+                            element.Text,
+                            fontSize,
+                            wrap ? textBounds.Width : float.PositiveInfinity);
                         fontSize = UiTextFit.Shrink(fontSize, minimumFontSize, measured, textBounds);
                     }
                     UiBitmapFont.Paint(this, element, font, fontTexture, element.Text, textBounds, fontSize, color, clip, style.TextAlign, style.VerticalAlign, wrap);
                 }
                 else
                 {
-                    if (style.TextFit == "shrink" && !wrap)
+                    if (style.TextFit == "shrink")
                     {
-                        var measured = UiFallbackFont.Measure(element, element.Text, fontSize);
+                        var measured = UiFallbackFont.Measure(
+                            element,
+                            element.Text,
+                            fontSize,
+                            wrap ? textBounds.Width : float.PositiveInfinity);
                         fontSize = UiTextFit.Shrink(fontSize, minimumFontSize, measured, textBounds);
                     }
                     UiFallbackFont.Paint(this, element, element.Text, textBounds, fontSize, color, clip, style.TextAlign, style.VerticalAlign, wrap);
@@ -702,6 +747,57 @@ internal sealed class UiRenderer : IDisposable
                 progress,
                 clip);
         }
+    }
+
+    private void PaintRadialImage(
+        UiElement element,
+        Rect bounds,
+        UiResolvedImage image,
+        float opacity,
+        Rect clip)
+    {
+        var amount = Math.Clamp(element.Progress, 0.0f, 1.0f);
+        if (amount <= 0.001f)
+            return;
+
+        var (imageBounds, uv) = FitImage(bounds, image.Uv, image.Size, "contain", "center");
+        var center = new Vector2(
+            imageBounds.X + imageBounds.Width * 0.5f,
+            imageBounds.Y + imageBounds.Height * 0.5f);
+        var radius = Math.Min(imageBounds.Width, imageBounds.Height) * 0.5f;
+        var clockwiseDepletion = element.Attributes.TryGetValue(
+            "clockwise-depletion",
+            out var depletionValue) &&
+            !depletionValue.Equals("false", StringComparison.OrdinalIgnoreCase);
+        var start = clockwiseDepletion
+            ? -MathF.PI * 0.5f + MathF.Tau * (1.0f - amount)
+            : -MathF.PI * 0.5f;
+        var end = clockwiseDepletion
+            ? MathF.PI * 1.5f
+            : -MathF.PI * 0.5f + MathF.Tau * amount;
+        var segments = Math.Max(1, (int)MathF.Ceiling(64.0f * amount));
+        var color = Vector4.One with { W = opacity };
+        var firstVertex = (uint)(_vertices.Count / VertexStride);
+        AddMappedVertex(center.X, center.Y, imageBounds, uv, color);
+        for (var index = 0; index <= segments; index++)
+        {
+            var angle = float.Lerp(start, end, index / (float)segments);
+            AddMappedVertex(
+                center.X + MathF.Cos(angle) * radius,
+                center.Y + MathF.Sin(angle) * radius,
+                imageBounds,
+                uv,
+                color);
+        }
+
+        var indexStart = _indices.Count;
+        for (var index = 0; index < segments; index++)
+        {
+            _indices.Add(firstVertex);
+            _indices.Add(firstVertex + (uint)index + 1);
+            _indices.Add(firstVertex + (uint)index + 2);
+        }
+        AddBatch(image.Texture, TextureSamplerState.LinearClamp, clip, indexStart, segments * 3);
     }
 
     private void AddArcRing(

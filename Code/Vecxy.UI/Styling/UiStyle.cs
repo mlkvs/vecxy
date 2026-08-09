@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Numerics;
+using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.RegularExpressions;
 
@@ -157,6 +158,7 @@ public sealed class UiComputedStyle
     public string? BackgroundImage { get; set; }
     public string BackgroundSize { get; set; } = "fill";
     public string BackgroundPosition { get; set; } = "center";
+    public UiLength BackgroundSlice { get; set; } = UiLength.Pixels(0.0f);
     internal UiTransformDefinition TransformDefinition { get; set; } = UiTransformDefinition.Identity;
     public UiTransform Transform { get; set; } = UiTransform.Identity;
     public Vector2 TransformOrigin { get; set; } = new(0.5f);
@@ -662,67 +664,105 @@ internal sealed class UiSelector
 
 internal static class UiStyleResolver
 {
+    private static readonly ConditionalWeakTable<UiElement, ResolutionState> ResolutionStates = new();
     private static readonly Regex VariablePattern = new(
         @"var\(\s*(--[A-Za-z0-9_-]+)\s*(?:,\s*([^\)]+))?\)",
         RegexOptions.Compiled);
 
-    public static void Resolve(UiElement root, IReadOnlyList<UiStyleSheet> sheets)
+    public static void Resolve(
+        UiElement root,
+        IReadOnlyList<UiStyleSheet> sheets,
+        bool forceFullResolution = false)
     {
-        ResolveElement(root, null, sheets);
+        ResolveElement(root, null, sheets, forceFullResolution);
     }
 
     private static void ResolveElement(
         UiElement element,
         UiComputedStyle? parentStyle,
-        IReadOnlyList<UiStyleSheet> sheets)
+        IReadOnlyList<UiStyleSheet> sheets,
+        bool forceResolution)
     {
-        var style = UiComputedStyle.Inherit(parentStyle);
-        var declarations = new Dictionary<string, Winner>(StringComparer.OrdinalIgnoreCase);
+        var state = ResolutionStates.GetOrCreateValue(element);
+        var parentComputedStyleVersion = element.Parent?.ComputedStyleVersion ?? -1;
+        var localStateChanged =
+            state.LocalStyleVersion != element.LocalStyleVersion ||
+            state.LocalPseudoVersion != element.LocalPseudoVersion ||
+            state.ParentComputedStyleVersion != parentComputedStyleVersion;
+        var subtreeChanged =
+            state.SubtreeStyleVersion != element.StyleVersion ||
+            state.SubtreePseudoVersion != element.PseudoVersion;
 
-        if (element.Attributes.TryGetValue("hidden", out var hidden) &&
-            !hidden.Equals("false", StringComparison.OrdinalIgnoreCase))
-        {
-            declarations["display"] = new Winner(1000, int.MaxValue - 1, "none");
-        }
+        if (!forceResolution && !localStateChanged && !subtreeChanged)
+            return;
 
-        foreach (var sheet in sheets)
+        var resolveThisElement = forceResolution || localStateChanged;
+        if (resolveThisElement)
         {
-            foreach (var rule in sheet.Rules)
+            var style = UiComputedStyle.Inherit(parentStyle);
+            var declarations = new Dictionary<string, Winner>(StringComparer.OrdinalIgnoreCase);
+
+            if (element.Attributes.TryGetValue("hidden", out var hidden) &&
+                !hidden.Equals("false", StringComparison.OrdinalIgnoreCase))
             {
-                if (!rule.Selector.Matches(element))
-                    continue;
-                foreach (var (name, value) in rule.Declarations)
+                declarations["display"] = new Winner(1000, int.MaxValue - 1, "none");
+            }
+
+            foreach (var sheet in sheets)
+            {
+                foreach (var rule in sheet.Rules)
                 {
-                    var candidate = new Winner(rule.Selector.Specificity, rule.Order, value);
-                    if (!declarations.TryGetValue(name, out var winner) ||
-                        candidate.Specificity > winner.Specificity ||
-                        candidate.Specificity == winner.Specificity && candidate.Order >= winner.Order)
-                        declarations[name] = candidate;
+                    if (!rule.Selector.Matches(element))
+                        continue;
+                    foreach (var (name, value) in rule.Declarations)
+                    {
+                        var candidate = new Winner(rule.Selector.Specificity, rule.Order, value);
+                        if (!declarations.TryGetValue(name, out var winner) ||
+                            candidate.Specificity > winner.Specificity ||
+                            candidate.Specificity == winner.Specificity && candidate.Order >= winner.Order)
+                            declarations[name] = candidate;
+                    }
                 }
             }
+
+            if (element.Attributes.TryGetValue("style", out var inlineStyle))
+            {
+                foreach (var (name, value) in UiStyleSheet.ParseDeclarations(inlineStyle))
+                    declarations[name] = new Winner(1000, int.MaxValue, value);
+            }
+
+            foreach (var (name, winner) in declarations)
+            {
+                if (name.StartsWith("--", StringComparison.Ordinal))
+                    style.Variables[name] = winner.Value;
+            }
+
+            foreach (var (name, winner) in declarations)
+            {
+                if (!name.StartsWith("--", StringComparison.Ordinal))
+                    Apply(style, name, ResolveVariables(winner.Value, style.Variables));
+            }
+
+            element.ComputedStyle = style;
         }
 
-        if (element.Attributes.TryGetValue("style", out var inlineStyle))
-        {
-            foreach (var (name, value) in UiStyleSheet.ParseDeclarations(inlineStyle))
-                declarations[name] = new Winner(1000, int.MaxValue, value);
-        }
-
-        foreach (var (name, winner) in declarations)
-        {
-            if (name.StartsWith("--", StringComparison.Ordinal))
-                style.Variables[name] = winner.Value;
-        }
-
-        foreach (var (name, winner) in declarations)
-        {
-            if (!name.StartsWith("--", StringComparison.Ordinal))
-                Apply(style, name, ResolveVariables(winner.Value, style.Variables));
-        }
-
-        element.ComputedStyle = style;
         foreach (var child in element.Children)
-            ResolveElement(child, style, sheets);
+            ResolveElement(child, element.ComputedStyle, sheets, resolveThisElement);
+
+        state.LocalStyleVersion = element.LocalStyleVersion;
+        state.LocalPseudoVersion = element.LocalPseudoVersion;
+        state.SubtreeStyleVersion = element.StyleVersion;
+        state.SubtreePseudoVersion = element.PseudoVersion;
+        state.ParentComputedStyleVersion = parentComputedStyleVersion;
+    }
+
+    private sealed class ResolutionState
+    {
+        public int LocalStyleVersion = int.MinValue;
+        public int LocalPseudoVersion = int.MinValue;
+        public int SubtreeStyleVersion = int.MinValue;
+        public int SubtreePseudoVersion = int.MinValue;
+        public int ParentComputedStyleVersion = int.MinValue;
     }
 
     private static string ResolveVariables(
@@ -827,6 +867,7 @@ internal static class UiStyleResolver
             case "background-image": style.BackgroundImage = value.Trim(); break;
             case "background-size": style.BackgroundSize = value.ToLowerInvariant(); break;
             case "background-position": style.BackgroundPosition = value.ToLowerInvariant(); break;
+            case "background-slice": SetLength(value, result => style.BackgroundSlice = result); break;
             case "transform": style.TransformDefinition = UiTransformParser.Parse(value, style.TransformOrigin); break;
             case "transform-origin":
                 style.TransformOrigin = UiTransformParser.ParseOrigin(value);

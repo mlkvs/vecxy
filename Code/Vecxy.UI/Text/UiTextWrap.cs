@@ -40,27 +40,11 @@ internal static class UiTextWrap
                     line = string.Empty;
                 }
 
-                if (measure(word) <= maximumWidth + FitTolerance)
-                {
-                    line = word;
-                    continue;
-                }
-
-                var fragment = string.Empty;
-                foreach (var character in word)
-                {
-                    var expanded = fragment + character;
-                    if (fragment.Length > 0 && measure(expanded) > maximumWidth + FitTolerance)
-                    {
-                        result.Add(fragment);
-                        fragment = character.ToString();
-                    }
-                    else
-                    {
-                        fragment = expanded;
-                    }
-                }
-                line = fragment;
+                // Keep lexical words intact. A constrained text element may use
+                // text-fit: shrink to fit an unusually long word; splitting the
+                // word here produces visually broken labels such as "лоток" or
+                // a single trailing Cyrillic character on the next line.
+                line = word;
             }
 
             if (line.Length > 0)
