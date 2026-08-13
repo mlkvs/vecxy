@@ -143,8 +143,10 @@ internal sealed class UiRenderer : IDisposable
             EnsureLayerCache(layer, width, height);
             var geometrySignature = HashCode.Combine(width, height, document.GeometryVersion);
             var renderSignature = HashCode.Combine(geometrySignature, document.RenderVersion);
-            documentStatistics.RebuiltThisFrame = geometrySignature != layer.GeometrySignature;
-            if (geometrySignature != layer.GeometrySignature)
+            var geometryChanged = geometrySignature != layer.GeometrySignature;
+            var canPublishGeometry = document.HasCurrentLayout || layer.GeometrySignature == int.MinValue;
+            documentStatistics.RebuiltThisFrame = geometryChanged && canPublishGeometry;
+            if (geometryChanged && canPublishGeometry)
             {
                 documentStatistics.Rebuilds++;
                 documentStatistics.LastRebuildFrame = _statistics.Frame;
@@ -183,7 +185,7 @@ internal sealed class UiRenderer : IDisposable
                 layer.GeometrySignature = geometrySignature;
                 UpdateLayerGeometryStatistics(document, layer);
             }
-            else
+            else if (!geometryChanged)
                 documentStatistics.CacheHits++;
 
             // UI geometry is retained in the document buffers and rendered directly
@@ -234,9 +236,27 @@ internal sealed class UiRenderer : IDisposable
                 element.Bounds.Height),
             scale);
         var bounds = fullBounds;
-        if (element.TagName == "progress")
-            bounds = bounds with { Width = bounds.Width * element.Progress };
-        if (style.Display == "none" || style.Visibility == "hidden" ||
+        var isProgress = element.TagName == "progress";
+        var progressDirection = isProgress && element.Attributes.TryGetValue("direction", out var direction)
+            ? direction
+            : string.Empty;
+        var isVerticalBottomProgress = progressDirection.Equals("vertical-bottom", StringComparison.OrdinalIgnoreCase);
+        if (isProgress)
+        {
+            if (isVerticalBottomProgress)
+            {
+                var height = bounds.Height * element.Progress;
+                bounds = bounds with { Y = bounds.Bottom - height, Height = height };
+            }
+            else
+            {
+                bounds = bounds with { Width = bounds.Width * element.Progress };
+            }
+        }
+        // CSS visibility is a composite property: retain its geometry and turn
+        // the entire subtree on/off at draw time. This makes opening an already
+        // laid-out window a zero-tessellation operation.
+        if (!element.IsDisplayed ||
             bounds.Width <= 0 || bounds.Height <= 0)
             return;
         if (IsOutsideVirtualViewport(bounds, _scrollState, scale))
@@ -313,11 +333,16 @@ internal sealed class UiRenderer : IDisposable
                 }
                 else
                 {
-                    var (imageBounds, imageUv) = element.TagName == "progress"
-                        ? (bounds, resolvedImage.Uv with
-                        {
-                            Z = float.Lerp(resolvedImage.Uv.X, resolvedImage.Uv.Z, element.Progress)
-                        })
+                    var (imageBounds, imageUv) = isProgress
+                        ? (bounds, isVerticalBottomProgress
+                            ? resolvedImage.Uv with
+                            {
+                                Y = float.Lerp(resolvedImage.Uv.W, resolvedImage.Uv.Y, element.Progress)
+                            }
+                            : resolvedImage.Uv with
+                            {
+                                Z = float.Lerp(resolvedImage.Uv.X, resolvedImage.Uv.Z, element.Progress)
+                            })
                         : FitImage(
                             bounds,
                             resolvedImage.Uv,
@@ -421,7 +446,10 @@ internal sealed class UiRenderer : IDisposable
             _scrollState = new UiScrollState(previousScrollState, element, scale);
 
         var childTranslation = translation;
-        foreach (var child in element.ChildrenInPaintOrder())
+        var children = element.ChildrenInPaintOrder();
+        for (var index = 0; index < children.Count; index++)
+        {
+            var child = children[index];
             PaintElement(
                 document,
                 child,
@@ -432,6 +460,7 @@ internal sealed class UiRenderer : IDisposable
                 _transform,
                 childAxisClip,
                 childRoundedClip);
+        }
 
         // Scrollbars belong to the viewport, not to its translated contents.
         _scrollState = previousScrollState;
@@ -1297,6 +1326,7 @@ internal sealed class UiRenderer : IDisposable
         for (var current = element; current is not null; current = current.Parent)
         {
             if (current.RenderOpacity != 1.0f ||
+                current.ComputedStyle.Visibility == "hidden" ||
                 current.RenderTransform != UiTransform.Identity ||
                 current.AnimationRuntime.IsActive ||
                 current.ComputedStyle.Animation != UiAnimationDefinition.None ||
@@ -1460,6 +1490,9 @@ internal sealed class UiRenderer : IDisposable
 
         foreach (var batch in layer.DrawBatches)
         {
+            var opacity = ResolveRenderOpacity(batch.Element);
+            if (opacity <= 0.001f)
+                continue;
             ApplyRoundedClips(gl, batch.RoundedClip);
             var translation = ResolveScrollTranslation(batch.ScrollState);
             gl.Uniform2(_translationUniform, translation.X, translation.Y);
@@ -1471,7 +1504,7 @@ internal sealed class UiRenderer : IDisposable
                 transform.M31,
                 transform.M12);
             gl.Uniform2(_transformBUniform, transform.M22, transform.M32);
-            gl.Uniform1(_opacityUniform, ResolveRenderOpacity(batch.Element));
+            gl.Uniform1(_opacityUniform, opacity);
             var resolvedClip = ResolveAxisClip(batch.AxisClip, width, height);
             var x = Math.Clamp((int)MathF.Floor(resolvedClip.X), 0, width);
             var y = Math.Clamp((int)MathF.Floor(height - resolvedClip.Bottom), 0, height);
@@ -1541,7 +1574,11 @@ internal sealed class UiRenderer : IDisposable
     {
         var opacity = 1.0f;
         for (var current = element; current is not null; current = current.Parent)
+        {
+            if (current.ComputedStyle.Visibility == "hidden")
+                return 0.0f;
             opacity *= current.RenderOpacity;
+        }
         return Math.Clamp(opacity, 0.0f, 1.0f);
     }
 

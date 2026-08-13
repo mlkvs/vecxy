@@ -38,6 +38,7 @@ public sealed class InputModule :
     private readonly InputSnapshot _snapshot = new();
     private readonly InputSnapshot _actionSnapshot = new();
     private readonly ConcurrentQueue<IWindow.TouchEvent> _pendingTouches = new();
+    private readonly Queue<IWindow.TouchEvent> _deferredTouches = new();
     private readonly Dictionary<int, TouchPoint> _activeTouches = [];
     private Vector2 _pendingMouseDelta;
     private Vector2 _pendingMouseWheelDelta;
@@ -137,6 +138,7 @@ public sealed class InputModule :
 
         _initialized = false;
         _activeTouches.Clear();
+        _deferredTouches.Clear();
         while (_pendingTouches.TryDequeue(out _)) { }
         _primaryTouchId = null;
     }
@@ -213,8 +215,26 @@ public sealed class InputModule :
                 Phase = ETouchPhase.Stationary
             });
 
-        while (_pendingTouches.TryDequeue(out var eventData))
+        // Android can deliver a complete short tap between two engine frames.
+        // Preserve at most one lifecycle edge per finger in a snapshot so Began
+        // cannot be overwritten by Ended before UI consumers observe it.
+        var events = new List<IWindow.TouchEvent>(_deferredTouches.Count + _pendingTouches.Count);
+        while (_deferredTouches.TryDequeue(out var deferred))
+            events.Add(deferred);
+        while (_pendingTouches.TryDequeue(out var pending))
+            events.Add(pending);
+        var lifecycleEdges = new HashSet<int>();
+
+        foreach (var eventData in events)
         {
+            var lifecycleEdge = eventData.Phase is
+                ETouchPhase.Began or ETouchPhase.Ended or ETouchPhase.Cancelled;
+            if (lifecycleEdge && !lifecycleEdges.Add(eventData.Id))
+            {
+                _deferredTouches.Enqueue(eventData);
+                continue;
+            }
+
             var position = new Vector2(eventData.X, eventData.Y);
             var delta = _activeTouches.TryGetValue(eventData.Id, out var previous)
                 ? position - previous.Position

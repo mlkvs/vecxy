@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Numerics;
 using Facebook.Yoga;
 using Vecxy.Kernel;
@@ -9,19 +10,55 @@ namespace Vecxy.UI;
 
 internal static class UiLayout
 {
-    public static void Calculate(UiElement root, int width, int height, bool enableShadows = true)
+    [ThreadStatic] private static long _textMeasureTicks;
+    [ThreadStatic] private static int _textMeasureCount;
+
+    public static UiLayoutMetrics Calculate(UiElement root, int width, int height, bool enableShadows = true)
     {
-        ApplyRecursive(root, width, height, enableShadows, null);
+        var appliedNodes = 0;
+        var arrangedNodes = 0;
+        var scrollNodes = 0;
+        _textMeasureTicks = 0;
+        _textMeasureCount = 0;
+
+        var started = Stopwatch.GetTimestamp();
+        ApplyRecursive(root, width, height, enableShadows, null, ref appliedNodes);
+        var applyMilliseconds = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
         YGNodeStyleSetWidth(root.YogaNode, width);
         YGNodeStyleSetHeight(root.YogaNode, height);
+        started = Stopwatch.GetTimestamp();
         YGNodeCalculateLayout(root.YogaNode, width, height, YGDirection.LTR);
-        ReadRecursive(root, 0.0f, 0.0f, width, height, null);
+        var yogaMilliseconds = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
+        started = Stopwatch.GetTimestamp();
+        ReadRecursive(root, 0.0f, 0.0f, width, height, null, ref arrangedNodes);
+        var arrangeMilliseconds = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
+        var gridMilliseconds = 0.0;
+        var gridPasses = 0;
         for (var pass = 0; pass < 3 && UiGridLayout.PlaceGrids(root, width, height); pass++)
         {
+            gridPasses++;
+            started = Stopwatch.GetTimestamp();
             YGNodeCalculateLayout(root.YogaNode, width, height, YGDirection.LTR);
-            ReadRecursive(root, 0.0f, 0.0f, width, height, null);
+            gridMilliseconds += Stopwatch.GetElapsedTime(started).TotalMilliseconds;
+            started = Stopwatch.GetTimestamp();
+            ReadRecursive(root, 0.0f, 0.0f, width, height, null, ref arrangedNodes);
+            arrangeMilliseconds += Stopwatch.GetElapsedTime(started).TotalMilliseconds;
         }
-        UpdateScrollExtents(root, null);
+        started = Stopwatch.GetTimestamp();
+        UpdateScrollExtents(root, null, ref scrollNodes);
+        var scrollMilliseconds = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
+        return new UiLayoutMetrics(
+            applyMilliseconds,
+            yogaMilliseconds,
+            arrangeMilliseconds,
+            gridMilliseconds,
+            scrollMilliseconds,
+            Stopwatch.GetElapsedTime(0, _textMeasureTicks).TotalMilliseconds,
+            appliedNodes,
+            arrangedNodes,
+            scrollNodes,
+            _textMeasureCount,
+            gridPasses);
     }
 
     private static void ApplyRecursive(
@@ -29,20 +66,24 @@ internal static class UiLayout
         float viewportWidth,
         float viewportHeight,
         bool enableShadows,
-        UiElement? virtualViewport)
+        UiElement? virtualViewport,
+        ref int appliedNodes)
     {
         if (virtualViewport is not null && IsOutsideVirtualViewport(element, virtualViewport))
             return;
+        appliedNodes++;
         var node = element.YogaNode;
         var style = element.ComputedStyle;
-        YGNodeStyleSetDisplay(node, style.Display switch
-        {
-            "none" => YGDisplay.None,
-            "grid" => YGDisplay.Flex,
-            "contents" => YGDisplay.Contents,
-            _ => YGDisplay.Flex
-        });
-        if (style.Display == "none")
+        YGNodeStyleSetDisplay(node, !element.IsVisible
+            ? YGDisplay.None
+            : style.Display switch
+            {
+                "none" => YGDisplay.None,
+                "grid" => YGDisplay.Flex,
+                "contents" => YGDisplay.Contents,
+                _ => YGDisplay.Flex
+            });
+        if (!element.IsDisplayed)
             return;
         style.FontSize = Math.Max(1.0f, ResolvePoints(style.FontSizeLength, viewportWidth, viewportHeight));
         style.MinFontSize = Math.Clamp(
@@ -132,7 +173,7 @@ internal static class UiLayout
 
         var childVirtualViewport = element.UsesVirtualization ? element : virtualViewport;
         foreach (var child in element.Children)
-            ApplyRecursive(child, viewportWidth, viewportHeight, enableShadows, childVirtualViewport);
+            ApplyRecursive(child, viewportWidth, viewportHeight, enableShadows, childVirtualViewport, ref appliedNodes);
     }
 
     private static YGSize MeasureText(
@@ -142,6 +183,7 @@ internal static class UiLayout
         float availableHeight,
         MeasureMode heightMode)
     {
+        var started = Stopwatch.GetTimestamp();
         var element = (UiElement?)YGNodeGetContext(node);
         if (element is null)
             return default;
@@ -160,6 +202,14 @@ internal static class UiLayout
             size.Y = availableHeight;
         else if (heightMode == MeasureMode.AtMost)
             size.Y = Math.Min(size.Y, availableHeight);
+        element.RecordTextMeasurement(
+            availableWidth,
+            widthMode,
+            availableHeight,
+            heightMode,
+            size);
+        _textMeasureTicks += Stopwatch.GetTimestamp() - started;
+        _textMeasureCount++;
         return new YGSize { Width = size.X, Height = size.Y };
     }
 
@@ -189,8 +239,10 @@ internal static class UiLayout
         float parentY,
         float viewportWidth,
         float viewportHeight,
-        UiElement? virtualViewport)
+        UiElement? virtualViewport,
+        ref int arrangedNodes)
     {
+        arrangedNodes++;
         var left = parentX + YGNodeLayoutGetLeft(element.YogaNode);
         var top = parentY + YGNodeLayoutGetTop(element.YogaNode);
         element.Bounds = new Rect(
@@ -199,7 +251,7 @@ internal static class UiLayout
             Math.Max(0.0f, YGNodeLayoutGetWidth(element.YogaNode)),
             Math.Max(0.0f, YGNodeLayoutGetHeight(element.YogaNode)));
         var style = element.ComputedStyle;
-        if (style.Display == "none")
+        if (!element.IsDisplayed)
             return;
         if (virtualViewport is not null && IsOutsideVirtualViewport(element, virtualViewport))
             return;
@@ -214,25 +266,29 @@ internal static class UiLayout
 
         var childVirtualViewport = element.UsesVirtualization ? element : virtualViewport;
         foreach (var child in element.Children)
-            ReadRecursive(child, left, top, viewportWidth, viewportHeight, childVirtualViewport);
+            ReadRecursive(child, left, top, viewportWidth, viewportHeight, childVirtualViewport, ref arrangedNodes);
     }
 
-    private static void UpdateScrollExtents(UiElement element, UiElement? virtualViewport)
+    private static void UpdateScrollExtents(UiElement element, UiElement? virtualViewport, ref int scrollNodes)
     {
-        if (element.ComputedStyle.Display == "none")
+        if (!element.IsDisplayed)
             return;
+        scrollNodes++;
         if (virtualViewport is not null && IsOutsideVirtualViewport(element, virtualViewport))
             return;
         var childVirtualViewport = element.UsesVirtualization ? element : virtualViewport;
         foreach (var child in element.Children)
-            UpdateScrollExtents(child, childVirtualViewport);
+            UpdateScrollExtents(child, childVirtualViewport, ref scrollNodes);
 
         var width = element.Bounds.Width;
         var height = element.Bounds.Height;
         var rightPadding = YGNodeLayoutGetPadding(element.YogaNode, YGEdge.Right);
         var bottomPadding = YGNodeLayoutGetPadding(element.YogaNode, YGEdge.Bottom);
-        foreach (var child in element.Children.Where(child => child.ComputedStyle.Display != "none"))
+        for (var index = 0; index < element.Children.Count; index++)
         {
+            var child = element.Children[index];
+            if (!child.IsDisplayed)
+                continue;
             var childClipsX = child.ComputedStyle.OverflowX is "hidden" or "scroll" or "auto";
             var childClipsY = child.ComputedStyle.OverflowY is "hidden" or "scroll" or "auto";
             var childWidth = childClipsX ? child.Bounds.Width : Math.Max(child.Bounds.Width, child.ScrollExtent.X);
@@ -389,3 +445,16 @@ internal static class UiLayout
         _ => fallback
     };
 }
+
+internal readonly record struct UiLayoutMetrics(
+    double ApplyMilliseconds,
+    double YogaMilliseconds,
+    double ArrangeMilliseconds,
+    double GridMilliseconds,
+    double ScrollMilliseconds,
+    double TextMeasureMilliseconds,
+    int AppliedNodes,
+    int ArrangedNodes,
+    int ScrollNodes,
+    int TextMeasureCount,
+    int GridPasses);

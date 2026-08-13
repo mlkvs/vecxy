@@ -31,6 +31,7 @@ public interface IRenderer
         out CameraRay ray);
 
     Mesh CreateQuad();
+    void PreloadTexture(AssetRef<TextureAsset> texture);
 }
 
 public interface IMeshResolver
@@ -501,6 +502,12 @@ public sealed class RenderingModule(
     {
         ArgumentNullException.ThrowIfNull(texture);
         return textures.Get(texture);
+    }
+
+    public void PreloadTexture(AssetRef<TextureAsset> texture)
+    {
+        ArgumentNullException.ThrowIfNull(texture);
+        _ = textures.Get(texture);
     }
 
     public Texture Resolve(TextureAsset texture)

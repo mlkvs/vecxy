@@ -31,8 +31,36 @@ public class UiElement
         get => _computedStyle;
         set
         {
+            if (_computedStyle.HasSameSource(value))
+                return;
+            var layoutChanged = !_computedStyle.HasSameLayout(value);
+            var inheritedChanged = !_computedStyle.HasSameInherited(value);
+            var visibilityChanged = _computedStyle.Visibility != value.Visibility;
+            var pointerEventsChanged = _computedStyle.PointerEvents != value.PointerEvents;
+            var compositeChanged = visibilityChanged ||
+                                   !_computedStyle.Opacity.Equals(value.Opacity) ||
+                                   _computedStyle.TransformDefinition != value.TransformDefinition ||
+                                   _computedStyle.TransformOrigin != value.TransformOrigin;
+            var hasStableCompositeOwner =
+                _computedStyle.Visibility == "hidden" || value.Visibility == "hidden" ||
+                _computedStyle.Transitions.Count > 0 || value.Transitions.Count > 0 ||
+                _computedStyle.Animation != UiAnimationDefinition.None ||
+                value.Animation != UiAnimationDefinition.None;
+            var compositeOnly = compositeChanged &&
+                                hasStableCompositeOwner &&
+                                _computedStyle.HasSameSourceExceptComposite(value);
             _computedStyle = value;
             unchecked { _computedStyleVersion++; }
+            if (inheritedChanged)
+                unchecked { _inheritedStyleVersion++; }
+            if (layoutChanged)
+                InvalidateLayout();
+            if (compositeOnly)
+                InvalidateComposite();
+            else
+                InvalidateVisual();
+            if (visibilityChanged || pointerEventsChanged)
+                InvalidateHitTest();
         }
     }
     internal UiAnimationRuntime AnimationRuntime { get; } = new();
@@ -45,6 +73,7 @@ public class UiElement
     internal int VisualVersion => _visualVersion;
     internal int LocalVisualVersion => _localVisualVersion;
     internal int ComputedStyleVersion => _computedStyleVersion;
+    internal int InheritedStyleVersion => _inheritedStyleVersion;
     internal int BoundsVersion => _boundsVersion;
     internal int CompositeVersion => _compositeVersion;
     internal int ScrollVersion => _scrollVersion;
@@ -54,6 +83,8 @@ public class UiElement
     internal float RenderOpacity => AnimationRuntime.Opacity;
     internal UiTransform RenderTransform => AnimationRuntime.Transform;
     internal bool IsHitTestInteractive => IsInteractive;
+    internal bool IsDisplayed => IsVisible && ComputedStyle.Display != "none";
+    internal bool IsRendered => IsDisplayed && ComputedStyle.Visibility != "hidden";
     internal bool UsesVirtualization =>
         Attributes.TryGetValue("virtualize", out var virtualize) &&
         !virtualize.Equals("false", StringComparison.OrdinalIgnoreCase);
@@ -115,7 +146,7 @@ public class UiElement
             // counters, timers and other frequently updated labels.
             var hasFixedBox = ComputedStyle.Width.Unit != EUiLengthUnit.Auto &&
                               ComputedStyle.Height.Unit != EUiLengthUnit.Auto;
-            if (!hasFixedBox)
+            if (!hasFixedBox && !CanRetainMeasuredTextSize())
             {
                 if (YGNodeHasMeasureFunc(YogaNode))
                     YGNodeMarkDirty(YogaNode);
@@ -228,6 +259,7 @@ public class UiElement
     private int _visualVersion;
     private int _localVisualVersion;
     private int _computedStyleVersion;
+    private int _inheritedStyleVersion;
     private int _boundsVersion;
     private int _compositeVersion;
     private int _scrollVersion;
@@ -241,6 +273,12 @@ public class UiElement
     private bool _isFocusVisible;
     private bool _isDragging;
     private bool _isDropTarget;
+    private bool _hasTextMeasurement;
+    private float _lastTextAvailableWidth;
+    private float _lastTextAvailableHeight;
+    private MeasureMode _lastTextWidthMode;
+    private MeasureMode _lastTextHeightMode;
+    private Vector2 _lastMeasuredTextSize;
 
     public void SetAttribute(string name, string value)
     {
@@ -251,9 +289,11 @@ public class UiElement
         _attributes[name] = value;
         if (name.Equals("style", StringComparison.OrdinalIgnoreCase))
             ReplaceInlineStyles(value);
-        InvalidateStyle();
+        if (!name.Equals("hidden", StringComparison.OrdinalIgnoreCase))
+            InvalidateStyle();
         InvalidateLayout();
         InvalidateVisual();
+        InvalidateHitTest();
         if (name.Equals("class", StringComparison.OrdinalIgnoreCase))
             ReplaceClasses(value);
         if (YGNodeHasMeasureFunc(YogaNode))
@@ -263,20 +303,20 @@ public class UiElement
     public bool RemoveAttribute(string name)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
-        var removed = _attributes.Remove(name);
-        if (removed)
+        if (!_attributes.Remove(name))
+            return false;
+        if (!name.Equals("hidden", StringComparison.OrdinalIgnoreCase))
             InvalidateStyle();
-        if (removed)
-            InvalidateLayout();
-        if (removed)
-            InvalidateVisual();
-        if (removed && name.Equals("class", StringComparison.OrdinalIgnoreCase))
+        InvalidateLayout();
+        InvalidateVisual();
+        InvalidateHitTest();
+        if (name.Equals("class", StringComparison.OrdinalIgnoreCase))
             _classes.Clear();
-        if (removed && name.Equals("style", StringComparison.OrdinalIgnoreCase))
+        if (name.Equals("style", StringComparison.OrdinalIgnoreCase))
             _inlineStyles.Clear();
-        if (removed && YGNodeHasMeasureFunc(YogaNode))
+        if (YGNodeHasMeasureFunc(YogaNode))
             YGNodeMarkDirty(YogaNode);
-        return removed;
+        return true;
     }
 
     public void AddClass(string className)
@@ -286,8 +326,6 @@ public class UiElement
         {
             SynchronizeClassAttribute();
             InvalidateStyle();
-            InvalidateLayout();
-            InvalidateVisual();
         }
     }
 
@@ -298,8 +336,6 @@ public class UiElement
         {
             SynchronizeClassAttribute();
             InvalidateStyle();
-            InvalidateLayout();
-            InvalidateVisual();
         }
     }
 
@@ -466,7 +502,7 @@ public class UiElement
 
     internal IEnumerable<UiElement> VisibleDescendantsAndSelf()
     {
-        if (ComputedStyle.Display == "none" || ComputedStyle.Visibility == "hidden")
+        if (!IsRendered)
             yield break;
         yield return this;
         foreach (var child in _children)
@@ -495,10 +531,48 @@ public class UiElement
         return descending ? _hitTestOrder : _paintOrder;
     }
 
-    private void InvalidateLayout()
+    internal void InvalidateLayout()
     {
         unchecked { _layoutVersion++; }
         Parent?.InvalidateLayout();
+    }
+
+    internal void RecordTextMeasurement(
+        float availableWidth,
+        MeasureMode widthMode,
+        float availableHeight,
+        MeasureMode heightMode,
+        Vector2 size)
+    {
+        _hasTextMeasurement = true;
+        _lastTextAvailableWidth = availableWidth;
+        _lastTextAvailableHeight = availableHeight;
+        _lastTextWidthMode = widthMode;
+        _lastTextHeightMode = heightMode;
+        _lastMeasuredTextSize = size;
+    }
+
+    private bool CanRetainMeasuredTextSize()
+    {
+        if (!_hasTextMeasurement || TagName != "text")
+            return false;
+
+        var wraps = ComputedStyle.WhiteSpace is "normal" or "pre-wrap" &&
+                    _lastTextWidthMode is MeasureMode.AtMost or MeasureMode.Exactly;
+        var wrappingWidth = wraps ? _lastTextAvailableWidth : float.PositiveInfinity;
+        var size = Font is { } font
+            ? UiBitmapFont.Measure(this, font, Text, ComputedStyle.FontSize, wrappingWidth)
+            : UiFallbackFont.Measure(this, Text, ComputedStyle.FontSize, wrappingWidth);
+        if (_lastTextWidthMode == MeasureMode.Exactly)
+            size.X = _lastTextAvailableWidth;
+        else if (_lastTextWidthMode == MeasureMode.AtMost)
+            size.X = Math.Min(size.X, _lastTextAvailableWidth);
+        if (_lastTextHeightMode == MeasureMode.Exactly)
+            size.Y = _lastTextAvailableHeight;
+        else if (_lastTextHeightMode == MeasureMode.AtMost)
+            size.Y = Math.Min(size.Y, _lastTextAvailableHeight);
+
+        return Vector2.DistanceSquared(size, _lastMeasuredTextSize) <= 0.0001f;
     }
 
     internal void InvalidateVisual()
@@ -525,10 +599,20 @@ public class UiElement
         Parent?.InvalidateScroll();
     }
 
-    private void InvalidateHitTest()
+    internal void InvalidateHitTest()
     {
         unchecked { _hitTestVersion++; }
         Parent?.InvalidateHitTest();
+    }
+
+    internal bool HasInteractiveSubtree()
+    {
+        if (IsInteractive && ComputedStyle.PointerEvents != "none")
+            return true;
+        for (var index = 0; index < _children.Count; index++)
+            if (_children[index].HasInteractiveSubtree())
+                return true;
+        return false;
     }
 
     private void InvalidateStyle()
@@ -561,10 +645,9 @@ public class UiElement
             return;
         field = value;
         InvalidatePseudoState();
-        // A selector may change layout as well as paint. Selector dependency
-        // metadata will make this narrower in UI2; the legacy path stays correct.
-        InvalidateLayout();
-        InvalidateVisual();
+        // Resolution compares the old and new computed styles, so an unused
+        // pseudo state does not invalidate rendering and a paint-only state does
+        // not force Yoga to recalculate the complete document.
     }
 
     private void InvalidateForStyleProperty(string propertyName)
@@ -581,10 +664,16 @@ public class UiElement
         if (propertyName is
             "color" or "background-color" or "background-image" or
             "background-size" or "background-position" or "background-slice" or "border-color" or
-            "border-radius" or "box-shadow" or "visibility" or "object-fit" or
+            "border-radius" or "box-shadow" or "object-fit" or
             "scrollbar-color" or "scrollbar-track-color" or "z-index")
         {
             InvalidateVisual();
+            return;
+        }
+        if (propertyName is "visibility")
+        {
+            InvalidateComposite();
+            InvalidateHitTest();
             return;
         }
         if (propertyName is "pointer-events")
@@ -618,8 +707,7 @@ public class UiElement
             layoutBounds.Y + translation.Y,
             layoutBounds.Width,
             layoutBounds.Height);
-        if (ComputedStyle.Display == "none" ||
-            ComputedStyle.Visibility == "hidden")
+        if (!IsRendered)
             return null;
 
         var transform = RenderTransform.ToMatrix(visualBounds) * parentTransform;
@@ -639,8 +727,10 @@ public class UiElement
 
         var childTranslation = translation - ScrollOffset;
 
-        foreach (var child in ChildrenInPaintOrder(descending: true))
+        var children = ChildrenInPaintOrder(descending: true);
+        for (var index = 0; index < children.Count; index++)
         {
+            var child = children[index];
             var hit = child.HitTest(point, childTranslation, transform);
             if (hit is not null)
                 return hit;

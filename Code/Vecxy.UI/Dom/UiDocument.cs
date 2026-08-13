@@ -45,6 +45,8 @@ public sealed class UiDocument : IDisposable
     private long _stylePasses;
     private long _layoutPasses;
     private long _animationTreeScans;
+    private double _frameStyleMilliseconds;
+    private int _frameStyledElements;
     private bool _disposed;
 
     public string Path => _source.Metadata.Path;
@@ -56,10 +58,17 @@ public sealed class UiDocument : IDisposable
     internal int StyleVersion => Root.StyleVersion;
     internal int LayoutVersion => Root.LayoutVersion;
     internal int VisualVersion => Root.VisualVersion;
-    internal int HitTestVersion => Root.HitTestVersion;
+    internal int HitTestVersion => HashCode.Combine(
+        Root.LayoutVersion,
+        Root.ScrollVersion,
+        Root.HitTestVersion);
     internal long StylePasses => _stylePasses;
     internal long LayoutPasses => _layoutPasses;
     internal long AnimationTreeScans => _animationTreeScans;
+    internal bool HasCurrentLayout =>
+        _layoutValid &&
+        _lastLayoutVersion == Root.LayoutVersion &&
+        !_resourceResolutionPending;
 
     internal UiDocument(
         IAssetsManager assets,
@@ -217,7 +226,10 @@ public sealed class UiDocument : IDisposable
         var pseudoChanged = pseudoState != _resolvedPseudoState;
         if (treeChanged || pseudoChanged)
         {
-            UiStyleResolver.Resolve(Root, _styleSheets);
+            var styleStarted = System.Diagnostics.Stopwatch.GetTimestamp();
+            _frameStyledElements += UiStyleResolver.Resolve(Root, _styleSheets);
+            _frameStyleMilliseconds += System.Diagnostics.Stopwatch
+                .GetElapsedTime(styleStarted).TotalMilliseconds;
             _stylePasses++;
             unchecked { _styleResolutionVersion++; }
             // Mutations already carry their precise layout dirty bit. Pseudo
@@ -236,24 +248,40 @@ public sealed class UiDocument : IDisposable
         _resolvedPseudoState = pseudoState;
     }
 
-    internal void Layout(int width, int height, UiConfig? settings = null)
+    internal UiDocumentUpdateMetrics Layout(int width, int height, UiConfig? settings = null)
     {
+        _frameStyleMilliseconds = 0.0;
+        _frameStyledElements = 0;
         _settings = settings ?? new UiConfig();
+        var refreshStarted = System.Diagnostics.Stopwatch.GetTimestamp();
         Refresh();
+        var refreshMilliseconds = System.Diagnostics.Stopwatch
+            .GetElapsedTime(refreshStarted).TotalMilliseconds;
         var canvas = UiCanvas.Resolve(Root, width, height, _settings);
         LayoutScale = canvas.Scale;
         if (_layoutValid &&
             _lastLayoutVersion == Root.LayoutVersion &&
             _lastCanvasWidth == canvas.Width &&
             _lastCanvasHeight == canvas.Height)
-            return;
-        UiLayout.Calculate(Root, canvas.Width, canvas.Height, _settings.EnableShadows);
+            return new UiDocumentUpdateMetrics(
+                refreshMilliseconds,
+                _frameStyleMilliseconds,
+                _frameStyledElements,
+                false,
+                default);
+        var layout = UiLayout.Calculate(Root, canvas.Width, canvas.Height, _settings.EnableShadows);
         _layoutPasses++;
         _lastLayoutVersion = Root.LayoutVersion;
         _lastCanvasWidth = canvas.Width;
         _lastCanvasHeight = canvas.Height;
         _layoutValid = true;
         _animationSyncPending = true;
+        return new UiDocumentUpdateMetrics(
+            refreshMilliseconds,
+            _frameStyleMilliseconds,
+            _frameStyledElements,
+            true,
+            layout);
     }
 
     internal void UpdateAnimations(
@@ -270,8 +298,17 @@ public sealed class UiDocument : IDisposable
             _activeAnimationElements.Clear();
             // Animation callbacks may remove their element, so only the occasional
             // full synchronization takes a stable snapshot of the tree.
-            foreach (var element in Root.VisibleDescendantsAndSelf().ToArray())
+            foreach (var element in Root.DescendantsAndSelf().ToArray())
             {
+                // Hidden retained surfaces still need one synchronization pass.
+                // Otherwise their transition runtime is initialized only after
+                // they become visible and the very first opacity transition
+                // jumps straight to its target value.
+                if (!element.IsRendered &&
+                    !element.AnimationRuntime.IsActive &&
+                    element.ComputedStyle.Transitions.Count == 0 &&
+                    element.ComputedStyle.Animation == UiAnimationDefinition.None)
+                    continue;
                 UpdateAnimationElement(element, deltaTime, canvas.Width, canvas.Height);
                 if (element.AnimationRuntime.IsActive && IsAttached(element))
                     _activeAnimationElements.Add(element);
@@ -312,11 +349,14 @@ public sealed class UiDocument : IDisposable
 
     private void UpdateAnimationElement(UiElement element, float deltaTime, float width, float height)
     {
+        var previousTransform = element.RenderTransform;
         var changes = element.AnimationRuntime.Update(element, _keyframes, deltaTime, width, height);
         if ((changes & UiAnimationChange.Paint) != 0)
             element.InvalidateVisual();
         if ((changes & UiAnimationChange.Composite) != 0)
             element.InvalidateComposite();
+        if (previousTransform != element.RenderTransform && element.HasInteractiveSubtree())
+            element.InvalidateHitTest();
     }
 
     internal int GeometryVersion => HashCode.Combine(
@@ -609,7 +649,13 @@ public sealed class UiDocument : IDisposable
         }
 
         _styleVersions = _styleAssets.Select(style => style.Version).ToArray();
-        UiStyleResolver.Resolve(Root, _styleSheets, forceFullResolution: true);
+        var styleStarted = System.Diagnostics.Stopwatch.GetTimestamp();
+        _frameStyledElements += UiStyleResolver.Resolve(
+            Root,
+            _styleSheets,
+            forceFullResolution: true);
+        _frameStyleMilliseconds += System.Diagnostics.Stopwatch
+            .GetElapsedTime(styleStarted).TotalMilliseconds;
         unchecked { _styleResolutionVersion++; }
         Root.InvalidateVisual();
         ResolveFonts();
@@ -733,6 +779,13 @@ public sealed class UiDocument : IDisposable
 
     private sealed record ComponentTemplate(int Version, XElement Root);
 }
+
+internal readonly record struct UiDocumentUpdateMetrics(
+    double RefreshMilliseconds,
+    double StyleMilliseconds,
+    int StyledElements,
+    bool LayoutPerformed,
+    UiLayoutMetrics Layout);
 
 internal readonly record struct UiResolvedImage(
     Texture Texture,

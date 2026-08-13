@@ -17,7 +17,7 @@ internal static class UiGridLayout
     public static bool PlaceGrids(UiElement root, float viewportWidth, float viewportHeight)
     {
         var grids = root.DescendantsAndSelf()
-            .Where(element => element.ComputedStyle.Display == "grid")
+            .Where(element => element.IsDisplayed && element.ComputedStyle.Display == "grid")
             .ToArray();
         foreach (var grid in grids)
             PlaceGrid(grid, viewportWidth, viewportHeight);
@@ -42,7 +42,7 @@ internal static class UiGridLayout
         var autoRows = ParseTracks(style.GridAutoRows, viewportWidth, viewportHeight);
         var items = container.Children
             .Where(child =>
-                child.ComputedStyle.Display != "none" &&
+                child.IsDisplayed &&
                 child.ComputedStyle.Position is not ("absolute" or "fixed"))
             .ToArray();
         var placements = PlaceItems(items, columns.Count);

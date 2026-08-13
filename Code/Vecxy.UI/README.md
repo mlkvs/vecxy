@@ -245,6 +245,25 @@ Or select a region from a `.atlas` JSON asset:
 <image sprite="hud.atlas#player" />
 ```
 
+Atlases may also declare editable source images instead of a prebuilt texture:
+
+```json
+{
+  "width": 1024,
+  "padding": 2,
+  "sources": {
+    "player": "Sprites/player.png",
+    "inventory": "Sprites/inventory.png"
+  }
+}
+```
+
+Applications importing `Vecxy.Platforms.props` compile these descriptors during
+MSBuild. Generated textures and coordinate descriptors are placed under `obj`,
+while atlas source images are omitted from Desktop and Android build outputs.
+Set `VecxyCompileAtlases=false` to disable this build step. The runtime importer
+still supports source descriptors for editor and standalone asset workflows.
+
 The same sources can be used as CSS backgrounds. Atlas aliases come from the
 global UI config shown above:
 

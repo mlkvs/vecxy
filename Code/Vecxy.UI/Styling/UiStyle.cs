@@ -179,6 +179,69 @@ public sealed class UiComputedStyle
     public Dictionary<string, string> Variables { get; } =
         new(StringComparer.Ordinal);
 
+    internal bool HasSameLayout(UiComputedStyle other) =>
+        Display == other.Display && Position == other.Position &&
+        FlexDirection == other.FlexDirection && FlexWrap == other.FlexWrap &&
+        JustifyContent == other.JustifyContent && AlignItems == other.AlignItems &&
+        AlignSelf == other.AlignSelf && WhiteSpace == other.WhiteSpace &&
+        TextFit == other.TextFit && OverflowX == other.OverflowX && OverflowY == other.OverflowY &&
+        Width == other.Width && Height == other.Height &&
+        MinWidth == other.MinWidth && MinHeight == other.MinHeight &&
+        MaxWidth == other.MaxWidth && MaxHeight == other.MaxHeight &&
+        Margin == other.Margin && Padding == other.Padding && Inset == other.Inset &&
+        Gap == other.Gap && RowGap == other.RowGap && ColumnGap == other.ColumnGap &&
+        FlexBasis == other.FlexBasis && FlexGrow.Equals(other.FlexGrow) &&
+        FlexShrink.Equals(other.FlexShrink) && AspectRatio == other.AspectRatio &&
+        BorderWidthLength == other.BorderWidthLength && FontSizeLength == other.FontSizeLength &&
+        MinFontSizeLength == other.MinFontSizeLength && FontFamily == other.FontFamily &&
+        GridTemplateColumns == other.GridTemplateColumns && GridTemplateRows == other.GridTemplateRows &&
+        GridAutoColumns == other.GridAutoColumns && GridAutoRows == other.GridAutoRows &&
+        GridColumnStart == other.GridColumnStart && GridColumnEnd == other.GridColumnEnd &&
+        GridRowStart == other.GridRowStart && GridRowEnd == other.GridRowEnd;
+
+    internal bool HasSameSource(UiComputedStyle other) =>
+        HasSameLayout(other) && TextAlign == other.TextAlign &&
+        VerticalAlign == other.VerticalAlign && PointerEvents == other.PointerEvents &&
+        Visibility == other.Visibility && Color == other.Color &&
+        BackgroundColor == other.BackgroundColor && BorderColor == other.BorderColor &&
+        BorderRadiusLength == other.BorderRadiusLength &&
+        BoxShadowDefinitions.SequenceEqual(other.BoxShadowDefinitions) &&
+        Opacity.Equals(other.Opacity) && ZIndex == other.ZIndex &&
+        BackgroundImage == other.BackgroundImage && BackgroundSize == other.BackgroundSize &&
+        BackgroundPosition == other.BackgroundPosition && BackgroundSlice == other.BackgroundSlice &&
+        TransformDefinition == other.TransformDefinition && TransformOrigin == other.TransformOrigin &&
+        Transitions.SequenceEqual(other.Transitions) && Animation == other.Animation &&
+        ObjectFit == other.ObjectFit && ScrollbarWidth == other.ScrollbarWidth &&
+        ScrollbarColor == other.ScrollbarColor && ScrollbarTrackColor == other.ScrollbarTrackColor &&
+        Variables.Count == other.Variables.Count &&
+        Variables.All(pair => other.Variables.TryGetValue(pair.Key, out var value) && value == pair.Value);
+
+    internal bool HasSameSourceExceptComposite(UiComputedStyle other) =>
+        HasSameLayout(other) && TextAlign == other.TextAlign &&
+        VerticalAlign == other.VerticalAlign && PointerEvents == other.PointerEvents &&
+        Color == other.Color && BackgroundColor == other.BackgroundColor &&
+        BorderColor == other.BorderColor && BorderRadiusLength == other.BorderRadiusLength &&
+        BoxShadowDefinitions.SequenceEqual(other.BoxShadowDefinitions) &&
+        ZIndex == other.ZIndex &&
+        BackgroundImage == other.BackgroundImage && BackgroundSize == other.BackgroundSize &&
+        BackgroundPosition == other.BackgroundPosition && BackgroundSlice == other.BackgroundSlice &&
+        Transitions.SequenceEqual(other.Transitions) && Animation == other.Animation &&
+        ObjectFit == other.ObjectFit && ScrollbarWidth == other.ScrollbarWidth &&
+        ScrollbarColor == other.ScrollbarColor && ScrollbarTrackColor == other.ScrollbarTrackColor &&
+        Variables.Count == other.Variables.Count &&
+        Variables.All(pair => other.Variables.TryGetValue(pair.Key, out var value) && value == pair.Value);
+
+    internal bool HasSameInherited(UiComputedStyle other) =>
+        Color == other.Color &&
+        FontSizeLength == other.FontSizeLength &&
+        FontFamily == other.FontFamily &&
+        TextAlign == other.TextAlign &&
+        WhiteSpace == other.WhiteSpace &&
+        TextFit == other.TextFit &&
+        MinFontSizeLength == other.MinFontSizeLength &&
+        Variables.Count == other.Variables.Count &&
+        Variables.All(pair => other.Variables.TryGetValue(pair.Key, out var value) && value == pair.Value);
+
     internal static UiComputedStyle Inherit(UiComputedStyle? parent)
     {
         var style = new UiComputedStyle();
@@ -208,6 +271,11 @@ internal sealed record UiStyleRule(
 
 internal sealed class UiStyleSheet
 {
+    private static readonly IReadOnlyList<UiStyleRule> EmptyRules = Array.Empty<UiStyleRule>();
+    private readonly Dictionary<string, IReadOnlyList<UiStyleRule>> _rulesById;
+    private readonly Dictionary<string, IReadOnlyList<UiStyleRule>> _rulesByClass;
+    private readonly Dictionary<string, IReadOnlyList<UiStyleRule>> _rulesByTag;
+    private readonly IReadOnlyList<UiStyleRule> _universalRules;
     public IReadOnlyList<UiStyleRule> Rules { get; }
     public IReadOnlyList<UiFontFace> FontFaces { get; }
     public IReadOnlyDictionary<string, UiKeyframes> Keyframes { get; }
@@ -220,6 +288,83 @@ internal sealed class UiStyleSheet
         Rules = rules;
         FontFaces = fontFaces;
         Keyframes = keyframes;
+        (_rulesById, _rulesByClass, _rulesByTag, _universalRules) = BuildRuleIndex(rules);
+    }
+
+    internal IReadOnlyList<UiStyleRule> UniversalRules => _universalRules;
+
+    internal IReadOnlyList<UiStyleRule> RulesForId(string? id) =>
+        id is not null && _rulesById.TryGetValue(id, out var rules) ? rules : EmptyRules;
+
+    internal IReadOnlyList<UiStyleRule> RulesForClass(string className) =>
+        _rulesByClass.TryGetValue(className, out var rules) ? rules : EmptyRules;
+
+    internal IReadOnlyList<UiStyleRule> RulesForTag(string tagName) =>
+        _rulesByTag.TryGetValue(tagName, out var rules) ? rules : EmptyRules;
+
+    internal int DescendantDependencySignature(UiElement element)
+    {
+        var signature = 0;
+        for (var index = 0; index < Rules.Count; index++)
+        {
+            var match = Rules[index].Selector.AncestorMatchSignature(element);
+            if (match != 0)
+                signature = HashCode.Combine(signature, index, match);
+        }
+        return signature;
+    }
+
+    private static (
+        Dictionary<string, IReadOnlyList<UiStyleRule>> ById,
+        Dictionary<string, IReadOnlyList<UiStyleRule>> ByClass,
+        Dictionary<string, IReadOnlyList<UiStyleRule>> ByTag,
+        IReadOnlyList<UiStyleRule> Universal) BuildRuleIndex(IReadOnlyList<UiStyleRule> rules)
+    {
+        var byId = new Dictionary<string, List<UiStyleRule>>(StringComparer.Ordinal);
+        var byClass = new Dictionary<string, List<UiStyleRule>>(StringComparer.Ordinal);
+        var byTag = new Dictionary<string, List<UiStyleRule>>(StringComparer.OrdinalIgnoreCase);
+        var universal = new List<UiStyleRule>();
+        foreach (var rule in rules)
+        {
+            var key = rule.Selector.IndexKey;
+            if (key.Id is { } id)
+                Add(byId, id, rule);
+            else if (key.Class is { } className)
+                Add(byClass, className, rule);
+            else if (key.Tag is { } tag)
+                Add(byTag, tag, rule);
+            else
+                universal.Add(rule);
+        }
+
+        return (
+            Freeze(byId, StringComparer.Ordinal),
+            Freeze(byClass, StringComparer.Ordinal),
+            Freeze(byTag, StringComparer.OrdinalIgnoreCase),
+            universal.ToArray());
+    }
+
+    private static void Add(
+        Dictionary<string, List<UiStyleRule>> index,
+        string key,
+        UiStyleRule rule)
+    {
+        if (!index.TryGetValue(key, out var values))
+        {
+            values = [];
+            index.Add(key, values);
+        }
+        values.Add(rule);
+    }
+
+    private static Dictionary<string, IReadOnlyList<UiStyleRule>> Freeze(
+        Dictionary<string, List<UiStyleRule>> source,
+        StringComparer comparer)
+    {
+        var result = new Dictionary<string, IReadOnlyList<UiStyleRule>>(comparer);
+        foreach (var (key, rules) in source)
+            result.Add(key, rules.ToArray());
+        return result;
     }
 
     public static UiStyleSheet Parse(string source)
@@ -295,7 +440,7 @@ internal sealed class UiStyleSheet
                     offset = Math.Clamp(percent * 0.01f, 0.0f, 1.0f);
                 else
                     continue;
-                result.Add(new UiKeyframe(offset, declarations));
+                result.Add(new UiKeyframe(offset, UiKeyframeValues.Compile(declarations)));
             }
         }
         return result.OrderBy(frame => frame.Offset).ToArray();
@@ -450,6 +595,7 @@ internal sealed class UiSelector
 {
     private readonly IReadOnlyList<Part> _parts;
     public int Specificity { get; }
+    internal UiSelectorIndexKey IndexKey => _parts[^1].Compound.IndexKey;
 
     private UiSelector(IReadOnlyList<Part> parts, int specificity)
     {
@@ -520,6 +666,15 @@ internal sealed class UiSelector
 
     public bool Matches(UiElement element) => Matches(element, _parts.Count - 1);
 
+    internal int AncestorMatchSignature(UiElement element)
+    {
+        var signature = 0;
+        for (var index = 0; index < _parts.Count - 1; index++)
+            if (_parts[index].Compound.Matches(element))
+                signature = HashCode.Combine(signature, index + 1);
+        return signature;
+    }
+
     private bool Matches(UiElement? element, int partIndex)
     {
         if (element is null || !_parts[partIndex].Compound.Matches(element))
@@ -549,6 +704,10 @@ internal sealed class UiSelector
         private readonly string[] _pseudos;
         private readonly (string Name, string? Value)[] _attributes;
         public int Specificity { get; }
+        public UiSelectorIndexKey IndexKey => new(
+            _id,
+            _classes.FirstOrDefault(),
+            _tag is null or "*" ? null : _tag);
 
         private Compound(
             string? tag,
@@ -625,8 +784,9 @@ internal sealed class UiSelector
                 return false;
             if (_id is not null && !string.Equals(_id, element.Id, StringComparison.Ordinal))
                 return false;
-            if (_classes.Any(value => !element.Classes.Contains(value)))
-                return false;
+            for (var index = 0; index < _classes.Length; index++)
+                if (!element.Classes.Contains(_classes[index]))
+                    return false;
             foreach (var (name, value) in _attributes)
             {
                 if (!element.Attributes.TryGetValue(name, out var actual) ||
@@ -648,8 +808,10 @@ internal sealed class UiSelector
                     "selected" => element.IsSelected,
                     "dragging" => element.IsDragging,
                     "drop-target" => element.IsDropTarget,
-                    "first-child" => element.Parent?.Children.FirstOrDefault() == element,
-                    "last-child" => element.Parent?.Children.LastOrDefault() == element,
+                    "first-child" => element.Parent is { Children.Count: > 0 } firstParent &&
+                                     ReferenceEquals(firstParent.Children[0], element),
+                    "last-child" => element.Parent is { Children.Count: > 0 } lastParent &&
+                                    ReferenceEquals(lastParent.Children[^1], element),
                     "empty" => element.Children.Count == 0 && string.IsNullOrWhiteSpace(element.Text),
                     _ => false
                 };
@@ -662,6 +824,8 @@ internal sealed class UiSelector
     }
 }
 
+internal readonly record struct UiSelectorIndexKey(string? Id, string? Class, string? Tag);
+
 internal static class UiStyleResolver
 {
     private static readonly ConditionalWeakTable<UiElement, ResolutionState> ResolutionStates = new();
@@ -669,26 +833,30 @@ internal static class UiStyleResolver
         @"var\(\s*(--[A-Za-z0-9_-]+)\s*(?:,\s*([^\)]+))?\)",
         RegexOptions.Compiled);
 
-    public static void Resolve(
+    public static int Resolve(
         UiElement root,
         IReadOnlyList<UiStyleSheet> sheets,
         bool forceFullResolution = false)
     {
-        ResolveElement(root, null, sheets, forceFullResolution);
+        var resolvedElements = 0;
+        ResolveElement(root, null, sheets, forceFullResolution, ref resolvedElements);
+        return resolvedElements;
     }
 
     private static void ResolveElement(
         UiElement element,
         UiComputedStyle? parentStyle,
         IReadOnlyList<UiStyleSheet> sheets,
-        bool forceResolution)
+        bool forceResolution,
+        ref int resolvedElements)
     {
         var state = ResolutionStates.GetOrCreateValue(element);
-        var parentComputedStyleVersion = element.Parent?.ComputedStyleVersion ?? -1;
+        var parentComputedStyleVersion = element.Parent?.InheritedStyleVersion ?? -1;
         var localStateChanged =
             state.LocalStyleVersion != element.LocalStyleVersion ||
             state.LocalPseudoVersion != element.LocalPseudoVersion ||
-            state.ParentComputedStyleVersion != parentComputedStyleVersion;
+            state.ParentComputedStyleVersion != parentComputedStyleVersion ||
+            !ReferenceEquals(state.Parent, element.Parent);
         var subtreeChanged =
             state.SubtreeStyleVersion != element.StyleVersion ||
             state.SubtreePseudoVersion != element.PseudoVersion;
@@ -697,32 +865,30 @@ internal static class UiStyleResolver
             return;
 
         var resolveThisElement = forceResolution || localStateChanged;
+        var descendantDependencySignature = state.DescendantDependencySignature;
+        if (localStateChanged || forceResolution)
+        {
+            descendantDependencySignature = 0;
+            for (var index = 0; index < sheets.Count; index++)
+                descendantDependencySignature = HashCode.Combine(
+                    descendantDependencySignature,
+                    sheets[index].DescendantDependencySignature(element));
+        }
+        var descendantSelectorsChanged =
+            state.DescendantDependencySignature != descendantDependencySignature;
         if (resolveThisElement)
         {
+            resolvedElements++;
             var style = UiComputedStyle.Inherit(parentStyle);
             var declarations = new Dictionary<string, Winner>(StringComparer.OrdinalIgnoreCase);
 
-            if (element.Attributes.TryGetValue("hidden", out var hidden) &&
-                !hidden.Equals("false", StringComparison.OrdinalIgnoreCase))
-            {
-                declarations["display"] = new Winner(1000, int.MaxValue - 1, "none");
-            }
-
             foreach (var sheet in sheets)
             {
-                foreach (var rule in sheet.Rules)
-                {
-                    if (!rule.Selector.Matches(element))
-                        continue;
-                    foreach (var (name, value) in rule.Declarations)
-                    {
-                        var candidate = new Winner(rule.Selector.Specificity, rule.Order, value);
-                        if (!declarations.TryGetValue(name, out var winner) ||
-                            candidate.Specificity > winner.Specificity ||
-                            candidate.Specificity == winner.Specificity && candidate.Order >= winner.Order)
-                            declarations[name] = candidate;
-                    }
-                }
+                ApplyMatchingRules(element, sheet.UniversalRules, declarations);
+                ApplyMatchingRules(element, sheet.RulesForId(element.Id), declarations);
+                foreach (var className in element.Classes)
+                    ApplyMatchingRules(element, sheet.RulesForClass(className), declarations);
+                ApplyMatchingRules(element, sheet.RulesForTag(element.TagName), declarations);
             }
 
             if (element.Attributes.TryGetValue("style", out var inlineStyle))
@@ -746,14 +912,41 @@ internal static class UiStyleResolver
             element.ComputedStyle = style;
         }
 
-        foreach (var child in element.Children)
-            ResolveElement(child, element.ComputedStyle, sheets, resolveThisElement);
+        for (var index = 0; index < element.Children.Count; index++)
+            ResolveElement(
+                element.Children[index],
+                element.ComputedStyle,
+                sheets,
+                forceResolution || descendantSelectorsChanged,
+                ref resolvedElements);
 
         state.LocalStyleVersion = element.LocalStyleVersion;
         state.LocalPseudoVersion = element.LocalPseudoVersion;
         state.SubtreeStyleVersion = element.StyleVersion;
         state.SubtreePseudoVersion = element.PseudoVersion;
         state.ParentComputedStyleVersion = parentComputedStyleVersion;
+        state.Parent = element.Parent;
+        state.DescendantDependencySignature = descendantDependencySignature;
+    }
+
+    private static void ApplyMatchingRules(
+        UiElement element,
+        IReadOnlyList<UiStyleRule> rules,
+        Dictionary<string, Winner> declarations)
+    {
+        foreach (var rule in rules)
+        {
+            if (!rule.Selector.Matches(element))
+                continue;
+            foreach (var (name, value) in rule.Declarations)
+            {
+                var candidate = new Winner(rule.Selector.Specificity, rule.Order, value);
+                if (!declarations.TryGetValue(name, out var winner) ||
+                    candidate.Specificity > winner.Specificity ||
+                    candidate.Specificity == winner.Specificity && candidate.Order >= winner.Order)
+                    declarations[name] = candidate;
+            }
+        }
     }
 
     private sealed class ResolutionState
@@ -763,6 +956,8 @@ internal static class UiStyleResolver
         public int SubtreeStyleVersion = int.MinValue;
         public int SubtreePseudoVersion = int.MinValue;
         public int ParentComputedStyleVersion = int.MinValue;
+        public int DescendantDependencySignature = int.MinValue;
+        public UiElement? Parent;
     }
 
     private static string ResolveVariables(

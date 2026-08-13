@@ -12,6 +12,7 @@ public sealed class UiTimingStatistics
     public double CurrentMilliseconds { get; private set; }
     public double AverageMilliseconds { get; private set; }
     public double PeakMilliseconds { get; private set; }
+    public double LastWorkMilliseconds { get; private set; }
 
     internal void Record(double milliseconds)
     {
@@ -20,6 +21,8 @@ public sealed class UiTimingStatistics
             ? milliseconds
             : AverageMilliseconds * 0.95 + milliseconds * 0.05;
         PeakMilliseconds = Math.Max(PeakMilliseconds, milliseconds);
+        if (milliseconds >= 0.001)
+            LastWorkMilliseconds = milliseconds;
     }
 
     internal void ResetPeak() => PeakMilliseconds = CurrentMilliseconds;
@@ -89,6 +92,14 @@ public sealed class UiPerformanceStatistics
     public IReadOnlyList<UiDocumentStatistics> Documents => _documents;
     public UiTimingStatistics UpdateCpu { get; } = new();
     public UiTimingStatistics LayoutCpu { get; } = new();
+    public UiTimingStatistics RefreshCpu { get; } = new();
+    public UiTimingStatistics StyleCpu { get; } = new();
+    public UiTimingStatistics LayoutApplyCpu { get; } = new();
+    public UiTimingStatistics YogaCpu { get; } = new();
+    public UiTimingStatistics ArrangeCpu { get; } = new();
+    public UiTimingStatistics GridCpu { get; } = new();
+    public UiTimingStatistics ScrollExtentCpu { get; } = new();
+    public UiTimingStatistics TextMeasureCpu { get; } = new();
     public UiTimingStatistics AnimationCpu { get; } = new();
     public UiTimingStatistics HitTestCpu { get; } = new();
     public UiTimingStatistics InputCpu { get; } = new();
@@ -108,6 +119,11 @@ public sealed class UiPerformanceStatistics
     public int TextureSwitches { get; private set; }
     public int ShadowDefinitions { get; private set; }
     public int ShadowLayers { get; private set; }
+    public int StyledElements { get; private set; }
+    public int LayoutNodes { get; private set; }
+    public int ArrangedNodes { get; private set; }
+    public int TextMeasureCount { get; private set; }
+    public int FullLayoutCount { get; private set; }
     public int LayerRebuilds { get; private set; }
     public int LayerCacheHits { get; private set; }
     public int CompositeDrawCalls { get; private set; }
@@ -115,6 +131,9 @@ public sealed class UiPerformanceStatistics
     public long ContentPixels { get; private set; }
     public long UploadBytes { get; private set; }
     public long UpdateAllocatedBytes { get; private set; }
+    public long LayoutAllocatedBytes { get; private set; }
+    public long AnimationAllocatedBytes { get; private set; }
+    public long InputAllocatedBytes { get; private set; }
     public long RenderAllocatedBytes { get; private set; }
     public double AverageUpdateAllocatedBytes { get; private set; }
     public double AverageRenderAllocatedBytes { get; private set; }
@@ -138,6 +157,11 @@ public sealed class UiPerformanceStatistics
         TextureSwitches = 0;
         ShadowDefinitions = 0;
         ShadowLayers = 0;
+        StyledElements = 0;
+        LayoutNodes = 0;
+        ArrangedNodes = 0;
+        TextMeasureCount = 0;
+        FullLayoutCount = 0;
         LayerRebuilds = 0;
         LayerCacheHits = 0;
         CompositeDrawCalls = 0;
@@ -145,6 +169,9 @@ public sealed class UiPerformanceStatistics
         ContentPixels = 0;
         UploadBytes = 0;
         UpdateAllocatedBytes = 0;
+        LayoutAllocatedBytes = 0;
+        AnimationAllocatedBytes = 0;
+        InputAllocatedBytes = 0;
         RenderAllocatedBytes = 0;
         foreach (var document in _documents)
             document.RebuiltThisFrame = false;
@@ -153,17 +180,49 @@ public sealed class UiPerformanceStatistics
     internal void RecordUpdate(
         double totalMilliseconds,
         double layoutMilliseconds,
+        double refreshMilliseconds,
+        double styleMilliseconds,
+        double layoutApplyMilliseconds,
+        double yogaMilliseconds,
+        double arrangeMilliseconds,
+        double gridMilliseconds,
+        double scrollExtentMilliseconds,
+        double textMeasureMilliseconds,
         double animationMilliseconds,
         double hitTestMilliseconds,
         double inputMilliseconds,
-        long allocatedBytes)
+        int styledElements,
+        int layoutNodes,
+        int arrangedNodes,
+        int textMeasureCount,
+        int fullLayoutCount,
+        long allocatedBytes,
+        long layoutAllocatedBytes,
+        long animationAllocatedBytes,
+        long inputAllocatedBytes)
     {
         UpdateCpu.Record(totalMilliseconds);
         LayoutCpu.Record(layoutMilliseconds);
+        RefreshCpu.Record(refreshMilliseconds);
+        StyleCpu.Record(styleMilliseconds);
+        LayoutApplyCpu.Record(layoutApplyMilliseconds);
+        YogaCpu.Record(yogaMilliseconds);
+        ArrangeCpu.Record(arrangeMilliseconds);
+        GridCpu.Record(gridMilliseconds);
+        ScrollExtentCpu.Record(scrollExtentMilliseconds);
+        TextMeasureCpu.Record(textMeasureMilliseconds);
         AnimationCpu.Record(animationMilliseconds);
         HitTestCpu.Record(hitTestMilliseconds);
         InputCpu.Record(inputMilliseconds);
+        StyledElements = styledElements;
+        LayoutNodes = layoutNodes;
+        ArrangedNodes = arrangedNodes;
+        TextMeasureCount = textMeasureCount;
+        FullLayoutCount = fullLayoutCount;
         UpdateAllocatedBytes = allocatedBytes;
+        LayoutAllocatedBytes = layoutAllocatedBytes;
+        AnimationAllocatedBytes = animationAllocatedBytes;
+        InputAllocatedBytes = inputAllocatedBytes;
         AverageUpdateAllocatedBytes = Frame == 1
             ? allocatedBytes
             : AverageUpdateAllocatedBytes * 0.95 + allocatedBytes * 0.05;
@@ -256,6 +315,14 @@ public sealed class UiPerformanceStatistics
     {
         UpdateCpu.ResetPeak();
         LayoutCpu.ResetPeak();
+        RefreshCpu.ResetPeak();
+        StyleCpu.ResetPeak();
+        LayoutApplyCpu.ResetPeak();
+        YogaCpu.ResetPeak();
+        ArrangeCpu.ResetPeak();
+        GridCpu.ResetPeak();
+        ScrollExtentCpu.ResetPeak();
+        TextMeasureCpu.ResetPeak();
         AnimationCpu.ResetPeak();
         HitTestCpu.ResetPeak();
         InputCpu.ResetPeak();

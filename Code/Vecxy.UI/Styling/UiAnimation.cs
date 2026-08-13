@@ -27,7 +27,63 @@ internal sealed record UiKeyframes(
 
 internal sealed record UiKeyframe(
     float Offset,
-    IReadOnlyDictionary<string, string> Declarations);
+    UiKeyframeValues Values);
+
+[Flags]
+internal enum UiKeyframeProperties
+{
+    None = 0,
+    Color = 1 << 0,
+    BackgroundColor = 1 << 1,
+    Opacity = 1 << 2,
+    Transform = 1 << 3
+}
+
+/// <summary>
+/// Numeric representation of the paint/composite properties supported by CSS
+/// animations. Keyframes are compiled into this form while parsing the sheet so
+/// animation updates never tokenize CSS or allocate transform parser objects.
+/// </summary>
+internal readonly record struct UiKeyframeValues(
+    UiKeyframeProperties Properties,
+    Vector4 Color,
+    Vector4 BackgroundColor,
+    float Opacity,
+    UiTransformDefinition Transform)
+{
+    public static UiKeyframeValues Compile(IReadOnlyDictionary<string, string> declarations)
+    {
+        var properties = UiKeyframeProperties.None;
+        var color = default(Vector4);
+        var backgroundColor = default(Vector4);
+        var opacity = 1.0f;
+        var transform = UiTransformDefinition.Identity;
+
+        if (declarations.TryGetValue("color", out var colorSource) &&
+            UiStyleResolver.TryColor(colorSource, out color))
+            properties |= UiKeyframeProperties.Color;
+        if (declarations.TryGetValue("background-color", out var backgroundSource) &&
+            UiStyleResolver.TryColor(backgroundSource, out backgroundColor))
+            properties |= UiKeyframeProperties.BackgroundColor;
+        if (declarations.TryGetValue("opacity", out var opacitySource) &&
+            float.TryParse(
+                opacitySource,
+                NumberStyles.Float,
+                CultureInfo.InvariantCulture,
+                out var parsedOpacity))
+        {
+            opacity = Math.Clamp(parsedOpacity, 0.0f, 1.0f);
+            properties |= UiKeyframeProperties.Opacity;
+        }
+        if (declarations.TryGetValue("transform", out var transformSource))
+        {
+            transform = UiTransformParser.Parse(transformSource, UiTransform.Identity.Origin);
+            properties |= UiKeyframeProperties.Transform;
+        }
+
+        return new UiKeyframeValues(properties, color, backgroundColor, opacity, transform);
+    }
+}
 
 [Flags]
 internal enum UiAnimationChange
@@ -64,7 +120,7 @@ internal static class UiAnimationParser
                 parts[0].ToLowerInvariant(),
                 Math.Max(0.0f, duration),
                 float.IsFinite(delay) ? delay : 0.0f,
-                easing));
+                NormalizeEasing(easing)));
         }
         return result;
     }
@@ -91,13 +147,19 @@ internal static class UiAnimationParser
                 ? Math.Max(0.0f, count)
                 : 1.0f;
         var fill = parts.FirstOrDefault(part => part is "forwards" or "backwards" or "both") ?? "none";
-        return new UiAnimationDefinition(name, Math.Max(0.0f, duration), delay, iterations, easing, fill);
+        return new UiAnimationDefinition(
+            name,
+            Math.Max(0.0f, duration),
+            delay,
+            iterations,
+            NormalizeEasing(easing),
+            fill);
     }
 
     public static float Ease(string easing, float value)
     {
         value = Math.Clamp(value, 0.0f, 1.0f);
-        return easing.ToLowerInvariant() switch
+        return easing switch
         {
             "linear" => value,
             "ease-in" => value * value,
@@ -113,6 +175,8 @@ internal static class UiAnimationParser
 
     private static bool IsEasing(string value) =>
         value is "linear" or "ease" or "ease-in" or "ease-out" or "ease-in-out" or "step-start" or "step-end";
+
+    private static string NormalizeEasing(string easing) => easing.ToLowerInvariant();
 
     private static bool IsIteration(string value) =>
         value.Equals("infinite", StringComparison.OrdinalIgnoreCase) ||
@@ -166,7 +230,7 @@ internal sealed class UiAnimationRuntime
         StartAnimation(
             element,
             element.ComputedStyle.Animation,
-            element.IsVisible && element.ComputedStyle.Visibility != "hidden");
+            element.IsRendered);
     }
 
     public UiAnimationChange Update(
@@ -186,7 +250,7 @@ internal sealed class UiAnimationRuntime
             transformHeight,
             viewportWidth,
             viewportHeight);
-        var visible = style.Display != "none" && style.Visibility != "hidden";
+        var visible = element.IsRendered;
         var manual = element.Attributes.GetValueOrDefault("animation-trigger")
             ?.Equals("manual", StringComparison.OrdinalIgnoreCase) == true;
         if (!_initialized)
@@ -208,9 +272,9 @@ internal sealed class UiAnimationRuntime
         {
             BeginTransitions(style.Transitions, _target, target);
             _target = target;
-            if (!manual && (style.Animation != _animation || visible && !_wasVisible))
+            if (!manual && (!SameAnimation(style.Animation, _animation) || visible && !_wasVisible))
                 StartAnimation(element, style.Animation, visible);
-            else if (manual && style.Animation != _animation)
+            else if (manual && !SameAnimation(style.Animation, _animation))
             {
                 _animation = style.Animation;
                 _animationRunning = false;
@@ -247,8 +311,16 @@ internal sealed class UiAnimationRuntime
         {
             if (Snapshot.PropertyEquals(previousTarget, target, property))
                 continue;
-            var definition = definitions.LastOrDefault(item =>
-                item.Property.Equals(property, StringComparison.OrdinalIgnoreCase) || item.Property == "all");
+            var definition = default(UiTransitionDefinition);
+            for (var index = definitions.Count - 1; index >= 0; index--)
+            {
+                var candidate = definitions[index];
+                if (!candidate.Property.Equals(property, StringComparison.OrdinalIgnoreCase) &&
+                    candidate.Property != "all")
+                    continue;
+                definition = candidate;
+                break;
+            }
             if (definition.Duration <= 0.0f)
             {
                 _transitions.Remove(property);
@@ -302,6 +374,16 @@ internal sealed class UiAnimationRuntime
         if (_animationRunning)
             element.RaiseAnimationStarted(new UiAnimationEvent(definition.Name, 0.0f, 0));
     }
+
+    private static bool SameAnimation(
+        in UiAnimationDefinition first,
+        in UiAnimationDefinition second) =>
+        first.Name == second.Name &&
+        first.Duration == second.Duration &&
+        first.Delay == second.Delay &&
+        first.Iterations == second.Iterations &&
+        first.Easing == second.Easing &&
+        first.FillMode == second.FillMode;
 
     private void ApplyAnimation(
         UiElement element,
@@ -360,19 +442,29 @@ internal sealed class UiAnimationRuntime
         var frames = animation.Frames;
         if (frames.Count == 0)
             return fallback;
-        var before = frames.LastOrDefault(frame => frame.Offset <= progress) ?? frames[0];
-        var after = frames.FirstOrDefault(frame => frame.Offset >= progress) ?? frames[^1];
+        var before = frames[0];
+        var after = frames[^1];
+        for (var index = 0; index < frames.Count; index++)
+        {
+            var frame = frames[index];
+            if (frame.Offset <= progress)
+                before = frame;
+            if (frame.Offset < progress)
+                continue;
+            after = frame;
+            break;
+        }
         var range = after.Offset - before.Offset;
         var amount = range <= float.Epsilon ? 0.0f : (progress - before.Offset) / range;
-        var first = Snapshot.FromDeclarations(
-            before.Declarations,
+        var first = Snapshot.FromKeyframe(
+            before.Values,
             fallback,
             elementWidth,
             elementHeight,
             viewportWidth,
             viewportHeight);
-        var second = Snapshot.FromDeclarations(
-            after.Declarations,
+        var second = Snapshot.FromKeyframe(
+            after.Values,
             fallback,
             elementWidth,
             elementHeight,
@@ -411,8 +503,8 @@ internal sealed class UiAnimationRuntime
                     viewportWidth,
                     viewportHeight));
 
-        public static Snapshot FromDeclarations(
-            IReadOnlyDictionary<string, string> declarations,
+        public static Snapshot FromKeyframe(
+            UiKeyframeValues values,
             Snapshot fallback,
             float elementWidth,
             float elementHeight,
@@ -420,17 +512,16 @@ internal sealed class UiAnimationRuntime
             float viewportHeight)
         {
             var result = fallback;
-            if (declarations.TryGetValue("color", out var color) && UiStyleResolver.TryColor(color, out var parsedColor))
-                result = result with { Color = parsedColor };
-            if (declarations.TryGetValue("background-color", out var background) && UiStyleResolver.TryColor(background, out var parsedBackground))
-                result = result with { BackgroundColor = parsedBackground };
-            if (declarations.TryGetValue("opacity", out var opacity) &&
-                float.TryParse(opacity, NumberStyles.Float, CultureInfo.InvariantCulture, out var parsedOpacity))
-                result = result with { Opacity = Math.Clamp(parsedOpacity, 0.0f, 1.0f) };
-            if (declarations.TryGetValue("transform", out var transform))
+            if ((values.Properties & UiKeyframeProperties.Color) != 0)
+                result = result with { Color = values.Color };
+            if ((values.Properties & UiKeyframeProperties.BackgroundColor) != 0)
+                result = result with { BackgroundColor = values.BackgroundColor };
+            if ((values.Properties & UiKeyframeProperties.Opacity) != 0)
+                result = result with { Opacity = values.Opacity };
+            if ((values.Properties & UiKeyframeProperties.Transform) != 0)
                 result = result with
                 {
-                    Transform = UiTransformParser.Parse(transform, fallback.Transform.Origin).Resolve(
+                    Transform = (values.Transform with { Origin = fallback.Transform.Origin }).Resolve(
                         elementWidth,
                         elementHeight,
                         viewportWidth,
@@ -441,10 +532,18 @@ internal sealed class UiAnimationRuntime
 
         public static Snapshot Lerp(Snapshot first, Snapshot second, float amount) =>
             new(
-                Vector4.Lerp(first.Color, second.Color, amount),
-                Vector4.Lerp(first.BackgroundColor, second.BackgroundColor, amount),
-                float.Lerp(first.Opacity, second.Opacity, amount),
-                UiTransform.Lerp(first.Transform, second.Transform, amount));
+                first.Color == second.Color
+                    ? first.Color
+                    : Vector4.Lerp(first.Color, second.Color, amount),
+                first.BackgroundColor == second.BackgroundColor
+                    ? first.BackgroundColor
+                    : Vector4.Lerp(first.BackgroundColor, second.BackgroundColor, amount),
+                first.Opacity == second.Opacity
+                    ? first.Opacity
+                    : float.Lerp(first.Opacity, second.Opacity, amount),
+                first.Transform == second.Transform
+                    ? first.Transform
+                    : UiTransform.Lerp(first.Transform, second.Transform, amount));
 
         public static bool PropertyEquals(Snapshot first, Snapshot second, string property) =>
             property switch

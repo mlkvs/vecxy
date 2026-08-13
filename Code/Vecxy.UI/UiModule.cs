@@ -177,21 +177,59 @@ public sealed class UiModule :
         var updateStarted = Stopwatch.GetTimestamp();
         var allocatedBeforeUpdate = GC.GetAllocatedBytesForCurrentThread();
         double layoutMilliseconds = 0;
+        double refreshMilliseconds = 0;
+        double styleMilliseconds = 0;
+        double layoutApplyMilliseconds = 0;
+        double yogaMilliseconds = 0;
+        double arrangeMilliseconds = 0;
+        double gridMilliseconds = 0;
+        double scrollExtentMilliseconds = 0;
+        double textMeasureMilliseconds = 0;
+        var styledElements = 0;
+        var layoutNodes = 0;
+        var arrangedNodes = 0;
+        var textMeasureCount = 0;
+        var fullLayouts = 0;
         double animationMilliseconds = 0;
+        long layoutAllocatedBytes = 0;
+        long animationAllocatedBytes = 0;
         foreach (var document in _documents)
         {
             try
             {
                 var started = Stopwatch.GetTimestamp();
-                document.Layout(_renderer.GameOutputWidth, _renderer.GameOutputHeight, Settings);
+                var allocatedBeforePhase = GC.GetAllocatedBytesForCurrentThread();
+                var metrics = document.Layout(
+                    _renderer.GameOutputWidth,
+                    _renderer.GameOutputHeight,
+                    Settings);
                 layoutMilliseconds += Stopwatch.GetElapsedTime(started).TotalMilliseconds;
+                layoutAllocatedBytes += GC.GetAllocatedBytesForCurrentThread() - allocatedBeforePhase;
+                refreshMilliseconds += metrics.RefreshMilliseconds;
+                styleMilliseconds += metrics.StyleMilliseconds;
+                styledElements += metrics.StyledElements;
+                if (metrics.LayoutPerformed)
+                {
+                    fullLayouts++;
+                    layoutApplyMilliseconds += metrics.Layout.ApplyMilliseconds;
+                    yogaMilliseconds += metrics.Layout.YogaMilliseconds;
+                    arrangeMilliseconds += metrics.Layout.ArrangeMilliseconds;
+                    gridMilliseconds += metrics.Layout.GridMilliseconds;
+                    scrollExtentMilliseconds += metrics.Layout.ScrollMilliseconds;
+                    textMeasureMilliseconds += metrics.Layout.TextMeasureMilliseconds;
+                    layoutNodes += metrics.Layout.AppliedNodes;
+                    arrangedNodes += metrics.Layout.ArrangedNodes;
+                    textMeasureCount += metrics.Layout.TextMeasureCount;
+                }
                 started = Stopwatch.GetTimestamp();
+                allocatedBeforePhase = GC.GetAllocatedBytesForCurrentThread();
                 document.UpdateAnimations(
                     deltaTime,
                     _renderer.GameOutputWidth,
                     _renderer.GameOutputHeight,
                     Settings);
                 animationMilliseconds += Stopwatch.GetElapsedTime(started).TotalMilliseconds;
+                animationAllocatedBytes += GC.GetAllocatedBytesForCurrentThread() - allocatedBeforePhase;
             }
             catch (Exception exception)
             {
@@ -209,7 +247,9 @@ public sealed class UiModule :
         var hitTestMilliseconds = Stopwatch.GetElapsedTime(hitTestStarted).TotalMilliseconds;
 
         _nextHoveredElements.Clear();
-        if (_input.PointerKind == EPointerKind.Mouse || _input.IsPrimaryPointerPressed)
+        // Touch has no persistent hover state. Applying both :hover and :active
+        // doubles style work on every mobile press.
+        if (_input.PointerKind == EPointerKind.Mouse)
             for (var hovered = hit; hovered is not null; hovered = hovered.Parent)
                 _nextHoveredElements.Add(hovered);
         foreach (var hovered in _hoveredElements)
@@ -302,13 +342,30 @@ public sealed class UiModule :
         _inputCapture.SuppressKeyboard =
             _focusedElement?.TagName is "input" or "textarea" or "select";
         var inputMilliseconds = Stopwatch.GetElapsedTime(inputStarted).TotalMilliseconds;
+        var totalAllocatedBytes = GC.GetAllocatedBytesForCurrentThread() - allocatedBeforeUpdate;
         _statistics.RecordUpdate(
             Stopwatch.GetElapsedTime(updateStarted).TotalMilliseconds,
             layoutMilliseconds,
+            refreshMilliseconds,
+            styleMilliseconds,
+            layoutApplyMilliseconds,
+            yogaMilliseconds,
+            arrangeMilliseconds,
+            gridMilliseconds,
+            scrollExtentMilliseconds,
+            textMeasureMilliseconds,
             animationMilliseconds,
             hitTestMilliseconds,
             inputMilliseconds,
-            GC.GetAllocatedBytesForCurrentThread() - allocatedBeforeUpdate);
+            styledElements,
+            layoutNodes,
+            arrangedNodes,
+            textMeasureCount,
+            fullLayouts,
+            totalAllocatedBytes,
+            layoutAllocatedBytes,
+            animationAllocatedBytes,
+            Math.Max(0, totalAllocatedBytes - layoutAllocatedBytes - animationAllocatedBytes));
     }
 
     private UiElement? HitTest(Vector2 outputPoint, out UiDocument? hitDocument)
@@ -320,7 +377,6 @@ public sealed class UiModule :
         foreach (var document in _documents)
         {
             signature.Add(document.IsVisible);
-            signature.Add(document.RenderVersion);
             signature.Add(document.HitTestVersion);
         }
         var currentSignature = signature.ToHashCode();
@@ -510,8 +566,7 @@ public sealed class UiModule :
                 .SelectMany(document => document.Root.DescendantsAndSelf())
                 .Where(element =>
                     element.IsFocusable &&
-                    element.ComputedStyle.Display != "none" &&
-                    element.ComputedStyle.Visibility != "hidden")
+                    element.IsRendered)
                 .ToArray();
             if (candidates.Length > 0)
             {

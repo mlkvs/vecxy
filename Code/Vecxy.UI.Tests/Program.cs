@@ -1,15 +1,26 @@
 using Facebook.Yoga;
+using Vecxy.Input;
 using Vecxy.Kernel;
 using Vecxy.UI;
 
 StyleInvalidationIsClassified();
+PseudoStateInvalidationIsClassified();
+ClassInvalidationIsClassified();
+CompositeOnlyAnimationDoesNotInvalidatePaint();
+SameSizeDynamicTextDoesNotInvalidateLayout();
+HiddenStateDoesNotInvalidateStyle();
+VisibilityUsesCompositeFastPath();
+OpacityTransitionUsesCompositeFastPath();
+OpacityTransitionInterpolatesInBothDirections();
 IncrementalStyleResolutionSkipsUnchangedBranches();
+AncestorSelectorInvalidatesOnlyWhenItsMatchChanges();
 HitTestBoundsDoNotInvalidateRendering();
 FractionalGridTracksFillAvailableWidth();
 ShrinkTextStyleAndSizingAreApplied();
 WrappedTextKeepsWordsIntact();
 KeyedCollectionRetainsAndOrdersNodes();
 DetachedSubtreeCanBeMountedAgain();
+ShortTouchIsNotCollapsedIntoOneFrame();
 Console.WriteLine("All Vecxy.UI checks passed.");
 
 static void StyleInvalidationIsClassified()
@@ -32,6 +43,224 @@ static void StyleInvalidationIsClassified()
     layout = panel.LayoutVersion;
     panel.Style.Width = "120px";
     Check(panel.LayoutVersion > layout, "Sizing style did not invalidate layout.");
+    panel.ReleaseLayout();
+}
+
+static void PseudoStateInvalidationIsClassified()
+{
+    var config = NewConfig();
+    var button = new UiButton(config, new Dictionary<string, string> { ["class"] = "action" });
+    var paintOnly = UiStyleSheet.Parse(".action { width: 100px; opacity: 1; } .action:active { opacity: .7; }");
+    UiStyleResolver.Resolve(button, [paintOnly], forceFullResolution: true);
+    var layout = button.LayoutVersion;
+    var visual = button.VisualVersion;
+
+    button.IsActive = true;
+    UiStyleResolver.Resolve(button, [paintOnly]);
+    Check(button.LayoutVersion == layout, "A paint-only active state invalidated layout.");
+    Check(button.VisualVersion > visual, "An active opacity change did not invalidate paint.");
+
+    layout = button.LayoutVersion;
+    visual = button.VisualVersion;
+    button.IsFocused = true;
+    UiStyleResolver.Resolve(button, [paintOnly]);
+    Check(button.LayoutVersion == layout && button.VisualVersion == visual,
+        "An unused focus state invalidated rendering.");
+
+    var layoutPseudo = UiStyleSheet.Parse(".action { width: 100px; } .action:active { width: 90px; }");
+    button.IsActive = false;
+    UiStyleResolver.Resolve(button, [layoutPseudo], forceFullResolution: true);
+    layout = button.LayoutVersion;
+    button.IsActive = true;
+    UiStyleResolver.Resolve(button, [layoutPseudo]);
+    Check(button.LayoutVersion > layout, "A layout-changing active state did not invalidate layout.");
+    button.ReleaseLayout();
+}
+
+static void ClassInvalidationIsClassified()
+{
+    var config = NewConfig();
+    var panel = new UiPanel(config, new Dictionary<string, string> { ["class"] = "card" });
+    var sheet = UiStyleSheet.Parse(".card { width: 100px; } .card.selected { background-color: white; }");
+    UiStyleResolver.Resolve(panel, [sheet], forceFullResolution: true);
+    var layout = panel.LayoutVersion;
+
+    panel.AddClass("selected");
+    UiStyleResolver.Resolve(panel, [sheet]);
+    Check(panel.LayoutVersion == layout, "A paint-only class change invalidated layout.");
+    Check(panel.ComputedStyle.BackgroundColor == System.Numerics.Vector4.One,
+        "A class change was not resolved.");
+    panel.ReleaseLayout();
+}
+
+static void CompositeOnlyAnimationDoesNotInvalidatePaint()
+{
+    var config = NewConfig();
+    var panel = new UiPanel(config, new Dictionary<string, string>
+    {
+        ["class"] = "tick",
+        ["animation-trigger"] = "manual"
+    });
+    var sheet = UiStyleSheet.Parse("""
+        .tick {
+            color: #9ff2c9;
+            background-color: #10251bb8;
+            opacity: 0;
+            animation: rise 1.55s ease-out;
+        }
+        @keyframes rise {
+            from { opacity: 0; transform: translate(0, 18px) scale(0.90); }
+            14% { opacity: 0.68; transform: translate(0, 0) scale(1.0); }
+            68% { opacity: 0.54; transform: translate(0, -34px) scale(1.02); }
+            to { opacity: 0; transform: translate(0, -68px) scale(0.96); }
+        }
+        """);
+    UiStyleResolver.Resolve(panel, [sheet], forceFullResolution: true);
+    panel.AnimationRuntime.Update(panel, sheet.Keyframes, 0f, 176f, 43f);
+    panel.AnimationRuntime.Restart(panel);
+
+    for (var frame = 0; frame < 4; frame++)
+        panel.AnimationRuntime.Update(panel, sheet.Keyframes, 1f / 60f, 176f, 43f);
+    var allocatedBeforeAnimation = GC.GetAllocatedBytesForCurrentThread();
+    for (var frame = 0; frame < 20; frame++)
+        panel.AnimationRuntime.Update(panel, sheet.Keyframes, 1f / 60f, 176f, 43f);
+    var animationAllocations = GC.GetAllocatedBytesForCurrentThread() - allocatedBeforeAnimation;
+    Check(animationAllocations == 0,
+        $"A steady CSS animation allocated {animationAllocations / 20.0:F1} bytes per update.");
+    panel.AnimationRuntime.Restart(panel);
+
+    var compositeChanged = false;
+    for (var frame = 0; frame < 100; frame++)
+    {
+        var change = panel.AnimationRuntime.Update(panel, sheet.Keyframes, 1f / 60f, 176f, 43f);
+        Check((change & UiAnimationChange.Paint) == 0,
+            "An opacity/transform-only animation invalidated paint.");
+        compositeChanged |= (change & UiAnimationChange.Composite) != 0;
+    }
+
+    Check(compositeChanged, "The composite-only animation did not update its composite state.");
+    panel.ReleaseLayout();
+}
+
+static void SameSizeDynamicTextDoesNotInvalidateLayout()
+{
+    var config = NewConfig();
+    var root = new UiPanel(config, new Dictionary<string, string> { ["class"] = "screen" });
+    var text = new UiText(config, new Dictionary<string, string>(), "1000");
+    root.Add(text);
+    UiStyleResolver.Resolve(root, [UiStyleSheet.Parse(
+        ".screen { width: 320px; height: 200px; align-items: flex-start; }")], true);
+    UiLayout.Calculate(root, 320, 200);
+    var layout = root.LayoutVersion;
+
+    text.Value = "1001";
+    Check(root.LayoutVersion == layout,
+        "Equal-size dynamic text invalidated the parent layout.");
+
+    text.Value = "10010";
+    Check(root.LayoutVersion > layout,
+        "A dynamic text size change did not invalidate layout.");
+    root.ReleaseLayout();
+}
+
+static void HiddenStateDoesNotInvalidateStyle()
+{
+    var config = NewConfig();
+    var root = new UiPanel(config, new Dictionary<string, string>());
+    var window = new UiPanel(config, new Dictionary<string, string> { ["hidden"] = "true" });
+    root.Add(window);
+    UiStyleResolver.Resolve(root, [UiStyleSheet.Parse("panel { width: 100px; height: 100px; }")], true);
+    var styleVersion = root.StyleVersion;
+    var layoutVersion = root.LayoutVersion;
+
+    window.IsVisible = true;
+
+    Check(root.StyleVersion == styleVersion,
+        "Changing retained visibility invalidated the CSS cascade.");
+    Check(root.LayoutVersion > layoutVersion,
+        "Changing retained visibility did not invalidate layout.");
+    Check(window.ComputedStyle.Display == "flex",
+        "The hidden state leaked into the computed CSS display property.");
+    root.ReleaseLayout();
+}
+
+static void VisibilityUsesCompositeFastPath()
+{
+    var config = NewConfig();
+    var panel = new UiPanel(config, new Dictionary<string, string>());
+    UiStyleResolver.Resolve(panel, [], forceFullResolution: true);
+    var layout = panel.LayoutVersion;
+    var visual = panel.VisualVersion;
+    var composite = panel.CompositeVersion;
+    var hitTest = panel.HitTestVersion;
+
+    panel.Style.Set("visibility", "hidden");
+    UiStyleResolver.Resolve(panel, []);
+
+    Check(panel.LayoutVersion == layout, "Visibility invalidated layout.");
+    Check(panel.VisualVersion == visual, "Visibility invalidated retained geometry.");
+    Check(panel.CompositeVersion > composite, "Visibility did not invalidate composite state.");
+    Check(panel.HitTestVersion > hitTest, "Visibility did not invalidate hit testing.");
+    panel.ReleaseLayout();
+}
+
+static void OpacityTransitionUsesCompositeFastPath()
+{
+    var config = NewConfig();
+    var panel = new UiPanel(config, new Dictionary<string, string> { ["class"] = "fade-surface" });
+    var sheet = UiStyleSheet.Parse(".fade-surface { opacity: 0; transition: opacity 0.16s ease-in-out; } .fade-surface.open { opacity: 1; }");
+    UiStyleResolver.Resolve(panel, [sheet], forceFullResolution: true);
+    var layout = panel.LayoutVersion;
+    var visual = panel.VisualVersion;
+    var composite = panel.CompositeVersion;
+
+    panel.AddClass("open");
+    UiStyleResolver.Resolve(panel, [sheet]);
+
+    Check(panel.LayoutVersion == layout, "Opacity transition invalidated layout.");
+    Check(panel.VisualVersion == visual, "Opacity transition invalidated retained geometry.");
+    Check(panel.CompositeVersion > composite, "Opacity transition did not invalidate composite state.");
+    panel.ReleaseLayout();
+}
+
+static void OpacityTransitionInterpolatesInBothDirections()
+{
+    var config = NewConfig();
+    var panel = new UiPanel(config, new Dictionary<string, string> { ["class"] = "fade-surface" });
+    var sheet = UiStyleSheet.Parse(".fade-surface { opacity: 0; transition: opacity 0.16s ease-in-out; } .fade-surface.open { opacity: 1; }");
+    panel.Style.Set("visibility", "hidden");
+    UiStyleResolver.Resolve(panel, [sheet], forceFullResolution: true);
+    panel.AnimationRuntime.Update(panel, sheet.Keyframes, 0.0f, 320.0f, 180.0f);
+
+    var completedOpacityTransitions = 0;
+    panel.TransitionEnded += (_, transition) =>
+    {
+        if (transition.Property.Equals("opacity", StringComparison.OrdinalIgnoreCase))
+            completedOpacityTransitions++;
+    };
+
+    panel.Style.Set("visibility", "visible");
+    panel.AddClass("open");
+    UiStyleResolver.Resolve(panel, [sheet]);
+    panel.AnimationRuntime.Update(panel, sheet.Keyframes, 0.08f, 320.0f, 180.0f);
+    Check(panel.RenderOpacity > 0.0f && panel.RenderOpacity < 1.0f,
+        "The opening opacity transition did not produce an intermediate frame.");
+    panel.AnimationRuntime.Update(panel, sheet.Keyframes, 0.08f, 320.0f, 180.0f);
+    Check(Math.Abs(panel.RenderOpacity - 1.0f) < 0.001f,
+        "The opening opacity transition did not reach full opacity.");
+    Check(completedOpacityTransitions == 1,
+        "The opening opacity transition did not report completion exactly once.");
+
+    panel.RemoveClass("open");
+    UiStyleResolver.Resolve(panel, [sheet]);
+    panel.AnimationRuntime.Update(panel, sheet.Keyframes, 0.08f, 320.0f, 180.0f);
+    Check(panel.RenderOpacity > 0.0f && panel.RenderOpacity < 1.0f,
+        "The closing opacity transition did not produce an intermediate frame.");
+    panel.AnimationRuntime.Update(panel, sheet.Keyframes, 0.08f, 320.0f, 180.0f);
+    Check(panel.RenderOpacity < 0.001f,
+        "The closing opacity transition did not reach zero opacity.");
+    Check(completedOpacityTransitions == 2,
+        "The closing opacity transition did not report completion exactly once.");
     panel.ReleaseLayout();
 }
 
@@ -68,6 +297,27 @@ static void IncrementalStyleResolutionSkipsUnchangedBranches()
     changingBranch.Style.Set("left", "12px");
     Check(root.StyleVersion == treeStyleVersion,
         "Writing an unchanged inline style invalidated the document.");
+    root.ReleaseLayout();
+}
+
+static void AncestorSelectorInvalidatesOnlyWhenItsMatchChanges()
+{
+    var config = NewConfig();
+    var root = new UiPanel(config, new Dictionary<string, string>());
+    var child = new UiPanel(config, new Dictionary<string, string> { ["class"] = "label" });
+    root.Add(child);
+    var sheet = UiStyleSheet.Parse(".enabled .label { background-color: white; }");
+    UiStyleResolver.Resolve(root, [sheet], true);
+
+    root.AddClass("enabled");
+    UiStyleResolver.Resolve(root, [sheet]);
+    Check(child.ComputedStyle.BackgroundColor == System.Numerics.Vector4.One,
+        "Adding an ancestor selector class did not update its descendant.");
+
+    root.RemoveClass("enabled");
+    UiStyleResolver.Resolve(root, [sheet]);
+    Check(child.ComputedStyle.BackgroundColor == System.Numerics.Vector4.Zero,
+        "Removing an ancestor selector class left stale descendant styling.");
     root.ReleaseLayout();
 }
 
@@ -182,6 +432,26 @@ static void DetachedSubtreeCanBeMountedAgain()
     parent.ReleaseLayout();
 }
 
+static void ShortTouchIsNotCollapsedIntoOneFrame()
+{
+    using var window = new TestWindow();
+    var input = new InputModule(window, new TestInputCaptureState());
+    input.OnInitialize();
+    window.EmitTouch(new IWindow.TouchEvent(7, 40, 50, ETouchPhase.Began, IsPrimary: true));
+    window.EmitTouch(new IWindow.TouchEvent(7, 40, 50, ETouchPhase.Ended, IsPrimary: true));
+
+    input.OnUpdate(1f / 60f);
+    Check(input.IsPrimaryPointerPressed, "A short touch lost its Began frame.");
+    Check(input.Touches.Count == 1 && input.Touches[0].Phase == ETouchPhase.Began,
+        "Began was overwritten by Ended in the same input snapshot.");
+
+    input.OnUpdate(1f / 60f);
+    Check(!input.IsPrimaryPointerPressed, "A deferred short touch did not end.");
+    Check(input.Touches.Count == 1 && input.Touches[0].Phase == ETouchPhase.Ended,
+        "Ended was not delivered on the frame after Began.");
+    input.Dispose();
+}
+
 static Config NewConfig()
 {
     var config = new Config();
@@ -194,4 +464,41 @@ static void Check(bool condition, string message)
 {
     if (!condition)
         throw new InvalidOperationException(message);
+}
+
+sealed class TestInputCaptureState : IInputCaptureState
+{
+    public bool SuppressKeyboard { get; set; }
+    public bool SuppressMouse { get; set; }
+}
+
+sealed class TestWindow : IWindow
+{
+    public int Width => 100;
+    public int Height => 100;
+    public int ClientWidth => 100;
+    public int ClientHeight => 100;
+    public bool IsRunning { get; private set; }
+    public bool IsFullscreen => false;
+    public bool IsCursorCaptured => false;
+    public event Action<int, int>? Resized;
+    public event Action<IWindow.KeyEvent>? KeyChanged;
+    public event Action<IWindow.MouseButtonEvent>? MouseButtonChanged;
+    public event Action<IWindow.MouseMoveEvent>? MouseMoved;
+    public event Action<IWindow.MouseWheelEvent>? MouseWheelChanged;
+    public event Action<IWindow.TouchEvent>? TouchChanged;
+
+    public void EmitTouch(IWindow.TouchEvent eventData) => TouchChanged?.Invoke(eventData);
+    public void Initialize() { IsRunning = true; Resized?.Invoke(Width, Height); }
+    public void PollEvents() { }
+    public void MakeCurrent() { }
+    public void SuppressNextSwap() { }
+    public void SwapBuffers() { }
+    public void Close() => IsRunning = false;
+    public void ToggleFullscreen() { }
+    public void SetCursorCaptured(bool captured) { }
+    public System.Numerics.Vector2 ClientToFramebuffer(System.Numerics.Vector2 position) => position;
+    public System.Numerics.Vector2 FramebufferToClient(System.Numerics.Vector2 position) => position;
+    public nint GetProcAddress(string name) => 0;
+    public void Dispose() => IsRunning = false;
 }
