@@ -253,10 +253,7 @@ internal sealed class UiRenderer : IDisposable
                 bounds = bounds with { Width = bounds.Width * element.Progress };
             }
         }
-        // CSS visibility is a composite property: retain its geometry and turn
-        // the entire subtree on/off at draw time. This makes opening an already
-        // laid-out window a zero-tessellation operation.
-        if (!element.IsDisplayed ||
+        if (!element.IsRendered ||
             bounds.Width <= 0 || bounds.Height <= 0)
             return;
         if (IsOutsideVirtualViewport(bounds, _scrollState, scale))
