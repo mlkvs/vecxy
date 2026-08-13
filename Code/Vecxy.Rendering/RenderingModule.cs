@@ -168,6 +168,10 @@ public sealed class RenderingModule(
     private readonly List<Action<RenderOverlayContext>> _gameOverlayCallbacks = [];
     private readonly List<Action> _overlayCallbacks = [];
     private readonly List<GameView> _views = [];
+    private readonly HashSet<IRenderTarget> _presentedTargets = [];
+    private readonly List<Camera> _activeCameras = [];
+    private readonly List<MeshRenderer> _meshRenderers = [];
+    private readonly List<SpriteRenderer> _spriteRenderers = [];
     private AssetRef<ShaderAsset>? _litShader;
     private AssetRef<ShaderAsset>? _spriteShader;
     private AssetRef<ShaderAsset>? _skyboxShader;
@@ -217,8 +221,11 @@ public sealed class RenderingModule(
 
     public void OnUpdate(float deltaTime)
     {
-        var activeViews = _views.Count(view => view.Enabled) +
-                          FindActiveCameras().Count;
+        var activeViews = 0;
+        foreach (var view in _views)
+            if (view.Enabled)
+                activeViews++;
+        activeViews += CountActiveCameras();
 
         statistics.BeginFrame(
             deltaTime,
@@ -234,7 +241,8 @@ public sealed class RenderingModule(
             Wireframe ? PolygonMode.Line : PolygonMode.Fill);
 #endif
 
-        var presentedTargets = new HashSet<IRenderTarget>();
+        var presentedTargets = _presentedTargets;
+        presentedTargets.Clear();
         var renderSceneToViewport =
             _sceneViewportWidth > 0 &&
             _sceneViewportHeight > 0;
@@ -295,8 +303,8 @@ public sealed class RenderingModule(
                 Math.Max(1, backbuffer.Height));
         }
 
-        foreach (var draw in _overlayCallbacks.ToArray())
-            draw();
+        for (var index = 0; index < _overlayCallbacks.Count; index++)
+            _overlayCallbacks[index]();
 
         presentedTargets.Add(backbuffer);
 
@@ -463,8 +471,8 @@ public sealed class RenderingModule(
     private void DrawGameOverlays(int width, int height)
     {
         var context = new RenderOverlayContext(width, height);
-        foreach (var draw in _gameOverlayCallbacks.ToArray())
-            draw(context);
+        for (var index = 0; index < _gameOverlayCallbacks.Count; index++)
+            _gameOverlayCallbacks[index](context);
     }
 
     public void UnregisterOverlay(Action draw)
@@ -934,35 +942,7 @@ public sealed class RenderingModule(
 
         DrawSprites(scene, viewProjection);
 
-        var renderers = scene.Objects
-            .Where(sceneObject => sceneObject.IsActive)
-            .Select(sceneObject =>
-                sceneObject.GetComponent<MeshRenderer>())
-            .Where(renderer =>
-                renderer is
-                {
-                    IsActive: true,
-                    IsConfigured: true
-                })
-            .Select(renderer => renderer!)
-            .ToArray();
-
-        foreach (var renderer in renderers
-                     .Where(renderer => GetEffectiveRenderPhase(renderer) != ERenderPhase.Transparent)
-                     .OrderBy(GetEffectiveRenderPhase))
-        {
-            Draw(renderer, camera, viewProjection, lighting);
-        }
-
-        foreach (var renderer in renderers
-                     .Where(renderer => GetEffectiveRenderPhase(renderer) == ERenderPhase.Transparent)
-                     .OrderByDescending(renderer =>
-                         Vector3.DistanceSquared(
-                             renderer.Transform.WorldPosition,
-                             camera.Transform.WorldPosition)))
-        {
-            Draw(renderer, camera, viewProjection, lighting);
-        }
+        DrawMeshRenderers(scene, camera, viewProjection, lighting);
 
         PresentScene(
             camera,
@@ -979,10 +959,12 @@ public sealed class RenderingModule(
         if (scene is null)
             return;
 
-        foreach (var camera in FindActiveCameras()
-                     .Where(camera => camera.TargetTexture is not null)
-                     .OrderBy(camera => camera.Priority))
+        var cameras = FindActiveCameras();
+        _activeCameras.Sort(static (left, right) => left.Priority.CompareTo(right.Priority));
+        foreach (var camera in cameras)
         {
+            if (camera.TargetTexture is null)
+                continue;
             var target = camera.TargetTexture!;
             RenderCameraToTarget(scene, camera, target);
             presentedTargets.Add(target);
@@ -1014,28 +996,7 @@ public sealed class RenderingModule(
 
         DrawSprites(scene, viewProjection);
 
-        var renderers = scene.Objects
-            .Where(sceneObject => sceneObject.IsActive)
-            .Select(sceneObject => sceneObject.GetComponent<MeshRenderer>())
-            .Where(renderer => renderer is
-            {
-                IsActive: true,
-                IsConfigured: true
-            })
-            .Select(renderer => renderer!)
-            .ToArray();
-
-        foreach (var renderer in renderers
-                     .Where(renderer => GetEffectiveRenderPhase(renderer) != ERenderPhase.Transparent)
-                     .OrderBy(GetEffectiveRenderPhase))
-            Draw(renderer, camera, viewProjection, lighting);
-
-        foreach (var renderer in renderers
-                     .Where(renderer => GetEffectiveRenderPhase(renderer) == ERenderPhase.Transparent)
-                     .OrderByDescending(renderer => Vector3.DistanceSquared(
-                         renderer.Transform.WorldPosition,
-                         camera.Transform.WorldPosition)))
-            Draw(renderer, camera, viewProjection, lighting);
+        DrawMeshRenderers(scene, camera, viewProjection, lighting);
     }
 
     private void DrawSkybox(
@@ -1326,23 +1287,19 @@ public sealed class RenderingModule(
             return;
         }
 
-        var renderers = scene.Objects
-            .Where(sceneObject => sceneObject.IsActive)
-            .Select(sceneObject => sceneObject.GetComponent<SpriteRenderer>())
-            .Where(renderer =>
-                renderer is
-                {
-                    IsActive: true,
-                    IsConfigured: true
-                })
-            .Select(renderer => renderer!)
-            .OrderBy(renderer => renderer.SortingLayer)
-            .ThenBy(renderer => renderer.OrderInLayer)
-            .ThenBy(renderer => renderer.SceneObject!.Id)
-            .ToArray();
-
-        if (renderers.Length == 0)
+        CollectSpriteRenderers(scene);
+        if (_spriteRenderers.Count == 0)
             return;
+        _spriteRenderers.Sort(static (left, right) =>
+        {
+            var layer = left.SortingLayer.CompareTo(right.SortingLayer);
+            if (layer != 0)
+                return layer;
+            var order = left.OrderInLayer.CompareTo(right.OrderInLayer);
+            if (order != 0)
+                return order;
+            return (left.SceneObject?.Id ?? 0).CompareTo(right.SceneObject?.Id ?? 0);
+        });
 
         var shader = shaders.Get(_spriteShader);
         device.GL.Disable(EnableCap.DepthTest);
@@ -1352,7 +1309,7 @@ public sealed class RenderingModule(
             BlendingFactor.SrcAlpha,
             BlendingFactor.OneMinusSrcAlpha);
 
-        foreach (var renderer in renderers)
+        foreach (var renderer in _spriteRenderers)
         {
             try
             {
@@ -1399,6 +1356,76 @@ public sealed class RenderingModule(
         device.GL.Disable(EnableCap.Blend);
         device.GL.DepthMask(true);
         device.GL.Enable(EnableCap.DepthTest);
+    }
+
+    private void CollectMeshRenderers(SceneInstance scene)
+    {
+        _meshRenderers.Clear();
+        foreach (var sceneObject in scene.Objects)
+        {
+            if (!sceneObject.IsActive)
+                continue;
+            if (sceneObject.GetComponent<MeshRenderer>() is
+                {
+                    IsActive: true,
+                    IsConfigured: true
+                } renderer)
+            {
+                _meshRenderers.Add(renderer);
+            }
+        }
+    }
+
+    private void DrawMeshRenderers(
+        SceneInstance scene,
+        Camera camera,
+        Matrix4x4 viewProjection,
+        SceneLighting lighting)
+    {
+        CollectMeshRenderers(scene);
+        if (_meshRenderers.Count == 0)
+            return;
+
+        _meshRenderers.Sort(static (left, right) =>
+            GetEffectiveRenderPhase(left).CompareTo(GetEffectiveRenderPhase(right)));
+        foreach (var renderer in _meshRenderers)
+        {
+            if (GetEffectiveRenderPhase(renderer) == ERenderPhase.Transparent)
+                continue;
+            Draw(renderer, camera, viewProjection, lighting);
+        }
+
+        _meshRenderers.Sort((left, right) =>
+            Vector3.DistanceSquared(
+                    right.Transform.WorldPosition,
+                    camera.Transform.WorldPosition)
+                .CompareTo(Vector3.DistanceSquared(
+                    left.Transform.WorldPosition,
+                    camera.Transform.WorldPosition)));
+        foreach (var renderer in _meshRenderers)
+        {
+            if (GetEffectiveRenderPhase(renderer) != ERenderPhase.Transparent)
+                continue;
+            Draw(renderer, camera, viewProjection, lighting);
+        }
+    }
+
+    private void CollectSpriteRenderers(SceneInstance scene)
+    {
+        _spriteRenderers.Clear();
+        foreach (var sceneObject in scene.Objects)
+        {
+            if (!sceneObject.IsActive)
+                continue;
+            if (sceneObject.GetComponent<SpriteRenderer>() is
+                {
+                    IsActive: true,
+                    IsConfigured: true
+                } renderer)
+            {
+                _spriteRenderers.Add(renderer);
+            }
+        }
     }
 
     private void ApplyMaterialState(Material material)
@@ -1631,29 +1658,52 @@ public sealed class RenderingModule(
         if (scene is null)
             return null;
 
-        return scene.Objects
-            .Where(sceneObject => sceneObject.IsActive)
-            .Select(sceneObject =>
-                sceneObject.GetComponent<Camera>())
-            .Where(camera =>
-                camera is { IsActive: true, TargetTexture: null })
-            .OrderByDescending(camera =>
-                camera!.Priority)
-            .FirstOrDefault();
+        Camera? best = null;
+        foreach (var sceneObject in scene.Objects)
+        {
+            if (!sceneObject.IsActive)
+                continue;
+            var camera = sceneObject.GetComponent<Camera>();
+            if (camera is not { IsActive: true, TargetTexture: null })
+                continue;
+            if (best is null || camera.Priority > best.Priority)
+                best = camera;
+        }
+        return best;
+    }
+
+    private int CountActiveCameras()
+    {
+        var scene = scenes.ActiveScene;
+        if (scene is null)
+            return 0;
+
+        var count = 0;
+        foreach (var sceneObject in scene.Objects)
+        {
+            if (!sceneObject.IsActive)
+                continue;
+            if (sceneObject.GetComponent<Camera>() is { IsActive: true })
+                count++;
+        }
+        return count;
     }
 
     private IReadOnlyList<Camera> FindActiveCameras()
     {
+        _activeCameras.Clear();
         var scene = scenes.ActiveScene;
         if (scene is null)
-            return [];
+            return _activeCameras;
 
-        return scene.Objects
-            .Where(sceneObject => sceneObject.IsActive)
-            .Select(sceneObject => sceneObject.GetComponent<Camera>())
-            .Where(camera => camera is { IsActive: true })
-            .Select(camera => camera!)
-            .ToArray();
+        foreach (var sceneObject in scene.Objects)
+        {
+            if (!sceneObject.IsActive)
+                continue;
+            if (sceneObject.GetComponent<Camera>() is { IsActive: true } camera)
+                _activeCameras.Add(camera);
+        }
+        return _activeCameras;
     }
 
     private PostProcessing? FindActivePostProcessing()

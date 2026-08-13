@@ -5,6 +5,7 @@ namespace Vecxy.Rendering;
 public sealed class Shader : IDisposable
 {
     private readonly GraphicsDevice _device;
+    private readonly Dictionary<string, int> _uniformLocations = new(StringComparer.Ordinal);
     private uint _program;
     private bool _disposed;
 
@@ -87,7 +88,11 @@ public sealed class Shader : IDisposable
     private int GetUniformLocation(string name)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
-        return _device.GL.GetUniformLocation(_program, name);
+        if (_uniformLocations.TryGetValue(name, out var location))
+            return location;
+        location = _device.GL.GetUniformLocation(_program, name);
+        _uniformLocations.Add(name, location);
+        return location;
     }
 
     public void Dispose()
@@ -103,5 +108,6 @@ public sealed class Shader : IDisposable
             _device.GL.DeleteProgram(_program);
             _program = 0;
         }
+        _uniformLocations.Clear();
     }
 }
