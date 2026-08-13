@@ -1,0 +1,84 @@
+<Project>
+  <PropertyGroup>
+    <VecxyCompileAtlases Condition="'$(VecxyCompileAtlases)' == ''">true</VecxyCompileAtlases>
+    <_VecxyAtlasCompilerProject>$(MSBuildThisFileDirectory)../Vecxy.AssetCompiler/Vecxy.AssetCompiler.csproj</_VecxyAtlasCompilerProject>
+    <_VecxyAtlasCompilerBase>$(MSBuildProjectDirectory)/obj/VecxyAssetCompiler/$(TargetFramework)/</_VecxyAtlasCompilerBase>
+    <_VecxyAtlasCompilerOutput>$(_VecxyAtlasCompilerBase)bin/$(Configuration)/net10.0/Vecxy.AssetCompiler.dll</_VecxyAtlasCompilerOutput>
+    <_VecxyCompiledAssetsDirectory>$(MSBuildProjectDirectory)/obj/VecxyCompiledAssets/$(Configuration)/$(TargetFramework)</_VecxyCompiledAssetsDirectory>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(VecxyCompileAtlases)' == 'true'">
+    <_VecxyAtlasInputs Include="$(MSBuildProjectDirectory)/Assets/**/*.atlas;$(MSBuildProjectDirectory)/Assets/**/*.png;$(MSBuildProjectDirectory)/Assets/**/*.jpg;$(MSBuildProjectDirectory)/Assets/**/*.jpeg;$(MSBuildThisFileDirectory)../Vecxy.AssetCompiler/**/*.cs" />
+  </ItemGroup>
+
+  <Target Name="CompileVecxySpriteAtlases"
+          Inputs="@(_VecxyAtlasInputs)"
+          Outputs="$(_VecxyCompiledAssetsDirectory)/compile.stamp"
+          Condition="'$(VecxyCompileAtlases)' == 'true' and Exists('$(MSBuildProjectDirectory)/Assets')">
+    <MSBuild Projects="$(_VecxyAtlasCompilerProject)"
+             Targets="Restore;Build"
+             BuildInParallel="false"
+             Properties="Configuration=$(Configuration);BaseIntermediateOutputPath=$(_VecxyAtlasCompilerBase)obj/;BaseOutputPath=$(_VecxyAtlasCompilerBase)bin/" />
+    <MakeDir Directories="$(_VecxyCompiledAssetsDirectory)" />
+    <Exec Command="dotnet &quot;$(_VecxyAtlasCompilerOutput)&quot; &quot;$(MSBuildProjectDirectory)/Assets&quot; &quot;$(_VecxyCompiledAssetsDirectory)&quot;" />
+    <Touch Files="$(_VecxyCompiledAssetsDirectory)/compile.stamp" AlwaysCreate="true" />
+  </Target>
+
+  <Target Name="IncludeVecxySpriteAtlases"
+          BeforeTargets="PrepareForBuild"
+          DependsOnTargets="CompileVecxySpriteAtlases"
+          Condition="'$(VecxyCompileAtlases)' == 'true' and Exists('$(_VecxyCompiledAssetsDirectory)/excluded-sources.txt')">
+    <ReadLinesFromFile File="$(_VecxyCompiledAssetsDirectory)/excluded-sources.txt">
+      <Output TaskParameter="Lines" ItemName="_VecxyAtlasSourceRelative" />
+    </ReadLinesFromFile>
+    <ItemGroup>
+      <_VecxyAtlasSourceFull Include="@(_VecxyAtlasSourceRelative->'$(MSBuildProjectDirectory)/Assets/%(Identity)')" />
+      <_VecxyCompiledAsset Include="$(_VecxyCompiledAssetsDirectory)/**/*" Exclude="$(_VecxyCompiledAssetsDirectory)/excluded-sources.txt;$(_VecxyCompiledAssetsDirectory)/compile.stamp" />
+      <Content Remove="@(_VecxyAtlasSourceFull);$(MSBuildProjectDirectory)/Assets/**/*.atlas" />
+      <AndroidAsset Remove="@(_VecxyAtlasSourceFull);$(MSBuildProjectDirectory)/Assets/**/*.atlas" />
+    </ItemGroup>
+  </Target>
+
+  <Target Name="IncludeVecxySpriteAtlasesForAndroid"
+          BeforeTargets="_ComputeAndroidAssetsPaths"
+          DependsOnTargets="CompileVecxySpriteAtlases"
+          Condition="'$(VecxyCompileAtlases)' == 'true' and '$(VecxyPlatform)' == 'Android' and Exists('$(_VecxyCompiledAssetsDirectory)/excluded-sources.txt')">
+    <ReadLinesFromFile File="$(_VecxyCompiledAssetsDirectory)/excluded-sources.txt">
+      <Output TaskParameter="Lines" ItemName="_VecxyAndroidAtlasSourceRelative" />
+    </ReadLinesFromFile>
+    <ItemGroup>
+      <_VecxyAndroidAtlasSourceFull Include="@(_VecxyAndroidAtlasSourceRelative->'$(MSBuildProjectDirectory)/Assets/%(Identity)')" />
+      <AndroidAsset Remove="@(_VecxyAndroidAtlasSourceFull);$(MSBuildProjectDirectory)/Assets/**/*.atlas;$(_VecxyCompiledAssetsDirectory)/**/*" />
+    </ItemGroup>
+  </Target>
+
+  <Target Name="PatchVecxySpriteAtlasesIntoAndroidAssets"
+          AfterTargets="_GenerateAndroidAssetsDir"
+          BeforeTargets="_CreateBaseApkWithAapt2"
+          DependsOnTargets="CompileVecxySpriteAtlases"
+          Condition="'$(VecxyCompileAtlases)' == 'true' and '$(VecxyPlatform)' == 'Android' and Exists('$(_VecxyCompiledAssetsDirectory)/excluded-sources.txt')">
+    <ReadLinesFromFile File="$(_VecxyCompiledAssetsDirectory)/excluded-sources.txt">
+      <Output TaskParameter="Lines" ItemName="_VecxyAndroidPatchedAtlasSourceRelative" />
+    </ReadLinesFromFile>
+    <ItemGroup>
+      <_VecxyAndroidPatchedAtlasSource Include="@(_VecxyAndroidPatchedAtlasSourceRelative->'$(MonoAndroidAssetsDirIntermediate)%(Identity)')" />
+      <_VecxyAndroidPatchedAtlasDescriptor Include="$(MSBuildProjectDirectory)/Assets/**/*.atlas" />
+      <_VecxyAndroidPatchedAtlasDescriptorAsset Include="@(_VecxyAndroidPatchedAtlasDescriptor->'$(MonoAndroidAssetsDirIntermediate)%(RecursiveDir)%(Filename)%(Extension)')" />
+      <_VecxyAndroidCompiledAsset Include="$(_VecxyCompiledAssetsDirectory)/**/*"
+                                  Exclude="$(_VecxyCompiledAssetsDirectory)/excluded-sources.txt;$(_VecxyCompiledAssetsDirectory)/compile.stamp" />
+    </ItemGroup>
+    <Delete Files="@(_VecxyAndroidPatchedAtlasSource);@(_VecxyAndroidPatchedAtlasDescriptorAsset)" TreatErrorsAsWarnings="true" />
+    <Copy SourceFiles="@(_VecxyAndroidCompiledAsset)"
+          DestinationFiles="@(_VecxyAndroidCompiledAsset->'$(MonoAndroidAssetsDirIntermediate)%(RecursiveDir)%(Filename)%(Extension)')"
+          SkipUnchangedFiles="false" />
+  </Target>
+
+  <Target Name="CopyVecxySpriteAtlasesToDesktopOutput"
+          AfterTargets="Build"
+          DependsOnTargets="IncludeVecxySpriteAtlases"
+          Condition="'$(VecxyPlatform)' == 'Desktop' and '@(_VecxyCompiledAsset)' != ''">
+    <Copy SourceFiles="@(_VecxyCompiledAsset)"
+          DestinationFiles="@(_VecxyCompiledAsset->'$(OutDir)Assets/%(RecursiveDir)%(Filename)%(Extension)')"
+          SkipUnchangedFiles="true" />
+  </Target>
+</Project>

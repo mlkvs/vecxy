@@ -14,6 +14,11 @@
     <RunAOTCompilation>false</RunAOTCompilation>
     <AndroidEnableMarshalMethods>false</AndroidEnableMarshalMethods>
     <AndroidUseSharedRuntime>false</AndroidUseSharedRuntime>
+    <!-- Android 15+ devices may use 16 KiB pages. Mono loads its assembly store
+         directly from lib/<abi>, so native entries must remain mmap-compatible
+         instead of being deflated by aapt. This also makes a clean APK launch
+         independently of Debug Fast Deployment overrides. -->
+    <AndroidStoreUncompressedFileExtensions>.so;$(AndroidStoreUncompressedFileExtensions)</AndroidStoreUncompressedFileExtensions>
     <AndroidSdkDirectory Condition="'$(AndroidSdkDirectory)' == '' and Exists('$(HOME)/.local/share/android-sdk')">$(HOME)/.local/share/android-sdk</AndroidSdkDirectory>
     <JavaSdkDirectory Condition="'$(JavaSdkDirectory)' == '' and Exists('$(HOME)/.local/share/android-jdk')">$(HOME)/.local/share/android-jdk</JavaSdkDirectory>
   </PropertyGroup>

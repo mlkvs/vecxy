@@ -22,4 +22,6 @@
   <Import
     Project="$(MSBuildThisFileDirectory)..\..\Vecxy.Platforms.Android\build\Vecxy.Platforms.Android.props"
     Condition="'$(VecxyPlatform)' == 'Android'" />
+
+  <Import Project="$(MSBuildThisFileDirectory)..\Vecxy.AtlasCompiler.targets" />
 </Project>
