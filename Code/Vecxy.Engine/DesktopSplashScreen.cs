@@ -48,6 +48,7 @@ internal sealed class DesktopSplashScreen : IEngineSplashScreen
     private uint _vertexArray;
     private uint _vertexBuffer;
     private uint _logoTexture;
+    private uint _fmodLogoTexture;
     private uint _capturedFrameTexture;
     private int _colorLocation;
     private int _texturedLocation;
@@ -61,6 +62,7 @@ internal sealed class DesktopSplashScreen : IEngineSplashScreen
 
         InitializeGraphics();
         TryLoadLogo(logoPath);
+        TryLoadFmodLogo(logoPath);
         ReportProgress(0.06f);
     }
 
@@ -75,15 +77,20 @@ internal sealed class DesktopSplashScreen : IEngineSplashScreen
         var width = Math.Max(1, _window.Width);
         var height = Math.Max(1, _window.Height);
         var shortestSide = Math.Min(width, height);
-        var logoSize = Math.Min(width * 0.62f, height * 0.46f);
+        var logoSize = Math.Min(width * 0.62f, height * 0.40f);
         var barWidth = Math.Min(width * 0.56f, logoSize * 0.86f);
         var barHeight = Math.Max(6.0f, shortestSide * 0.012f);
         var gap = Math.Max(24.0f, shortestSide * 0.055f);
-        var groupHeight = logoSize + gap + barHeight;
+        var fmodWidth = Math.Min(width * 0.30f, logoSize * 0.48f);
+        var fmodHeight = fmodWidth * 196.0f / 732.0f;
+        var fmodGap = Math.Max(18.0f, shortestSide * 0.035f);
+        var groupHeight = logoSize + gap + barHeight + fmodGap + fmodHeight;
         var logoTop = (height - groupHeight) * 0.5f;
         var logoLeft = (width - logoSize) * 0.5f;
         var barLeft = (width - barWidth) * 0.5f;
         var barTop = logoTop + logoSize + gap;
+        var fmodLeft = (width - fmodWidth) * 0.5f;
+        var fmodTop = barTop + barHeight + fmodGap;
 
         _gl.Viewport(0, 0, (uint)width, (uint)height);
         _gl.Disable(EnableCap.DepthTest);
@@ -104,6 +111,11 @@ internal sealed class DesktopSplashScreen : IEngineSplashScreen
 
         DrawRectangle(barLeft, barTop, barWidth, barHeight, width, height, false, 0.86f, 0.91f, 0.86f, 1);
         DrawRectangle(barLeft, barTop, barWidth * progress, barHeight, width, height, false, 0.31f, 0.80f, 0.39f, 1);
+        if (_fmodLogoTexture != 0)
+        {
+            _gl.BindTexture(TextureTarget.Texture2D, _fmodLogoTexture);
+            DrawRectangle(fmodLeft, fmodTop, fmodWidth, fmodHeight, width, height, true, 1, 1, 1, 1);
+        }
 
         _gl.BindVertexArray(0);
         _gl.UseProgram(0);
@@ -187,15 +199,20 @@ internal sealed class DesktopSplashScreen : IEngineSplashScreen
         var width = Math.Max(1, _window.Width);
         var height = Math.Max(1, _window.Height);
         var shortestSide = Math.Min(width, height);
-        var logoSize = Math.Min(width * 0.62f, height * 0.46f);
+        var logoSize = Math.Min(width * 0.62f, height * 0.40f);
         var barWidth = Math.Min(width * 0.56f, logoSize * 0.86f);
         var barHeight = Math.Max(6.0f, shortestSide * 0.012f);
         var gap = Math.Max(24.0f, shortestSide * 0.055f);
-        var groupHeight = logoSize + gap + barHeight;
+        var fmodWidth = Math.Min(width * 0.30f, logoSize * 0.48f);
+        var fmodHeight = fmodWidth * 196.0f / 732.0f;
+        var fmodGap = Math.Max(18.0f, shortestSide * 0.035f);
+        var groupHeight = logoSize + gap + barHeight + fmodGap + fmodHeight;
         var logoTop = (height - groupHeight) * 0.5f;
         var logoLeft = (width - logoSize) * 0.5f;
         var barLeft = (width - barWidth) * 0.5f;
         var barTop = logoTop + logoSize + gap;
+        var fmodLeft = (width - fmodWidth) * 0.5f;
+        var fmodTop = barTop + barHeight + fmodGap;
 
         _gl.Viewport(0, 0, (uint)width, (uint)height);
         _gl.Disable(EnableCap.DepthTest);
@@ -232,6 +249,11 @@ internal sealed class DesktopSplashScreen : IEngineSplashScreen
 
             DrawRectangle(barLeft, barTop, barWidth, barHeight, width, height, false, 0.86f, 0.91f, 0.86f, splashAlpha);
             DrawRectangle(barLeft, barTop, barWidth, barHeight, width, height, false, 0.31f, 0.80f, 0.39f, splashAlpha);
+            if (_fmodLogoTexture != 0)
+            {
+                _gl.BindTexture(TextureTarget.Texture2D, _fmodLogoTexture);
+                DrawRectangle(fmodLeft, fmodTop, fmodWidth, fmodHeight, width, height, true, 1, 1, 1, splashAlpha);
+            }
         }
 
         _gl.BindVertexArray(0);
@@ -301,13 +323,25 @@ internal sealed class DesktopSplashScreen : IEngineSplashScreen
 
     private unsafe void TryLoadLogo(string logoPath)
     {
+        _logoTexture = TryLoadTexture(logoPath);
+    }
+
+    private void TryLoadFmodLogo(string logoPath)
+    {
+        var directory = Path.GetDirectoryName(logoPath);
+        if (!string.IsNullOrEmpty(directory))
+            _fmodLogoTexture = TryLoadTexture(Path.Combine(directory, "FmodLogo.png"));
+    }
+
+    private unsafe uint TryLoadTexture(string texturePath)
+    {
         try
         {
-            using var stream = File.OpenRead(logoPath);
+            using var stream = File.OpenRead(texturePath);
             var image = ImageResult.FromStream(stream, ColorComponents.RedGreenBlueAlpha);
 
-            _logoTexture = _gl.GenTexture();
-            _gl.BindTexture(TextureTarget.Texture2D, _logoTexture);
+            var texture = _gl.GenTexture();
+            _gl.BindTexture(TextureTarget.Texture2D, texture);
             fixed (byte* pixels = image.Data)
             {
                 _gl.TexImage2D(
@@ -327,6 +361,7 @@ internal sealed class DesktopSplashScreen : IEngineSplashScreen
             _gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)TextureWrapMode.ClampToEdge);
             _gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)TextureWrapMode.ClampToEdge);
             _gl.BindTexture(TextureTarget.Texture2D, 0);
+            return texture;
         }
         catch (IOException)
         {
@@ -335,6 +370,8 @@ internal sealed class DesktopSplashScreen : IEngineSplashScreen
         catch (InvalidDataException)
         {
         }
+
+        return 0;
     }
 
     private unsafe void DrawRectangle(
@@ -388,6 +425,8 @@ internal sealed class DesktopSplashScreen : IEngineSplashScreen
         _disposed = true;
         if (_logoTexture != 0)
             _gl.DeleteTexture(_logoTexture);
+        if (_fmodLogoTexture != 0)
+            _gl.DeleteTexture(_fmodLogoTexture);
         if (_capturedFrameTexture != 0)
             _gl.DeleteTexture(_capturedFrameTexture);
         if (_vertexBuffer != 0)

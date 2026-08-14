@@ -14,17 +14,19 @@ internal sealed class AndroidEngineSplashScreen : global::Android.Views.View, IE
     private readonly Activity _activity;
     private readonly Dialog _dialog;
     private readonly Bitmap? _logo;
+    private readonly Bitmap? _fmodLogo;
     private readonly Paint _paint = new(PaintFlags.AntiAlias | PaintFlags.FilterBitmap);
     private float _progress = 0.06f;
     private int _dismissed;
     private ValueAnimator? _fadeAnimator;
 
-    private AndroidEngineSplashScreen(Activity activity, Dialog dialog, Bitmap? logo)
+    private AndroidEngineSplashScreen(Activity activity, Dialog dialog, Bitmap? logo, Bitmap? fmodLogo)
         : base(activity)
     {
         _activity = activity;
         _dialog = dialog;
         _logo = logo;
+        _fmodLogo = fmodLogo;
         Clickable = true;
         Focusable = true;
         ImportantForAccessibility = ImportantForAccessibility.NoHideDescendants;
@@ -45,6 +47,7 @@ internal sealed class AndroidEngineSplashScreen : global::Android.Views.View, IE
             try
             {
                 Bitmap? logo = null;
+                Bitmap? fmodLogo = null;
                 try
                 {
                     using var stream = assets.Open(logoPath, Access.Streaming);
@@ -55,12 +58,22 @@ internal sealed class AndroidEngineSplashScreen : global::Android.Views.View, IE
                     // The progress indicator remains usable without an optional logo.
                 }
 
+                try
+                {
+                    using var stream = assets.Open("Textures/FmodLogo.png", Access.Streaming);
+                    fmodLogo = BitmapFactory.DecodeStream(stream);
+                }
+                catch (IOException)
+                {
+                    // FMOD attribution is displayed when its bundled logo is available.
+                }
+
                 var dialog = new Dialog(
                     activity,
                     global::Android.Resource.Style.ThemeMaterialLightNoActionBarFullscreen);
                 dialog.RequestWindowFeature((int)WindowFeatures.NoTitle);
                 dialog.SetCancelable(false);
-                splash = new AndroidEngineSplashScreen(activity, dialog, logo);
+                splash = new AndroidEngineSplashScreen(activity, dialog, logo, fmodLogo);
                 dialog.SetContentView(
                     splash,
                     new ViewGroup.LayoutParams(
@@ -142,14 +155,17 @@ internal sealed class AndroidEngineSplashScreen : global::Android.Views.View, IE
         if (width <= 0 || height <= 0)
             return;
 
-        canvas.DrawColor(global::Android.Graphics.Color.White);
+        canvas.DrawColor(global::Android.Graphics.Color.Black);
 
         var shortestSide = Math.Min(width, height);
-        var logoSize = Math.Min(width * 0.62f, height * 0.46f);
+        var logoSize = Math.Min(width * 0.62f, height * 0.40f);
         var barWidth = Math.Min(width * 0.56f, logoSize * 0.86f);
         var barHeight = Math.Max(6.0f * Resources!.DisplayMetrics!.Density, shortestSide * 0.012f);
         var gap = Math.Max(24.0f * Resources.DisplayMetrics.Density, shortestSide * 0.055f);
-        var groupHeight = logoSize + gap + barHeight;
+        var fmodWidth = Math.Min(width * 0.30f, logoSize * 0.48f);
+        var fmodHeight = fmodWidth * 196.0f / 732.0f;
+        var fmodGap = Math.Max(18.0f * Resources.DisplayMetrics.Density, shortestSide * 0.035f);
+        var groupHeight = logoSize + gap + barHeight + fmodGap + fmodHeight;
         var logoTop = (height - groupHeight) * 0.5f;
         var logoLeft = (width - logoSize) * 0.5f;
 
@@ -176,6 +192,13 @@ internal sealed class AndroidEngineSplashScreen : global::Android.Views.View, IE
             radius,
             radius,
             _paint);
+
+        if (_fmodLogo is not null && !_fmodLogo.IsRecycled)
+        {
+            var fmodLeft = (width - fmodWidth) * 0.5f;
+            var fmodTop = barTop + barHeight + fmodGap;
+            canvas.DrawBitmap(_fmodLogo, null, new RectF(fmodLeft, fmodTop, fmodLeft + fmodWidth, fmodTop + fmodHeight), _paint);
+        }
 
         _paint.Color = global::Android.Graphics.Color.Rgb(79, 204, 99);
         canvas.DrawRoundRect(
@@ -237,6 +260,7 @@ internal sealed class AndroidEngineSplashScreen : global::Android.Views.View, IE
         _fadeAnimator?.Dispose();
         _fadeAnimator = null;
         _logo?.Recycle();
+        _fmodLogo?.Recycle();
         _paint.Dispose();
         _dialog.Dispose();
     }
