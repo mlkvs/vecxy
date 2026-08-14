@@ -6,8 +6,16 @@
 
     <ItemGroup>
       <PackageReference Include="Silk.NET.OpenGL" Version="2.23.0" />
+    </ItemGroup>
+
+    <ItemGroup Condition="'$(VecxyPlatform)' == 'Desktop'">
       <PackageReference Include="Silk.NET.Windowing" Version="2.23.0" />
       <PackageReference Include="Silk.NET.Input" Version="2.23.0" />
+    </ItemGroup>
+
+    <!-- Android uses SilkActivity through Vecxy.Platforms.Android, never GLFW. -->
+    <ItemGroup Condition="'$(VecxyPlatform)' == 'Android'">
+      <Compile Remove="Core/Window.cs" />
     </ItemGroup>
 
     <ItemGroup>
