@@ -164,8 +164,8 @@ internal sealed class AndroidEngineSplashScreen : global::Android.Views.View, IE
         var gap = Math.Max(24.0f * Resources.DisplayMetrics.Density, shortestSide * 0.055f);
         var fmodWidth = Math.Min(width * 0.30f, logoSize * 0.48f);
         var fmodHeight = fmodWidth * 196.0f / 732.0f;
-        var fmodGap = Math.Max(18.0f * Resources.DisplayMetrics.Density, shortestSide * 0.035f);
-        var groupHeight = logoSize + gap + barHeight + fmodGap + fmodHeight;
+        var fmodBottomMargin = Math.Max(24.0f * Resources.DisplayMetrics.Density, shortestSide * 0.05f);
+        var groupHeight = logoSize + gap + barHeight;
         var logoTop = (height - groupHeight) * 0.5f;
         var logoLeft = (width - logoSize) * 0.5f;
 
@@ -196,7 +196,7 @@ internal sealed class AndroidEngineSplashScreen : global::Android.Views.View, IE
         if (_fmodLogo is not null && !_fmodLogo.IsRecycled)
         {
             var fmodLeft = (width - fmodWidth) * 0.5f;
-            var fmodTop = barTop + barHeight + fmodGap;
+            var fmodTop = height - fmodBottomMargin - fmodHeight;
             canvas.DrawBitmap(_fmodLogo, null, new RectF(fmodLeft, fmodTop, fmodLeft + fmodWidth, fmodTop + fmodHeight), _paint);
         }
 

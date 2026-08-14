@@ -83,14 +83,14 @@ internal sealed class DesktopSplashScreen : IEngineSplashScreen
         var gap = Math.Max(24.0f, shortestSide * 0.055f);
         var fmodWidth = Math.Min(width * 0.30f, logoSize * 0.48f);
         var fmodHeight = fmodWidth * 196.0f / 732.0f;
-        var fmodGap = Math.Max(18.0f, shortestSide * 0.035f);
-        var groupHeight = logoSize + gap + barHeight + fmodGap + fmodHeight;
+        var fmodBottomMargin = Math.Max(24.0f, shortestSide * 0.05f);
+        var groupHeight = logoSize + gap + barHeight;
         var logoTop = (height - groupHeight) * 0.5f;
         var logoLeft = (width - logoSize) * 0.5f;
         var barLeft = (width - barWidth) * 0.5f;
         var barTop = logoTop + logoSize + gap;
         var fmodLeft = (width - fmodWidth) * 0.5f;
-        var fmodTop = barTop + barHeight + fmodGap;
+        var fmodTop = height - fmodBottomMargin - fmodHeight;
 
         _gl.Viewport(0, 0, (uint)width, (uint)height);
         _gl.Disable(EnableCap.DepthTest);
@@ -205,14 +205,14 @@ internal sealed class DesktopSplashScreen : IEngineSplashScreen
         var gap = Math.Max(24.0f, shortestSide * 0.055f);
         var fmodWidth = Math.Min(width * 0.30f, logoSize * 0.48f);
         var fmodHeight = fmodWidth * 196.0f / 732.0f;
-        var fmodGap = Math.Max(18.0f, shortestSide * 0.035f);
-        var groupHeight = logoSize + gap + barHeight + fmodGap + fmodHeight;
+        var fmodBottomMargin = Math.Max(24.0f, shortestSide * 0.05f);
+        var groupHeight = logoSize + gap + barHeight;
         var logoTop = (height - groupHeight) * 0.5f;
         var logoLeft = (width - logoSize) * 0.5f;
         var barLeft = (width - barWidth) * 0.5f;
         var barTop = logoTop + logoSize + gap;
         var fmodLeft = (width - fmodWidth) * 0.5f;
-        var fmodTop = barTop + barHeight + fmodGap;
+        var fmodTop = height - fmodBottomMargin - fmodHeight;
 
         _gl.Viewport(0, 0, (uint)width, (uint)height);
         _gl.Disable(EnableCap.DepthTest);
