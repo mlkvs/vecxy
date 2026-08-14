@@ -8,6 +8,7 @@ public interface IAudioManager
 {
     void Preload(string assetPath, bool loop = false);
     void Play(string assetPath, bool loop = false, float volume = 1.0f);
+    void Stop(string assetPath, bool loop = false);
 }
 
 public sealed class AudioModule(IAssetsManager assets) : IModule, IModule.IUpdatable, IAudioManager
@@ -25,7 +26,7 @@ public sealed class AudioModule(IAssetsManager assets) : IModule, IModule.IUpdat
 #if ANDROID
     private readonly Dictionary<(string Path, bool Loop), global::Android.Media.MediaPlayer> _androidPlayers = [];
 #else
-    private sealed record Playback(FMOD.Channel Channel);
+    private sealed record Playback(string Path, bool Loop, FMOD.Channel Channel);
     private FMOD.System? _system;
     private readonly List<Playback> _playbacks = [];
     private readonly Dictionary<(string Path, bool Loop), FMOD.Sound> _sounds = [];
@@ -107,7 +108,28 @@ public sealed class AudioModule(IAssetsManager assets) : IModule, IModule.IUpdat
         var sound = GetOrCreateSound(assetPath, loop);
         Check(_system.Value.playSound(sound, new FMOD.ChannelGroup(), false, out var channel));
         Check(channel.setVolume(Math.Clamp(volume, 0.0f, 1.0f)));
-        _playbacks.Add(new Playback(channel));
+        _playbacks.Add(new Playback(ResolveAudioPath(assetPath), loop, channel));
+#endif
+    }
+
+    public void Stop(string assetPath, bool loop = false)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        if (!_initialized)
+            throw new InvalidOperationException("AudioModule is not initialized.");
+        var fullPath = ResolveAudioPath(assetPath);
+#if ANDROID
+        if (_androidPlayers.TryGetValue((fullPath, loop), out var player) && player.IsPlaying)
+            player.Stop();
+#else
+        for (var index = _playbacks.Count - 1; index >= 0; index--)
+        {
+            var playback = _playbacks[index];
+            if (!playback.Path.Equals(fullPath, StringComparison.Ordinal) || playback.Loop != loop)
+                continue;
+            playback.Channel.stop();
+            _playbacks.RemoveAt(index);
+        }
 #endif
     }
 
