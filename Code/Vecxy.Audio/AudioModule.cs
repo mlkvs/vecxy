@@ -9,6 +9,8 @@ public interface IAudioManager
     void Preload(string assetPath, bool loop = false);
     void Play(string assetPath, bool loop = false, float volume = 1.0f);
     void Stop(string assetPath, bool loop = false);
+    void Pause(string assetPath, bool loop = false);
+    void Resume(string assetPath, bool loop = false);
 }
 
 public sealed class AudioModule(IAssetsManager assets) : IModule, IModule.IUpdatable, IAudioManager
@@ -119,8 +121,12 @@ public sealed class AudioModule(IAssetsManager assets) : IModule, IModule.IUpdat
             throw new InvalidOperationException("AudioModule is not initialized.");
         var fullPath = ResolveAudioPath(assetPath);
 #if ANDROID
-        if (_androidPlayers.TryGetValue((fullPath, loop), out var player) && player.IsPlaying)
-            player.Stop();
+        if (_androidPlayers.TryGetValue((fullPath, loop), out var player))
+        {
+            if (player.IsPlaying)
+                player.Pause();
+            player.SeekTo(0);
+        }
 #else
         for (var index = _playbacks.Count - 1; index >= 0; index--)
         {
@@ -130,6 +136,30 @@ public sealed class AudioModule(IAssetsManager assets) : IModule, IModule.IUpdat
             playback.Channel.stop();
             _playbacks.RemoveAt(index);
         }
+#endif
+    }
+
+    public void Pause(string assetPath, bool loop = false)
+    {
+        var fullPath = ResolveAudioPath(assetPath);
+#if ANDROID
+        if (_androidPlayers.TryGetValue((fullPath, loop), out var player) && player.IsPlaying)
+            player.Pause();
+#else
+        foreach (var playback in _playbacks.Where(value => value.Path.Equals(fullPath, StringComparison.Ordinal) && value.Loop == loop))
+            playback.Channel.setPaused(true);
+#endif
+    }
+
+    public void Resume(string assetPath, bool loop = false)
+    {
+        var fullPath = ResolveAudioPath(assetPath);
+#if ANDROID
+        if (_androidPlayers.TryGetValue((fullPath, loop), out var player) && !player.IsPlaying)
+            player.Start();
+#else
+        foreach (var playback in _playbacks.Where(value => value.Path.Equals(fullPath, StringComparison.Ordinal) && value.Loop == loop))
+            playback.Channel.setPaused(false);
 #endif
     }
 

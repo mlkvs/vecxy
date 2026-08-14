@@ -71,3 +71,10 @@ public static class PlatformTouchSource
     public static void Publish(IWindow.TouchEvent eventData) =>
         Changed?.Invoke(eventData);
 }
+
+public static class PlatformApplicationLifecycle
+{
+    public static event Action<bool>? ActiveChanged;
+
+    public static void PublishActiveChanged(bool isActive) => ActiveChanged?.Invoke(isActive);
+}

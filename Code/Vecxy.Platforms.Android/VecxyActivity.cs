@@ -19,6 +19,18 @@ public sealed class VecxyActivity : SilkActivity
     private const string LogTag = "Vecxy.Android";
     private int? _primaryTouchId;
 
+    protected override void OnPause()
+    {
+        PlatformApplicationLifecycle.PublishActiveChanged(false);
+        base.OnPause();
+    }
+
+    protected override void OnResume()
+    {
+        base.OnResume();
+        PlatformApplicationLifecycle.PublishActiveChanged(true);
+    }
+
     protected override void OnRun()
     {
         var phase = "preparing Android storage";
