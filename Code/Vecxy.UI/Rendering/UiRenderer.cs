@@ -805,12 +805,18 @@ internal sealed class UiRenderer : IDisposable
         var color = Vector4.One with { W = opacity };
         var firstVertex = (uint)(_vertices.Count / VertexStride);
         AddMappedVertex(center.X, center.Y, imageBounds, uv, color);
+        var rectangularSector = element.Attributes.TryGetValue("radial-rect", out var rectangularValue) &&
+                              !rectangularValue.Equals("false", StringComparison.OrdinalIgnoreCase);
         for (var index = 0; index <= segments; index++)
         {
             var angle = float.Lerp(start, end, index / (float)segments);
+            var direction = new Vector2(MathF.Cos(angle), MathF.Sin(angle));
+            var distance = rectangularSector
+                ? DistanceToRectangleEdge(direction, imageBounds)
+                : radius;
             AddMappedVertex(
-                center.X + MathF.Cos(angle) * radius,
-                center.Y + MathF.Sin(angle) * radius,
+                center.X + direction.X * distance,
+                center.Y + direction.Y * distance,
                 imageBounds,
                 uv,
                 color);
@@ -824,6 +830,17 @@ internal sealed class UiRenderer : IDisposable
             _indices.Add(firstVertex + (uint)index + 2);
         }
         AddBatch(image.Texture, TextureSamplerState.LinearClamp, clip, indexStart, segments * 3);
+    }
+
+    private static float DistanceToRectangleEdge(Vector2 direction, Rect bounds)
+    {
+        var horizontal = Math.Abs(direction.X) < 0.0001f
+            ? float.PositiveInfinity
+            : bounds.Width * 0.5f / Math.Abs(direction.X);
+        var vertical = Math.Abs(direction.Y) < 0.0001f
+            ? float.PositiveInfinity
+            : bounds.Height * 0.5f / Math.Abs(direction.Y);
+        return Math.Min(horizontal, vertical);
     }
 
     private void AddArcRing(
