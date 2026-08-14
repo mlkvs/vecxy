@@ -28,7 +28,7 @@ internal sealed class AndroidEngineSplashScreen : global::Android.Views.View, IE
         Clickable = true;
         Focusable = true;
         ImportantForAccessibility = ImportantForAccessibility.NoHideDescendants;
-        SetBackgroundColor(global::Android.Graphics.Color.White);
+        SetBackgroundColor(global::Android.Graphics.Color.Black);
     }
 
     public static AndroidEngineSplashScreen Attach(

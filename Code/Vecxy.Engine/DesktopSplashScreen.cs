@@ -210,7 +210,7 @@ internal sealed class DesktopSplashScreen : IEngineSplashScreen
 
         if (splashAlpha > 0.001f)
         {
-            DrawRectangle(0, 0, width, height, width, height, false, 1, 1, 1, splashAlpha);
+            DrawRectangle(0, 0, width, height, width, height, false, 0, 0, 0, splashAlpha);
             if (_logoTexture != 0)
             {
                 _gl.BindTexture(TextureTarget.Texture2D, _logoTexture);

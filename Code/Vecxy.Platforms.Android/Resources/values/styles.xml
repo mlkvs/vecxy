@@ -5,10 +5,10 @@
     <item name="android:windowActionModeOverlay">true</item>
     <item name="android:windowFullscreen">true</item>
     <item name="android:windowNoTitle">true</item>
-    <item name="android:windowBackground">#FFFFFFFF</item>
+    <item name="android:windowBackground">#FF000000</item>
     <item name="android:forceDarkAllowed">false</item>
     <item name="android:colorAccent">#4FCC63</item>
-    <item name="android:navigationBarColor">#FFFFFFFF</item>
-    <item name="android:statusBarColor">#FFFFFFFF</item>
+    <item name="android:navigationBarColor">#FF000000</item>
+    <item name="android:statusBarColor">#FF000000</item>
   </style>
 </resources>
