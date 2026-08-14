@@ -7,7 +7,7 @@
     <item name="android:windowNoTitle">true</item>
     <item name="android:windowBackground">#FF000000</item>
     <item name="android:windowSplashScreenBackground">#FF000000</item>
-    <item name="android:windowSplashScreenAnimatedIcon">@drawable/vecxy_splash_logo</item>
+    <item name="android:windowSplashScreenAnimatedIcon">@drawable/vecxy_splash_logo_png</item>
     <item name="android:windowSplashScreenBehavior">icon_preferred</item>
     <item name="android:forceDarkAllowed">false</item>
     <item name="android:colorAccent">#4FCC63</item>

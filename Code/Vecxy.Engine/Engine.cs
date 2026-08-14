@@ -13,7 +13,7 @@ public sealed class Engine : IDisposable
         public int TargetFrameRate { get; set; } = 60;
         public bool Headless { get; set; } = false;
         public bool ShowSplashScreen { get; set; } = true;
-        public string SplashScreenLogoPath { get; set; } = "Textures/Logo.jpeg";
+        public string SplashScreenLogoPath { get; set; } = "Textures/Logo.png";
         public Action<ContainerBuilder>? ConfigureServices { get; set; }
     }
 
