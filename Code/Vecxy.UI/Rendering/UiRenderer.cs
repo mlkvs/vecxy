@@ -282,6 +282,7 @@ internal sealed class UiRenderer : IDisposable
             element.ComputedStyleVersion,
             element.BoundsVersion,
             element.Progress,
+            element.ScrollOffset,
             scale,
             _shadowsEnabled);
         var isRadialProgress = element.TagName == "radial-progress";

@@ -55,12 +55,14 @@ public sealed class UiModule :
     private readonly List<UiElement> _nextHoveredElements = [];
     private UiElement? _scrollCandidate;
     private UiElement? _scrollingElement;
+    private UiElement? _scrollbarDragElement;
     private UiElement? _inertiaElement;
     private UiDocument? _pressedDocument;
     private readonly Dictionary<int, (UiElement Element, UiDocument Document)> _touchCaptures = [];
     private Vector2 _pressPosition;
     private Vector2 _lastPointerPosition;
     private Vector2 _scrollVelocity;
+    private float _scrollbarThumbGrabOffset;
     private Vector2 _cachedHitPoint = new(float.NaN, float.NaN);
     private UiElement? _cachedHitElement;
     private UiDocument? _cachedHitDocument;
@@ -273,6 +275,7 @@ public sealed class UiModule :
             _pressedDocument = hitDocument;
             _scrollCandidate = FindScrollable(hit, preferHorizontal: false);
             _scrollingElement = null;
+            _scrollbarDragElement = TryStartScrollbarDrag(hit, hitDocument, pointer);
             _inertiaElement = null;
             _scrollVelocity = Vector2.Zero;
             _pressPosition = pointer;
@@ -284,10 +287,12 @@ public sealed class UiModule :
         else if (pointerPressed && _wasPointerPressed && _pressedElement is { } pressed)
         {
             var pointerDelta = pointer - _lastPointerPosition;
+            if (_scrollbarDragElement is not null)
+                DragScrollbar(pointer);
             var threshold = Settings.DragScrollThreshold * (_pressedDocument?.LayoutScale ?? 1.0f);
             var exceededThreshold = Vector2.DistanceSquared(pointer, _pressPosition) >= threshold * threshold;
 
-            if (_scrollingElement is null && _draggingElement is null && exceededThreshold &&
+            if (_scrollbarDragElement is null && _scrollingElement is null && _draggingElement is null && exceededThreshold &&
                 _scrollCandidate is { } scrollCandidate &&
                 MovementMatchesScrollAxis(scrollCandidate, pointer - _pressPosition))
             {
@@ -302,7 +307,11 @@ public sealed class UiModule :
                 pressed.RaiseDragStarted();
             }
 
-            if (_scrollingElement is not null)
+            if (_scrollbarDragElement is not null)
+            {
+                // The thumb owns this pointer sequence; do not start content dragging.
+            }
+            else if (_scrollingElement is not null)
                 DragScroll(pointerDelta, deltaTime);
             else if (_draggingElement is not null)
                 SetDropTarget(FindDropTarget(hit, _draggingElement));
@@ -333,6 +342,7 @@ public sealed class UiModule :
                     releasedElement.RaiseClicked(
                         _pressedDocument?.ToLayoutPoint(pointer) ?? pointer);
             }
+            _scrollbarDragElement = null;
             _scrollCandidate = null;
             _pressedDocument = null;
         }
@@ -486,6 +496,50 @@ public sealed class UiModule :
             return;
         var instantaneous = applied / deltaTime;
         _scrollVelocity = Vector2.Lerp(_scrollVelocity, instantaneous, 0.45f);
+    }
+
+    private UiElement? TryStartScrollbarDrag(UiElement? hit, UiDocument? document, Vector2 outputPointer)
+    {
+        if (document is null)
+            return null;
+        var element = FindScrollable(hit, preferHorizontal: false);
+        if (element is null || !element.CanScrollVertically)
+            return null;
+
+        var point = document.ToLayoutPoint(outputPointer);
+        var bounds = element.Bounds;
+        var width = Math.Max(1.0f, UiLayout.ResolvePoints(
+            element.ComputedStyle.ScrollbarWidth, bounds.Width, bounds.Height));
+        var trackLeft = bounds.Right - width;
+        if (point.X < trackLeft || point.X > bounds.Right || point.Y < bounds.Top || point.Y > bounds.Bottom)
+            return null;
+
+        var maximum = Math.Max(0.001f, element.ScrollExtent.Y - bounds.Height);
+        var ratio = Math.Clamp(bounds.Height / element.ScrollExtent.Y, 0.05f, 1.0f);
+        var thumbHeight = bounds.Height * ratio;
+        var thumbTop = bounds.Top + (bounds.Height - thumbHeight) * (element.ScrollOffset.Y / maximum);
+        if (point.Y < thumbTop || point.Y > thumbTop + thumbHeight)
+            return null;
+
+        _scrollbarThumbGrabOffset = point.Y - thumbTop;
+        return element;
+    }
+
+    private void DragScrollbar(Vector2 outputPointer)
+    {
+        if (_scrollbarDragElement is not { } element || _pressedDocument is null)
+            return;
+
+        var point = _pressedDocument.ToLayoutPoint(outputPointer);
+        var bounds = element.Bounds;
+        var maximum = Math.Max(0.0f, element.ScrollExtent.Y - bounds.Height);
+        if (maximum <= 0.0f)
+            return;
+        var ratio = Math.Clamp(bounds.Height / element.ScrollExtent.Y, 0.05f, 1.0f);
+        var thumbHeight = bounds.Height * ratio;
+        var travel = Math.Max(0.001f, bounds.Height - thumbHeight);
+        var thumbTop = Math.Clamp(point.Y - _scrollbarThumbGrabOffset, bounds.Top, bounds.Bottom - thumbHeight);
+        element.ScrollTo(new Vector2(element.ScrollOffset.X, maximum * ((thumbTop - bounds.Top) / travel)));
     }
 
     private void UpdateScrollInertia(float deltaTime)
