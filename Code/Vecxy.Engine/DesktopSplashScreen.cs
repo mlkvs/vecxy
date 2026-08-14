@@ -87,6 +87,8 @@ internal sealed class DesktopSplashScreen : IEngineSplashScreen
 
         _gl.Viewport(0, 0, (uint)width, (uint)height);
         _gl.Disable(EnableCap.DepthTest);
+        _gl.Enable(EnableCap.Blend);
+        _gl.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha);
         _gl.ClearColor(0, 0, 0, 1);
         _gl.Clear(ClearBufferMask.ColorBufferBit);
 
