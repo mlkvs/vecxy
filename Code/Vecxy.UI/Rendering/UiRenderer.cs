@@ -303,6 +303,9 @@ internal sealed class UiRenderer : IDisposable
             var image = document.ResolveImage(element);
             if (image is { } resolvedImage)
             {
+                var imageTint = element.TagName == "image"
+                    ? style.ImageTint with { W = style.ImageTint.W * opacity }
+                    : Vector4.One with { W = opacity };
                 _imageElements++;
                 if (isRadialProgress)
                 {
@@ -321,7 +324,7 @@ internal sealed class UiRenderer : IDisposable
                 {
                     AddNineSlice(
                         bounds,
-                        Vector4.One with { W = opacity },
+                        imageTint,
                         resolvedImage.Texture,
                         resolvedImage.Uv,
                         Math.Min(resolvedImage.Size.X, resolvedImage.Size.Y),
@@ -349,7 +352,7 @@ internal sealed class UiRenderer : IDisposable
                             element.TagName == "image" ? "center" : style.BackgroundPosition);
                     AddRoundedTextured(
                         imageBounds,
-                        Vector4.One with { W = opacity },
+                        imageTint,
                         resolvedImage.Texture,
                         imageUv,
                         clip,

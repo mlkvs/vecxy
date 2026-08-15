@@ -159,6 +159,7 @@ public sealed class UiComputedStyle
     public string BackgroundSize { get; set; } = "fill";
     public string BackgroundPosition { get; set; } = "center";
     public UiLength BackgroundSlice { get; set; } = UiLength.Pixels(0.0f);
+    public Vector4 ImageTint { get; set; } = Vector4.One;
     internal UiTransformDefinition TransformDefinition { get; set; } = UiTransformDefinition.Identity;
     public UiTransform Transform { get; set; } = UiTransform.Identity;
     public Vector2 TransformOrigin { get; set; } = new(0.5f);
@@ -209,6 +210,7 @@ public sealed class UiComputedStyle
         Opacity.Equals(other.Opacity) && ZIndex == other.ZIndex &&
         BackgroundImage == other.BackgroundImage && BackgroundSize == other.BackgroundSize &&
         BackgroundPosition == other.BackgroundPosition && BackgroundSlice == other.BackgroundSlice &&
+        ImageTint == other.ImageTint &&
         TransformDefinition == other.TransformDefinition && TransformOrigin == other.TransformOrigin &&
         Transitions.SequenceEqual(other.Transitions) && Animation == other.Animation &&
         ObjectFit == other.ObjectFit && ScrollbarWidth == other.ScrollbarWidth &&
@@ -225,6 +227,7 @@ public sealed class UiComputedStyle
         ZIndex == other.ZIndex &&
         BackgroundImage == other.BackgroundImage && BackgroundSize == other.BackgroundSize &&
         BackgroundPosition == other.BackgroundPosition && BackgroundSlice == other.BackgroundSlice &&
+        ImageTint == other.ImageTint &&
         Transitions.SequenceEqual(other.Transitions) && Animation == other.Animation &&
         ObjectFit == other.ObjectFit && ScrollbarWidth == other.ScrollbarWidth &&
         ScrollbarColor == other.ScrollbarColor && ScrollbarTrackColor == other.ScrollbarTrackColor &&
@@ -1063,6 +1066,7 @@ internal static class UiStyleResolver
             case "background-size": style.BackgroundSize = value.ToLowerInvariant(); break;
             case "background-position": style.BackgroundPosition = value.ToLowerInvariant(); break;
             case "background-slice": SetLength(value, result => style.BackgroundSlice = result); break;
+            case "image-tint": SetColor(value, result => style.ImageTint = result); break;
             case "transform": style.TransformDefinition = UiTransformParser.Parse(value, style.TransformOrigin); break;
             case "transform-origin":
                 style.TransformOrigin = UiTransformParser.ParseOrigin(value);
