@@ -1,7 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
     <PropertyGroup>
         <TargetFramework Condition="'$(VecxyPlatform)' == 'Desktop'">net10.0</TargetFramework>
-        <TargetFramework Condition="'$(VecxyPlatform)' == 'Android'">net10.0-android</TargetFramework>
+        <TargetFramework Condition="'$(VecxyPlatform)' == 'Android' and '$(TargetFramework)' == ''">net10.0-android</TargetFramework>
     </PropertyGroup>
 
     <ItemGroup>
