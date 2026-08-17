@@ -1,6 +1,7 @@
 using System.ComponentModel.DataAnnotations;
 using YamlDotNet.Serialization;
 using YamlDotNet.Serialization.NamingConventions;
+using YamlDotNet.RepresentationModel;
 using Vecxy.Diagnostics;
 
 namespace Vecxy.Assets;
@@ -40,6 +41,7 @@ public interface IConfigRef
 public sealed class ConfigRef<T> : IDisposable,  IConfigRef, IObservableConfig<T> where T : class, IYamlConfig
 {
     private readonly AssetRef<TextAsset> _source;
+    private readonly Func<IReadOnlyList<string>> _readSourceLayers;
     private readonly Action<IConfigRef> _onDisposed;
     private T? _cachedValue;
     private int _observedVersion;
@@ -48,11 +50,14 @@ public sealed class ConfigRef<T> : IDisposable,  IConfigRef, IObservableConfig<T
 
     internal ConfigRef(
         AssetRef<TextAsset> source,
+        Func<IReadOnlyList<string>> readSourceLayers,
         Action<IConfigRef> onDisposed)
     {
         ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(readSourceLayers);
         ArgumentNullException.ThrowIfNull(onDisposed);
         _source = source.Acquire();
+        _readSourceLayers = readSourceLayers;
         _onDisposed = onDisposed;
     }
 
@@ -121,8 +126,8 @@ public sealed class ConfigRef<T> : IDisposable,  IConfigRef, IObservableConfig<T
 
         try
         {
-            var value = YamlConfigSerializer.Deserialize<T>(
-                _source.Value.Content,
+            var value = YamlConfigSerializer.DeserializeLayers<T>(
+                _readSourceLayers(),
                 Path);
             _cachedValue = value;
             _lastError = null;
@@ -183,5 +188,50 @@ internal static class YamlConfigSerializer
         }
        
         return value;
+    }
+
+    public static T DeserializeLayers<T>(
+        IReadOnlyList<string> sources,
+        string path)
+        where T : class, IYamlConfig
+    {
+        ArgumentNullException.ThrowIfNull(sources);
+        if (sources.Count == 0)
+            throw new FileNotFoundException($"Config has no source files: {path}");
+        if (sources.Count == 1)
+            return Deserialize<T>(sources[0], path);
+
+        YamlNode? merged = null;
+        for (var index = sources.Count - 1; index >= 0; index--)
+        {
+            var stream = new YamlStream();
+            using var reader = new StringReader(sources[index]);
+            stream.Load(reader);
+            var root = stream.Documents.FirstOrDefault()?.RootNode
+                       ?? throw new InvalidDataException($"Config is empty: {path}");
+            merged = merged is null ? root : MergeNodes(merged, root);
+        }
+
+        using var writer = new StringWriter();
+        new YamlStream(new YamlDocument(merged!)).Save(writer, assignAnchors: false);
+        return Deserialize<T>(writer.ToString(), path);
+    }
+
+    private static YamlNode MergeNodes(YamlNode defaults, YamlNode overrides)
+    {
+        if (defaults is not YamlMappingNode defaultMap ||
+            overrides is not YamlMappingNode overrideMap)
+        {
+            return overrides;
+        }
+
+        foreach (var (key, overrideValue) in overrideMap.Children)
+        {
+            defaultMap.Children[key] = defaultMap.Children.TryGetValue(key, out var defaultValue)
+                ? MergeNodes(defaultValue, overrideValue)
+                : overrideValue;
+        }
+
+        return defaultMap;
     }
 }

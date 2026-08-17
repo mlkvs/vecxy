@@ -37,6 +37,7 @@ public sealed class AssetsModule :
     public sealed class Options
     {
         public string? AssetsDirectory { get; init; }
+        public IReadOnlyList<string> AdditionalAssetDirectories { get; init; } = [];
         public bool HotReloadEnabled { get; init; } = true;
         public TimeSpan HotReloadDelay { get; init; } =
             TimeSpan.FromMilliseconds(150);
@@ -76,12 +77,13 @@ public sealed class AssetsModule :
     private readonly Dictionary<string, long> _pendingReloads =
         new(StringComparer.Ordinal);
     private readonly AssetImportContext _importContext;
+    private readonly IReadOnlyList<string> _assetDirectories;
     private readonly Options _options;
     private static readonly ISerializer ConfigSerializer =
         new SerializerBuilder()
             .WithNamingConvention(CamelCaseNamingConvention.Instance)
             .Build();
-    private AssetFileWatcher? _fileWatcher;
+    private readonly List<AssetFileWatcher> _fileWatchers = [];
     private bool _disposed;
 
     public string AssetsDirectory { get; }
@@ -102,7 +104,18 @@ public sealed class AssetsModule :
         AssetsDirectory = Path.GetFullPath(
             options.AssetsDirectory ??
             Path.Combine(AppContext.BaseDirectory, "Assets"));
-        _importContext = new AssetImportContext(AssetsDirectory, this);
+        _assetDirectories = (options.AdditionalAssetDirectories ?? [])
+            .Select(Path.GetFullPath)
+            .Where(directory => !string.Equals(
+                directory,
+                AssetsDirectory,
+                StringComparison.OrdinalIgnoreCase))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        _importContext = new AssetImportContext(
+            AssetsDirectory,
+            _assetDirectories,
+            this);
     }
 
     public void RegisterImporter<T>(IAssetImporter<T> importer) where T : class
@@ -180,7 +193,10 @@ public sealed class AssetsModule :
         ObjectDisposedException.ThrowIf(_disposed, this);
 
         using var source = Load<TextAsset>(path);
-        var config = new ConfigRef<T>(source, UnregisterConfigRef);
+        var config = new ConfigRef<T>(
+            source,
+            () => _importContext.ReadAllTextLayers(path),
+            UnregisterConfigRef);
         RegisterConfigRef(config);
         return config;
     }
@@ -363,24 +379,37 @@ public sealed class AssetsModule :
         RegisterImporter<InputAsset>(new InputAssetImporter());
         RegisterImporter<ModelAsset>(new ModelAssetImporter());
         Logger.Info($"Assets directory: {AssetsDirectory}");
+        foreach (var directory in _assetDirectories)
+            Logger.Info($"Additional assets directory: {directory}");
 
         if (_options.HotReloadEnabled)
         {
-            _fileWatcher = new AssetFileWatcher(AssetsDirectory);
-            _fileWatcher.Start();
+            foreach (var directory in new[] { AssetsDirectory }.Concat(_assetDirectories))
+            {
+                if (!Directory.Exists(directory))
+                {
+                    Logger.Warning($"Cannot watch missing assets directory: {directory}");
+                    continue;
+                }
+
+                var watcher = new AssetFileWatcher(directory);
+                watcher.Start();
+                _fileWatchers.Add(watcher);
+            }
             Logger.Info("Asset hot reload is enabled.");
         }
     }
 
     public void OnUpdate(float deltaTime)
     {
-        if (_fileWatcher is null)
+        if (_fileWatchers.Count == 0)
         {
             return;
         }
 
         var now = Stopwatch.GetTimestamp();
-        _fileWatcher.Drain(path => _pendingReloads[path] = now);
+        foreach (var watcher in _fileWatchers)
+            watcher.Drain(path => _pendingReloads[path] = now);
 
         foreach (var (path, changedAt) in _pendingReloads.ToArray())
         {
@@ -396,7 +425,7 @@ public sealed class AssetsModule :
 
     public void OnShutdown()
     {
-        StopFileWatcher();
+        StopFileWatchers();
     }
 
     private void ReloadChangedAsset(string path)
@@ -416,10 +445,11 @@ public sealed class AssetsModule :
         }
     }
 
-    private void StopFileWatcher()
+    private void StopFileWatchers()
     {
-        _fileWatcher?.Dispose();
-        _fileWatcher = null;
+        foreach (var watcher in _fileWatchers)
+            watcher.Dispose();
+        _fileWatchers.Clear();
         _pendingReloads.Clear();
     }
 
@@ -555,7 +585,7 @@ public sealed class AssetsModule :
         }
 
         _disposed = true;
-        StopFileWatcher();
+        StopFileWatchers();
         foreach (var assetRef in _loaded.Values.ToArray())
         {
             UnloadEntry(assetRef);
