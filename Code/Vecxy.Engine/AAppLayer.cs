@@ -1,7 +1,9 @@
+using JetBrains.Annotations;
 using Vecxy.Kernel;
 
 namespace Vecxy.Engine;
 
+[UsedImplicitly(ImplicitUseTargetFlags.WithInheritors)]
 public abstract class AAppLayer
 {
     public interface IDefinition : Vecxy.Kernel.IDefinition
