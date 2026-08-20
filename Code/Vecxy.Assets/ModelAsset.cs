@@ -130,15 +130,39 @@ public sealed class ModelMaterial
     public string Name { get; }
     public Vector4 BaseColor { get; }
     public TextureAsset? BaseColorTexture { get; }
+    public int BaseColorTexCoord { get; }
+    public TextureAsset? NormalTexture { get; }
+    public int NormalTexCoord { get; }
+    public TextureAsset? MetallicRoughnessTexture { get; }
+    public int MetallicRoughnessTexCoord { get; }
+    public float MetallicFactor { get; }
+    public float RoughnessFactor { get; }
+    public Vector3 EmissiveColor { get; }
 
     internal ModelMaterial(
         string name,
         Vector4 baseColor,
-        TextureAsset? baseColorTexture)
+        TextureAsset? baseColorTexture,
+        int baseColorTexCoord,
+        TextureAsset? normalTexture,
+        int normalTexCoord,
+        TextureAsset? metallicRoughnessTexture,
+        int metallicRoughnessTexCoord,
+        float metallicFactor,
+        float roughnessFactor,
+        Vector3 emissiveColor)
     {
         Name = name;
         BaseColor = baseColor;
         BaseColorTexture = baseColorTexture;
+        BaseColorTexCoord = baseColorTexCoord;
+        NormalTexture = normalTexture;
+        NormalTexCoord = normalTexCoord;
+        MetallicRoughnessTexture = metallicRoughnessTexture;
+        MetallicRoughnessTexCoord = metallicRoughnessTexCoord;
+        MetallicFactor = metallicFactor;
+        RoughnessFactor = roughnessFactor;
+        EmissiveColor = emissiveColor;
     }
 }
 
@@ -168,11 +192,21 @@ public sealed class ModelAssetImporter : IAssetImporter<ModelAsset>
         ValidateDocument(gltf, metadata.Path);
         var lightImport = ParseLights(source, metadata.Path);
         var images = ImportImages(gltf, binaryBuffer, metadata.Path);
-        var materials = ImportMaterials(gltf, images);
+        var emissiveStrengths = ParseEmissiveStrengths(
+            source,
+            gltf.Materials?.Length ?? 0,
+            metadata.Path);
+        var materials = ImportMaterials(gltf, images, emissiveStrengths);
 
         var meshes = (gltf.Meshes ?? [])
             .Select((mesh, index) =>
-                ImportMesh(gltf, binaryBuffer, mesh, index, metadata.Path))
+                ImportMesh(
+                    gltf,
+                    binaryBuffer,
+                    mesh,
+                    index,
+                    metadata.Path,
+                    materials))
             .ToArray();
 
         var nodes = (gltf.Nodes ?? [])
@@ -237,7 +271,8 @@ public sealed class ModelAssetImporter : IAssetImporter<ModelAsset>
         byte[] buffer,
         glTFLoader.Schema.Mesh mesh,
         int meshIndex,
-        string path)
+        string path,
+        IReadOnlyList<ModelMaterial> materials)
     {
         if (mesh.Primitives is null || mesh.Primitives.Length == 0)
         {
@@ -253,7 +288,8 @@ public sealed class ModelAssetImporter : IAssetImporter<ModelAsset>
                     primitive,
                     meshIndex,
                     primitiveIndex,
-                    path))
+                    path,
+                    materials))
             .ToArray();
 
         return new ModelMesh(
@@ -269,7 +305,8 @@ public sealed class ModelAssetImporter : IAssetImporter<ModelAsset>
         MeshPrimitive primitive,
         int meshIndex,
         int primitiveIndex,
-        string path)
+        string path,
+        IReadOnlyList<ModelMaterial> materials)
     {
         if (primitive.Mode != MeshPrimitive.ModeEnum.TRIANGLES)
         {
@@ -309,14 +346,21 @@ public sealed class ModelAssetImporter : IAssetImporter<ModelAsset>
                 path)
             : null;
 
+        var texCoordSet = primitive.Material is { } materialIndex &&
+            materialIndex >= 0 &&
+            materialIndex < materials.Count
+            ? materials[materialIndex].BaseColorTexCoord
+            : 0;
+        var texCoordAttribute = $"TEXCOORD_{texCoordSet}";
+
         var texCoords = primitive.Attributes.TryGetValue(
-            TexCoordAttribute,
+            texCoordAttribute,
             out var texCoordAccessor)
             ? ReadVectors2(
                 gltf,
                 buffer,
                 texCoordAccessor,
-                TexCoordAttribute,
+                texCoordAttribute,
                 path)
             : null;
 
@@ -329,7 +373,7 @@ public sealed class ModelAssetImporter : IAssetImporter<ModelAsset>
         if (texCoords is not null && texCoords.Length != positions.Length)
         {
             throw new InvalidDataException(
-                $"TEXCOORD_0 count does not match POSITION count in mesh {meshIndex}, primitive {primitiveIndex} of '{path}'.");
+                $"{texCoordAttribute} count does not match POSITION count in mesh {meshIndex}, primitive {primitiveIndex} of '{path}'.");
         }
 
         var indices = primitive.Indices is { } indexAccessor
@@ -423,7 +467,8 @@ public sealed class ModelAssetImporter : IAssetImporter<ModelAsset>
 
     private static ModelMaterial[] ImportMaterials(
         Gltf gltf,
-        IReadOnlyList<TextureAsset?> images)
+        IReadOnlyList<TextureAsset?> images,
+        IReadOnlyList<float> emissiveStrengths)
     {
         if (gltf.Materials is not { Length: > 0 })
             return [];
@@ -435,6 +480,10 @@ public sealed class ModelAssetImporter : IAssetImporter<ModelAsset>
             var material = gltf.Materials[materialIndex];
             var pbr = material.PbrMetallicRoughness;
             var baseColor = Vector4.One;
+            var emissiveColor = material.EmissiveFactor is { Length: 3 } emissive
+                ? new Vector3(emissive[0], emissive[1], emissive[2])
+                : Vector3.Zero;
+            emissiveColor *= emissiveStrengths[materialIndex];
 
             if (pbr?.BaseColorFactor is { Length: 4 } factor)
             {
@@ -447,6 +496,7 @@ public sealed class ModelAssetImporter : IAssetImporter<ModelAsset>
 
             TextureAsset? baseColorTexture = null;
             var textureIndex = pbr?.BaseColorTexture?.Index;
+            var baseColorTexCoord = pbr?.BaseColorTexture?.TexCoord ?? 0;
             if (textureIndex is not null &&
                 gltf.Textures is { } textures &&
                 textureIndex.Value >= 0 &&
@@ -460,12 +510,42 @@ public sealed class ModelAssetImporter : IAssetImporter<ModelAsset>
                 }
             }
 
+            TextureAsset? normalTexture = null;
+            var normalTexCoord = material.NormalTexture?.TexCoord ?? 0;
+            if (material.NormalTexture?.Index is { } normalIndex &&
+                gltf.Textures is { } normalTextures &&
+                normalIndex >= 0 && normalIndex < normalTextures.Length)
+            {
+                var sourceIndex = normalTextures[normalIndex].Source;
+                if (sourceIndex is >= 0 && sourceIndex < images.Count)
+                    normalTexture = images[sourceIndex.Value];
+            }
+
+            TextureAsset? metallicRoughnessTexture = null;
+            var metallicRoughnessTexCoord = pbr?.MetallicRoughnessTexture?.TexCoord ?? 0;
+            if (pbr?.MetallicRoughnessTexture?.Index is { } mrIndex &&
+                gltf.Textures is { } mrTextures &&
+                mrIndex >= 0 && mrIndex < mrTextures.Length)
+            {
+                var sourceIndex = mrTextures[mrIndex].Source;
+                if (sourceIndex is >= 0 && sourceIndex < images.Count)
+                    metallicRoughnessTexture = images[sourceIndex.Value];
+            }
+
             result[materialIndex] = new ModelMaterial(
                 string.IsNullOrWhiteSpace(material.Name)
                     ? $"Material {materialIndex}"
                     : material.Name,
                 baseColor,
-                baseColorTexture);
+                baseColorTexture,
+                baseColorTexCoord,
+                normalTexture,
+                normalTexCoord,
+                metallicRoughnessTexture,
+                metallicRoughnessTexCoord,
+                pbr?.MetallicFactor ?? 1.0f,
+                pbr?.RoughnessFactor ?? 1.0f,
+                emissiveColor);
         }
 
         return result;
@@ -749,6 +829,43 @@ public sealed class ModelAssetImporter : IAssetImporter<ModelAsset>
             node.Mesh,
             lightIndex,
             children.ToArray());
+    }
+
+    private static float[] ParseEmissiveStrengths(
+        byte[] source,
+        int materialCount,
+        string path)
+    {
+        var strengths = Enumerable.Repeat(1.0f, materialCount).ToArray();
+        if (materialCount == 0)
+            return strengths;
+
+        using var document = ReadGlbJsonDocument(source, path);
+        if (!document.RootElement.TryGetProperty("materials", out var materials))
+            return strengths;
+
+        var index = 0;
+        foreach (var material in materials.EnumerateArray())
+        {
+            if (index >= strengths.Length)
+                break;
+
+            if (material.TryGetProperty("extensions", out var extensions) &&
+                extensions.TryGetProperty(
+                    "KHR_materials_emissive_strength",
+                    out var emissive) &&
+                emissive.TryGetProperty("emissiveStrength", out var strength))
+            {
+                var value = strength.GetSingle();
+                strengths[index] = float.IsFinite(value) && value >= 0.0f
+                    ? value
+                    : 1.0f;
+            }
+
+            index++;
+        }
+
+        return strengths;
     }
 
     private static LightImportData ParseLights(

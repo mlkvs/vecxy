@@ -248,6 +248,9 @@ public sealed class InputMap : IDisposable
             EInputBindingType.Mouse =>
                 InputBinding.Mouse(binding.Mouse),
 
+            EInputBindingType.MouseDelta =>
+                new MouseDeltaBinding(),
+
             EInputBindingType.Composite =>
                 CreateComposite(binding.Composite),
 

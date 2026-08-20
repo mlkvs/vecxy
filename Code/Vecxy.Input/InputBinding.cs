@@ -30,6 +30,12 @@ public sealed class MouseButtonBinding(EMouseButton button) : InputBinding
         snapshot.IsMouseButtonPressed(Button);
 }
 
+public sealed class MouseDeltaBinding : InputBinding
+{
+    internal override Vector2 ReadVector2(InputSnapshot snapshot) =>
+        snapshot.MouseDelta;
+}
+
 public sealed class CompositeBinding(InputComposite composite) : InputBinding
 {
     public InputComposite Kind { get; } = composite;

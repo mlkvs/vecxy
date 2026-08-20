@@ -33,6 +33,13 @@ in vec3 vWorldPosition;
 in vec2 vTexCoord;
 
 uniform sampler2D uTexture;
+uniform sampler2D uNormalTexture;
+uniform sampler2D uMetallicRoughnessTexture;
+uniform float uHasNormalTexture;
+uniform float uHasMetallicRoughnessTexture;
+uniform float uMetallicFactor;
+uniform float uRoughnessFactor;
+uniform vec4 uEmissiveColor;
 uniform vec2 uTextureTiling;
 uniform vec2 uTextureOffset;
 uniform vec4 uColor;
@@ -126,6 +133,44 @@ float computeHeightFogFactor(float worldY)
     return exp(-heightDelta * uFogHeightFalloff);
 }
 
+vec3 applyNormalMap(vec3 geometricNormal, vec2 uv)
+{
+    if (uHasNormalTexture < 0.5)
+        return normalize(geometricNormal);
+
+    vec3 tangentNormal = texture(uNormalTexture, uv).xyz * 2.0 - 1.0;
+    vec3 dp1 = dFdx(vWorldPosition);
+    vec3 dp2 = dFdy(vWorldPosition);
+    vec2 duv1 = dFdx(uv);
+    vec2 duv2 = dFdy(uv);
+    vec3 tangent = normalize(dp1 * duv2.y - dp2 * duv1.y);
+    tangent = normalize(tangent - geometricNormal * dot(geometricNormal, tangent));
+    vec3 bitangent = normalize(cross(geometricNormal, tangent));
+    return normalize(mat3(tangent, bitangent, geometricNormal) * tangentNormal);
+}
+
+float distributionGgx(vec3 normal, vec3 halfVector, float roughness)
+{
+    float a = roughness * roughness;
+    float a2 = a * a;
+    float nDotH = max(dot(normal, halfVector), 0.0);
+    float nDotH2 = nDotH * nDotH;
+    float denominator = nDotH2 * (a2 - 1.0) + 1.0;
+    return a2 / max(3.14159265 * denominator * denominator, 0.0001);
+}
+
+float geometrySchlick(float nDotV, float roughness)
+{
+    float k = (roughness + 1.0);
+    k = k * k / 8.0;
+    return nDotV / max(nDotV * (1.0 - k) + k, 0.0001);
+}
+
+vec3 fresnelSchlick(float cosine, vec3 f0)
+{
+    return f0 + (1.0 - f0) * pow(1.0 - cosine, 5.0);
+}
+
 void main()
 {
     vec2 uv = vTexCoord * uTextureTiling + uTextureOffset;
@@ -134,8 +179,17 @@ void main()
     if (textureColor.a * uColor.a * uTint.a < uAlphaCutoff)
         discard;
 
-    vec3 baseColor = (textureColor * uColor * uTint).rgb;
-    vec3 normal = normalize(vNormal);
+    vec3 baseColor = pow(textureColor.rgb, vec3(2.2)) * uColor.rgb * uTint.rgb;
+    float metallic = clamp(uMetallicFactor, 0.0, 1.0);
+    float roughness = clamp(uRoughnessFactor, 0.04, 1.0);
+    if (uHasMetallicRoughnessTexture >= 0.5)
+    {
+        vec4 mr = texture(uMetallicRoughnessTexture, uv);
+        metallic *= mr.b;
+        roughness *= mr.g;
+        roughness = clamp(roughness, 0.04, 1.0);
+    }
+    vec3 normal = applyNormalMap(normalize(vNormal), uv);
     if (!gl_FrontFacing)
         normal = -normal;
 
@@ -154,8 +208,11 @@ void main()
         vec3 lightDirection = normalize(-uDirectionalLights[i].direction);
         float diffuse = max(dot(normal, lightDirection), 0.0);
         vec3 halfVector = normalize(lightDirection + viewDirection);
+        float nDotV = max(dot(normal, viewDirection), 0.0);
+        vec3 f0 = mix(vec3(0.04), baseColor, metallic);
+        vec3 fresnel = fresnelSchlick(max(dot(halfVector, viewDirection), 0.0), f0);
         float specular = diffuse > 0.0
-            ? pow(max(dot(normal, halfVector), 0.0), 32.0) * uSpecularStrength
+            ? distributionGgx(normal, halfVector, roughness) * geometrySchlick(nDotV, roughness) * fresnel.r * uSpecularStrength
             : 0.0;
 
         lighting +=
@@ -174,8 +231,11 @@ void main()
 
         float diffuse = max(dot(normal, lightDirection), 0.0);
         vec3 halfVector = normalize(lightDirection + viewDirection);
+        float nDotV = max(dot(normal, viewDirection), 0.0);
+        vec3 f0 = mix(vec3(0.04), baseColor, metallic);
+        vec3 fresnel = fresnelSchlick(max(dot(halfVector, viewDirection), 0.0), f0);
         float specular = diffuse > 0.0
-            ? pow(max(dot(normal, halfVector), 0.0), 32.0) * uSpecularStrength
+            ? distributionGgx(normal, halfVector, roughness) * geometrySchlick(nDotV, roughness) * fresnel.r * uSpecularStrength
             : 0.0;
         float attenuation = computeRangeFalloff(distanceToLight, uPointLights[i].range);
 
@@ -205,8 +265,11 @@ void main()
 
         float diffuse = max(dot(normal, lightDirection), 0.0);
         vec3 halfVector = normalize(lightDirection + viewDirection);
+        float nDotV = max(dot(normal, viewDirection), 0.0);
+        vec3 f0 = mix(vec3(0.04), baseColor, metallic);
+        vec3 fresnel = fresnelSchlick(max(dot(halfVector, viewDirection), 0.0), f0);
         float specular = diffuse > 0.0
-            ? pow(max(dot(normal, halfVector), 0.0), 32.0) * uSpecularStrength
+            ? distributionGgx(normal, halfVector, roughness) * geometrySchlick(nDotV, roughness) * fresnel.r * uSpecularStrength
             : 0.0;
         float attenuation =
             computeRangeFalloff(distanceToLight, uSpotLights[i].range) * cone;
@@ -218,7 +281,15 @@ void main()
             (diffuse + specular);
     }
 
-    vec3 litColor = baseColor * lighting * uExposure;
+    // Approximate image-based lighting from the sky/ground environment. This
+    // gives metal surfaces a stable reflection even when no reflection probe
+    // is present in the scene.
+    vec3 reflectedEnvironment = mix(uAmbientGroundColor, uAmbientSkyColor,
+        clamp(reflect(-viewDirection, normal).y * 0.5 + 0.5, 0.0, 1.0));
+    vec3 environmentSpecular = reflectedEnvironment * fresnelSchlick(
+        max(dot(normal, viewDirection), 0.0),
+        mix(vec3(0.04), baseColor, metallic)) * (1.0 - roughness) * uSpecularStrength * 4.0;
+    vec3 litColor = (baseColor * lighting * (1.0 - metallic * 0.65) + environmentSpecular + uEmissiveColor.rgb) * uExposure;
     vec3 mapped = vec3(1.0) - exp(-litColor);
     vec3 gammaCorrected = pow(mapped, vec3(1.0 / 2.2));
 

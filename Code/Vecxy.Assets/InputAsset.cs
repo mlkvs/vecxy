@@ -49,6 +49,7 @@ public enum EInputBindingType : byte
     Undefined,
     Keyboard,
     Mouse,
+    MouseDelta,
     Composite,
 }
 
@@ -284,6 +285,15 @@ public static class InputAssetReader
                     {
                         throw new InvalidDataException(
                             $"Mouse binding for '{map.Name}.{action.Name}' has no button: {path}");
+                    }
+
+                    break;
+
+                case EInputBindingType.MouseDelta:
+                    if (action.Type != EInputActionType.Vector2)
+                    {
+                        throw new InvalidDataException(
+                            $"Mouse delta binding for '{map.Name}.{action.Name}' must use Vector2: {path}");
                     }
 
                     break;

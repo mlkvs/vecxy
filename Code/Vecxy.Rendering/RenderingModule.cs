@@ -31,6 +31,7 @@ public interface IRenderer
         out CameraRay ray);
 
     Mesh CreateQuad();
+    Mesh CreatePlane();
     void PreloadTexture(AssetRef<TextureAsset> texture);
 }
 
@@ -506,6 +507,32 @@ public sealed class RenderingModule(
             new VertexAttribute(1, 2, 2));
     }
 
+    public Mesh CreatePlane()
+    {
+        ReadOnlySpan<float> vertices =
+        [
+            -0.5f, 0.0f, -0.5f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f,
+            -0.5f, 0.0f,  0.5f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f,
+             0.5f, 0.0f,  0.5f, 0.0f, 1.0f, 0.0f, 1.0f, 1.0f,
+             0.5f, 0.0f, -0.5f, 0.0f, 1.0f, 0.0f, 1.0f, 0.0f
+        ];
+
+        ReadOnlySpan<uint> indices =
+            [0, 1, 2, 2, 3, 0];
+
+        return new Mesh(
+            device,
+            vertices,
+            indices,
+            8,
+            new Vector3(-0.5f, 0.0f, -0.5f),
+            new Vector3(0.5f, 0.0f, 0.5f),
+            "Plane",
+            new VertexAttribute(0, 3, 0),
+            new VertexAttribute(1, 3, 3),
+            new VertexAttribute(2, 2, 6));
+    }
+
     public Texture Resolve(AssetRef<TextureAsset> texture)
     {
         ArgumentNullException.ThrowIfNull(texture);
@@ -751,7 +778,16 @@ public sealed class RenderingModule(
             StringComparer.Ordinal)
         {
             ["uColor"] = new VectorMaterialParameter(source.BaseColor),
-            ["uTint"] = new VectorMaterialParameter(Vector4.One)
+            ["uTint"] = new VectorMaterialParameter(Vector4.One),
+            ["uHasNormalTexture"] = new FloatMaterialParameter(
+                source.NormalTexture is null ? 0.0f : 1.0f),
+            ["uHasMetallicRoughnessTexture"] = new FloatMaterialParameter(
+                source.MetallicRoughnessTexture is null ? 0.0f : 1.0f),
+            ["uMetallicFactor"] = new FloatMaterialParameter(source.MetallicFactor),
+            ["uRoughnessFactor"] = new FloatMaterialParameter(
+                Math.Clamp(source.RoughnessFactor, 0.04f, 1.0f)),
+            ["uEmissiveColor"] = new VectorMaterialParameter(
+                new Vector4(source.EmissiveColor, 1.0f))
         };
 
         if (source.BaseColorTexture is not null)
@@ -759,6 +795,18 @@ public sealed class RenderingModule(
             parameters["uTexture"] =
                 new EmbeddedTextureMaterialParameter(
                     source.BaseColorTexture);
+        }
+
+        if (source.NormalTexture is not null)
+        {
+            parameters["uNormalTexture"] =
+                new EmbeddedTextureMaterialParameter(source.NormalTexture);
+        }
+
+        if (source.MetallicRoughnessTexture is not null)
+        {
+            parameters["uMetallicRoughnessTexture"] =
+                new EmbeddedTextureMaterialParameter(source.MetallicRoughnessTexture);
         }
 
         return new Material(
