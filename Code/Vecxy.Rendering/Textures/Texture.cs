@@ -46,6 +46,11 @@ public sealed class Texture : IDisposable
                 pixelsPointer);
         }
 
+        // Material textures are sampled over a wide range of projected sizes.
+        // Keeping the full mip chain avoids high-frequency shimmer and makes
+        // the linear sampler useful for distant geometry.
+        gl.GenerateMipmap(TextureTarget.Texture2D);
+
         ApplySampler(TextureSamplerState.Default);
         gl.BindTexture(TextureTarget.Texture2D, 0);
     }
@@ -100,7 +105,7 @@ public sealed class Texture : IDisposable
         filter switch
         {
             ETextureFilter.Nearest => TextureMinFilter.Nearest,
-            ETextureFilter.Linear => TextureMinFilter.Linear,
+            ETextureFilter.Linear => TextureMinFilter.LinearMipmapLinear,
             _ => throw new ArgumentOutOfRangeException(nameof(filter))
         };
 

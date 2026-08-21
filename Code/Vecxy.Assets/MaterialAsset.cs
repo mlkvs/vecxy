@@ -32,8 +32,8 @@ public readonly record struct TextureSamplerState(
 {
     public static TextureSamplerState Default { get; } =
         new(
-            ETextureFilter.Nearest,
-            ETextureFilter.Nearest,
+            ETextureFilter.Linear,
+            ETextureFilter.Linear,
             ETextureWrap.Repeat,
             ETextureWrap.Repeat);
 
@@ -300,7 +300,7 @@ public sealed class MaterialAssetImporter : IAssetImporter<MaterialAsset>
         public float? Float { get; init; }
         public List<float>? Tiling { get; init; }
         public List<float>? Offset { get; init; }
-        public ETextureFilter Filter { get; init; } = ETextureFilter.Nearest;
+        public ETextureFilter Filter { get; init; } = ETextureFilter.Linear;
         public ETextureFilter? MinFilter { get; init; }
         public ETextureFilter? MagFilter { get; init; }
         public ETextureWrap Wrap { get; init; } = ETextureWrap.Repeat;

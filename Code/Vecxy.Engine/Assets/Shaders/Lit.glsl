@@ -159,16 +159,65 @@ float distributionGgx(vec3 normal, vec3 halfVector, float roughness)
     return a2 / max(3.14159265 * denominator * denominator, 0.0001);
 }
 
-float geometrySchlick(float nDotV, float roughness)
+float geometrySchlickGgx(float nDotDirection, float roughness)
 {
     float k = (roughness + 1.0);
     k = k * k / 8.0;
-    return nDotV / max(nDotV * (1.0 - k) + k, 0.0001);
+    return nDotDirection / max(nDotDirection * (1.0 - k) + k, 0.0001);
+}
+
+float geometrySmith(
+    vec3 normal,
+    vec3 viewDirection,
+    vec3 lightDirection,
+    float roughness)
+{
+    float nDotV = max(dot(normal, viewDirection), 0.0);
+    float nDotL = max(dot(normal, lightDirection), 0.0);
+    return
+        geometrySchlickGgx(nDotV, roughness) *
+        geometrySchlickGgx(nDotL, roughness);
 }
 
 vec3 fresnelSchlick(float cosine, vec3 f0)
 {
     return f0 + (1.0 - f0) * pow(1.0 - cosine, 5.0);
+}
+
+vec3 evaluateDirectLight(
+    vec3 normal,
+    vec3 viewDirection,
+    vec3 lightDirection,
+    vec3 radiance,
+    vec3 baseColor,
+    float metallic,
+    float roughness)
+{
+    float nDotL = max(dot(normal, lightDirection), 0.0);
+    float nDotV = max(dot(normal, viewDirection), 0.0);
+    if (nDotL <= 0.0 || nDotV <= 0.0)
+        return vec3(0.0);
+
+    vec3 halfVector = normalize(viewDirection + lightDirection);
+    vec3 f0 = mix(vec3(0.04), baseColor, metallic);
+    vec3 fresnel = fresnelSchlick(
+        max(dot(halfVector, viewDirection), 0.0),
+        f0);
+    float distribution = distributionGgx(normal, halfVector, roughness);
+    float geometry = geometrySmith(
+        normal,
+        viewDirection,
+        lightDirection,
+        roughness);
+    vec3 specular =
+        distribution * geometry * fresnel /
+        max(4.0 * nDotV * nDotL, 0.0001);
+
+    // Fresnel-reflected energy is unavailable to the diffuse lobe. Metals do
+    // not have a diffuse component, so this also keeps the BRDF conservative.
+    vec3 diffuseWeight = (vec3(1.0) - fresnel) * (1.0 - metallic);
+    vec3 diffuse = diffuseWeight * baseColor / 3.14159265;
+    return (diffuse + specular) * radiance * nDotL;
 }
 
 void main()
@@ -198,27 +247,26 @@ void main()
         ? normalize(viewVector)
         : vec3(0.0, 0.0, 1.0);
     float upFactor = clamp(normal.y * 0.5 + 0.5, 0.0, 1.0);
-    vec3 lighting = mix(
+    vec3 ambientLighting = mix(
         uAmbientGroundColor,
         uAmbientSkyColor,
         upFactor);
+    vec3 directLighting = vec3(0.0);
 
     for (int i = 0; i < uDirectionalLightCount; ++i)
     {
         vec3 lightDirection = normalize(-uDirectionalLights[i].direction);
-        float diffuse = max(dot(normal, lightDirection), 0.0);
-        vec3 halfVector = normalize(lightDirection + viewDirection);
-        float nDotV = max(dot(normal, viewDirection), 0.0);
-        vec3 f0 = mix(vec3(0.04), baseColor, metallic);
-        vec3 fresnel = fresnelSchlick(max(dot(halfVector, viewDirection), 0.0), f0);
-        float specular = diffuse > 0.0
-            ? distributionGgx(normal, halfVector, roughness) * geometrySchlick(nDotV, roughness) * fresnel.r * uSpecularStrength
-            : 0.0;
-
-        lighting +=
+        vec3 radiance =
             uDirectionalLights[i].color *
-            uDirectionalLights[i].intensity *
-            (diffuse + specular);
+            uDirectionalLights[i].intensity;
+        directLighting += evaluateDirectLight(
+            normal,
+            viewDirection,
+            lightDirection,
+            radiance,
+            baseColor,
+            metallic,
+            roughness);
     }
 
     for (int i = 0; i < uPointLightCount; ++i)
@@ -229,21 +277,19 @@ void main()
             ? toLight / distanceToLight
             : vec3(0.0, 1.0, 0.0);
 
-        float diffuse = max(dot(normal, lightDirection), 0.0);
-        vec3 halfVector = normalize(lightDirection + viewDirection);
-        float nDotV = max(dot(normal, viewDirection), 0.0);
-        vec3 f0 = mix(vec3(0.04), baseColor, metallic);
-        vec3 fresnel = fresnelSchlick(max(dot(halfVector, viewDirection), 0.0), f0);
-        float specular = diffuse > 0.0
-            ? distributionGgx(normal, halfVector, roughness) * geometrySchlick(nDotV, roughness) * fresnel.r * uSpecularStrength
-            : 0.0;
         float attenuation = computeRangeFalloff(distanceToLight, uPointLights[i].range);
-
-        lighting +=
+        vec3 radiance =
             uPointLights[i].color *
             uPointLights[i].intensity *
-            attenuation *
-            (diffuse + specular);
+            attenuation;
+        directLighting += evaluateDirectLight(
+            normal,
+            viewDirection,
+            lightDirection,
+            radiance,
+            baseColor,
+            metallic,
+            roughness);
     }
 
     for (int i = 0; i < uSpotLightCount; ++i)
@@ -263,22 +309,20 @@ void main()
         if (cone <= 0.0)
             continue;
 
-        float diffuse = max(dot(normal, lightDirection), 0.0);
-        vec3 halfVector = normalize(lightDirection + viewDirection);
-        float nDotV = max(dot(normal, viewDirection), 0.0);
-        vec3 f0 = mix(vec3(0.04), baseColor, metallic);
-        vec3 fresnel = fresnelSchlick(max(dot(halfVector, viewDirection), 0.0), f0);
-        float specular = diffuse > 0.0
-            ? distributionGgx(normal, halfVector, roughness) * geometrySchlick(nDotV, roughness) * fresnel.r * uSpecularStrength
-            : 0.0;
         float attenuation =
             computeRangeFalloff(distanceToLight, uSpotLights[i].range) * cone;
-
-        lighting +=
+        vec3 radiance =
             uSpotLights[i].color *
             uSpotLights[i].intensity *
-            attenuation *
-            (diffuse + specular);
+            attenuation;
+        directLighting += evaluateDirectLight(
+            normal,
+            viewDirection,
+            lightDirection,
+            radiance,
+            baseColor,
+            metallic,
+            roughness);
     }
 
     // Approximate image-based lighting from the sky/ground environment. This
@@ -289,7 +333,10 @@ void main()
     vec3 environmentSpecular = reflectedEnvironment * fresnelSchlick(
         max(dot(normal, viewDirection), 0.0),
         mix(vec3(0.04), baseColor, metallic)) * (1.0 - roughness) * uSpecularStrength * 4.0;
-    vec3 litColor = (baseColor * lighting * (1.0 - metallic * 0.65) + environmentSpecular + uEmissiveColor.rgb) * uExposure;
+    vec3 indirectDiffuse = baseColor * ambientLighting * (1.0 - metallic);
+    vec3 litColor =
+        (indirectDiffuse + directLighting + environmentSpecular + uEmissiveColor.rgb) *
+        uExposure;
     vec3 mapped = vec3(1.0) - exp(-litColor);
     vec3 gammaCorrected = pow(mapped, vec3(1.0 / 2.2));
 
