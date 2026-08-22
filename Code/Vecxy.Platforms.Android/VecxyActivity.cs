@@ -12,6 +12,7 @@ namespace Vecxy.Platforms.Android;
     MainLauncher = true,
     Exported = true,
     HardwareAccelerated = true,
+    ScreenOrientation = ScreenOrientation.Portrait,
     ConfigurationChanges = SilkActivity.ConfigChangesFlags,
     Theme = "@style/VecxyTheme")]
 public sealed class VecxyActivity : SilkActivity

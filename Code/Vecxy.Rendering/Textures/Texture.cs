@@ -6,6 +6,7 @@ namespace Vecxy.Rendering;
 public sealed class Texture : IDisposable
 {
     private readonly GraphicsDevice _device;
+    private readonly bool _hasMipmaps;
     private uint _handle;
     private TextureSamplerState? _sampler;
     private bool _disposed;
@@ -28,6 +29,7 @@ public sealed class Texture : IDisposable
         ReadOnlySpan<byte> pixels)
     {
         _device = device;
+        _hasMipmaps = true;
         var gl = device.GL;
         _handle = gl.GenTexture();
         gl.BindTexture(TextureTarget.Texture2D, _handle);
@@ -58,6 +60,7 @@ public sealed class Texture : IDisposable
     internal Texture(GraphicsDevice device, uint handle)
     {
         _device = device;
+        _hasMipmaps = false;
         _handle = handle != 0
             ? handle
             : throw new ArgumentOutOfRangeException(nameof(handle));
@@ -101,11 +104,13 @@ public sealed class Texture : IDisposable
         _sampler = sampler;
     }
 
-    private static TextureMinFilter ToMinFilter(ETextureFilter filter) =>
+    private TextureMinFilter ToMinFilter(ETextureFilter filter) =>
         filter switch
         {
             ETextureFilter.Nearest => TextureMinFilter.Nearest,
-            ETextureFilter.Linear => TextureMinFilter.LinearMipmapLinear,
+            ETextureFilter.Linear => _hasMipmaps
+                ? TextureMinFilter.LinearMipmapLinear
+                : TextureMinFilter.Linear,
             _ => throw new ArgumentOutOfRangeException(nameof(filter))
         };
 
