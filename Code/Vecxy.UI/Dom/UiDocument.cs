@@ -161,6 +161,12 @@ public sealed class UiDocument : IDisposable
         return instance;
     }
 
+    public UiElement Instantiate(
+        IAssetHandle component,
+        UiElement parent,
+        IReadOnlyDictionary<string, string>? parameters = null) =>
+        Instantiate($"/{_assets.GetPath(component)}", parent, parameters);
+
     public T Instantiate<T>(
         string componentPath,
         UiElement parent,

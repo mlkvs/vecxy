@@ -7,10 +7,15 @@ namespace Vecxy.Audio;
 public interface IAudioManager
 {
     void Preload(string assetPath, bool loop = false);
+    void Preload(SoundHandle asset, bool loop = false);
     void Play(string assetPath, bool loop = false, float volume = 1.0f);
+    void Play(SoundHandle asset, bool loop = false, float volume = 1.0f);
     void Stop(string assetPath, bool loop = false);
+    void Stop(SoundHandle asset, bool loop = false);
     void Pause(string assetPath, bool loop = false);
+    void Pause(SoundHandle asset, bool loop = false);
     void Resume(string assetPath, bool loop = false);
+    void Resume(SoundHandle asset, bool loop = false);
 }
 
 public sealed class AudioModule(IAssetsManager assets) : IModule, IModule.IUpdatable, IAudioManager
@@ -92,6 +97,8 @@ public sealed class AudioModule(IAssetsManager assets) : IModule, IModule.IUpdat
 #endif
     }
 
+    public void Preload(SoundHandle asset, bool loop = false) => Preload(ResolveAssetPath(asset), loop);
+
     public void Play(string assetPath, bool loop = false, float volume = 1.0f)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
@@ -113,6 +120,8 @@ public sealed class AudioModule(IAssetsManager assets) : IModule, IModule.IUpdat
         _playbacks.Add(new Playback(ResolveAudioPath(assetPath), loop, channel));
 #endif
     }
+
+    public void Play(SoundHandle asset, bool loop = false, float volume = 1.0f) => Play(ResolveAssetPath(asset), loop, volume);
 
     public void Stop(string assetPath, bool loop = false)
     {
@@ -139,6 +148,8 @@ public sealed class AudioModule(IAssetsManager assets) : IModule, IModule.IUpdat
 #endif
     }
 
+    public void Stop(SoundHandle asset, bool loop = false) => Stop(ResolveAssetPath(asset), loop);
+
     public void Pause(string assetPath, bool loop = false)
     {
         var fullPath = ResolveAudioPath(assetPath);
@@ -151,6 +162,8 @@ public sealed class AudioModule(IAssetsManager assets) : IModule, IModule.IUpdat
 #endif
     }
 
+    public void Pause(SoundHandle asset, bool loop = false) => Pause(ResolveAssetPath(asset), loop);
+
     public void Resume(string assetPath, bool loop = false)
     {
         var fullPath = ResolveAudioPath(assetPath);
@@ -162,6 +175,8 @@ public sealed class AudioModule(IAssetsManager assets) : IModule, IModule.IUpdat
             playback.Channel.setPaused(false);
 #endif
     }
+
+    public void Resume(SoundHandle asset, bool loop = false) => Resume(ResolveAssetPath(asset), loop);
 
     public void OnShutdown()
     {
@@ -218,6 +233,13 @@ public sealed class AudioModule(IAssetsManager assets) : IModule, IModule.IUpdat
         if (!File.Exists(fullPath))
             throw new FileNotFoundException($"Audio file was not found: {fullPath}", fullPath);
         return fullPath;
+    }
+
+    private string ResolveAssetPath(IAssetHandle handle)
+    {
+        if (!assets.Registry.TryGet(handle.Id, out var metadata) || metadata is null)
+            throw new KeyNotFoundException($"Unknown audio asset ID: {handle.Id}");
+        return metadata.Path;
     }
 
 #if ANDROID

@@ -21,11 +21,14 @@ public interface IAssetsManager
     void RegisterImporter<T>(IAssetImporter<T> importer) where T : class;
     void UnregisterImporter<T>() where T : class;
     AssetId Find(string path);
+    string GetPath(IAssetHandle handle);
     AssetRef<T> Load<T>(AssetId id) where T : class;
+    AssetRef<T> Load<T>(IAssetHandle handle) where T : class;
     AssetRef<T> Load<T>(string path) where T : class;
     bool IsLoaded(AssetId id);
     void Reload(AssetId id);
     void Unload<T>() where T : class;
+    void LoadManifest(string path);
 }
 
 public sealed class AssetsModule :
@@ -187,6 +190,44 @@ public sealed class AssetsModule :
     public AssetRef<T> Load<T>(string path) where T : class =>
         Load<T>(Find(path));
 
+    public AssetRef<T> Load<T>(IAssetHandle handle) where T : class
+    {
+        ArgumentNullException.ThrowIfNull(handle);
+        return Load<T>(handle.Id);
+    }
+
+    public string GetPath(IAssetHandle handle)
+    {
+        ArgumentNullException.ThrowIfNull(handle);
+        if (!Registry.TryGet(handle.Id, out var metadata) || metadata is null)
+            throw new KeyNotFoundException($"Unknown asset ID: {handle.Id}");
+        return metadata.Path;
+    }
+
+    public void LoadManifest(string path)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        var manifest = AssetManifest.Load(path);
+        foreach (var entry in manifest.Assets)
+        {
+            var normalized = NormalizePath(entry.Path);
+            if (Registry.TryGet(new AssetId(entry.Id), out _))
+                continue;
+            if (Registry.TryFind(normalized, out _))
+                continue;
+
+            var extension = Path.GetExtension(normalized);
+            var assetType = _extensionTypes.GetValueOrDefault(extension) ?? typeof(object);
+
+            Registry.Add(new AssetMetadata
+            {
+                Id = new AssetId(entry.Id),
+                AssetType = assetType,
+                Path = normalized
+            });
+        }
+    }
+
 
     public ConfigRef<T> LoadConfig<T>(string path) where T : class, IYamlConfig
     {
@@ -199,6 +240,13 @@ public sealed class AssetsModule :
             UnregisterConfigRef);
         RegisterConfigRef(config);
         return config;
+    }
+
+    public ConfigRef<T> LoadConfig<T>(ConfigHandle handle) where T : class, IYamlConfig
+    {
+        if (!Registry.TryGet(handle.Id, out var metadata) || metadata is null)
+            throw new KeyNotFoundException($"Unknown config asset ID: {handle.Id}");
+        return LoadConfig<T>(metadata.Path);
     }
 
     public IReadOnlyList<IConfigRef> GetLoadedConfigs()
@@ -378,6 +426,16 @@ public sealed class AssetsModule :
         RegisterImporter<MaterialAsset>(new MaterialAssetImporter());
         RegisterImporter<InputAsset>(new InputAssetImporter());
         RegisterImporter<ModelAsset>(new ModelAssetImporter());
+        var manifestPath = new[]
+            {
+                Path.Combine(
+                    Directory.GetParent(AssetsDirectory)?.FullName ?? AssetsDirectory,
+                    "Assets.manifest"),
+                Path.Combine(AssetsDirectory, "Assets.manifest")
+            }
+            .FirstOrDefault(File.Exists);
+        if (manifestPath is not null)
+            LoadManifest(manifestPath);
         Logger.Info($"Assets directory: {AssetsDirectory}");
         foreach (var directory in _assetDirectories)
             Logger.Info($"Additional assets directory: {directory}");
@@ -430,10 +488,20 @@ public sealed class AssetsModule :
 
     private void ReloadChangedAsset(string path)
     {
-        if (!Registry.TryFind(path, out var id) || !IsLoaded(id))
+        if (!Registry.TryFind(path, out var id))
         {
             return;
         }
+
+        var fullPath = Path.Combine(AssetsDirectory, path.Replace('/', Path.DirectorySeparatorChar));
+        if (!File.Exists(fullPath))
+        {
+            Logger.Error($"[Vecxy Assets]\n\nMissing:\n{id}\n{path}");
+            return;
+        }
+
+        if (!IsLoaded(id))
+            return;
 
         try
         {

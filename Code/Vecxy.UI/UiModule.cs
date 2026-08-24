@@ -14,6 +14,7 @@ public interface IUiManager
 {
     IReadOnlyList<UiDocument> Documents { get; }
     UiDocument Load(string path);
+    UiDocument Load(IAssetHandle handle);
     bool Unload(UiDocument document);
     void Focus(UiElement? element, bool focusVisible = false);
 }
@@ -118,6 +119,8 @@ public sealed class UiModule :
             throw;
         }
     }
+
+    public UiDocument Load(IAssetHandle handle) => Load(_assets.GetPath(handle));
 
     public bool Unload(UiDocument document)
     {

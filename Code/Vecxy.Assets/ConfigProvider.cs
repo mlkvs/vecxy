@@ -14,6 +14,7 @@ public interface IYamlConfig
 public interface IConfigProvider
 {
     ConfigRef<T> LoadConfig<T>(string path) where T : class, IYamlConfig;
+    ConfigRef<T> LoadConfig<T>(ConfigHandle handle) where T : class, IYamlConfig;
     IReadOnlyList<IConfigRef> GetLoadedConfigs();
     void SaveConfig(IConfigRef config, object value);
 }
