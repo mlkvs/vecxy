@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <NoWarn>$(NoWarn);RS1035;RS1037;RS2008</NoWarn>
+    <IsRoslynComponent>true</IsRoslynComponent>
+    <!-- This analyzer intentionally emits the requested reference artifact. -->
+    <EnforceExtendedAnalyzerRules>false</EnforceExtendedAnalyzerRules>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.14.0" PrivateAssets="all" />
+    <PackageReference Include="System.Text.Json" Version="10.0.0" PrivateAssets="all" />
+  </ItemGroup>
+</Project>

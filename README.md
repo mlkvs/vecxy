@@ -17,6 +17,10 @@ It is designed for building real playable scenes early, then growing into more a
 - Integrated editor overlay with hierarchy, inspector, configs, and game view
 - Input, physics, gizmos, and first-person gameplay foundation
 
+## Documentation
+
+- [Asset Pipeline (Russian)](../../Docs/AssetPipeline.md)
+
 ## Why Vecxy
 
 Vecxy aims to sit in a practical middle ground:

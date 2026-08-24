@@ -17,6 +17,16 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <TargetPath>Assets\%(RecursiveDir)%(Filename)%(Extension)</TargetPath>
     </Content>
+    <Content Include="$(MSBuildProjectDirectory)\Assets.manifest" Condition="Exists('$(MSBuildProjectDirectory)\Assets.manifest')">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <TargetPath>Assets.manifest</TargetPath>
+    </Content>
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(VecxyPlatform)' == 'Android' and Exists('$(MSBuildProjectDirectory)\Assets.manifest')">
+    <AndroidAsset Include="$(MSBuildProjectDirectory)\Assets.manifest">
+      <Link>Assets.manifest</Link>
+    </AndroidAsset>
   </ItemGroup>
 
   <Import
@@ -24,4 +34,18 @@
     Condition="'$(VecxyPlatform)' == 'Android'" />
 
   <Import Project="$(MSBuildThisFileDirectory)..\Vecxy.AtlasCompiler.targets" />
+
+  <PropertyGroup>
+    <VecxyCliProject>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\..\..\tools\Vecxy.Cli\Vecxy.Cli.csproj'))</VecxyCliProject>
+  </PropertyGroup>
+
+  <!-- Every build surface, including ./build release and Android publish, receives
+       an up-to-date manifest/generated API and fails before packaging missing assets. -->
+  <Target
+    Name="VecxyPrepareAssets"
+    BeforeTargets="PrepareForBuild"
+    Condition="'$(VecxySkipAssetPipeline)' != 'true' and Exists('$(MSBuildProjectDirectory)\Assets') and Exists('$(VecxyCliProject)')">
+    <Message Text="Vecxy: preparing assets for $(MSBuildProjectName)" Importance="high" />
+    <Exec Command="dotnet run --project &quot;$(VecxyCliProject)&quot; -- --project &quot;$(MSBuildProjectDirectory)&quot; assets prepare" />
+  </Target>
 </Project>
