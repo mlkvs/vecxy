@@ -29,6 +29,7 @@ public interface ISceneManager
 public sealed class ScenesModule(
     IEnumerable<ISceneSystem> systems,
     IConfigProvider config,
+    IAssetsManager assets,
     ILifetimeScope scope,
     IComponentInstantiator instantiator) :
     IModule,
@@ -90,8 +91,8 @@ public sealed class ScenesModule(
         if (_initialized)
             return;
 
-        _skyboxConfig =
-            config.LoadConfig<SkyboxConfig>("SkyBox/Skybox.yaml");
+        if (assets.Exists("SkyBox/Skybox.yaml"))
+            _skyboxConfig = config.LoadConfig<SkyboxConfig>("SkyBox/Skybox.yaml");
 
         _initialized = true;
     }

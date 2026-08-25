@@ -41,11 +41,14 @@ public static partial class AssetPipeline
         var packages = VPackPipeline.DiscoverPackages(root);
         ScanDirectory("Game", assetsDirectory, entries, oldByPath, oldByHash, claimed, packages.Where(x => x.Source == "Game").ToArray());
         var engineAssetsDirectory = FindEngineAssetsDirectory(root);
+        var engineSelection = EngineAssetSelection.Load(root);
         if (engineAssetsDirectory is not null)
-            ScanDirectory("Engine", engineAssetsDirectory, entries, oldByPath, oldByHash, claimed, packages.Where(x => x.Source == "Engine").ToArray());
+            ScanDirectory("Engine", engineAssetsDirectory, entries, oldByPath, oldByHash, claimed,
+                packages.Where(x => x.Source == "Engine").ToArray(), engineSelection.Includes);
         // Keep tombstones so generated symbols and diagnostics survive deletion. A later
         // file with the same content claims the old ID and therefore removes the tombstone.
-        entries.AddRange(previous.Assets.Where(x => !claimed.Contains(x.Id)));
+        entries.AddRange(previous.Assets.Where(x => !claimed.Contains(x.Id) &&
+            (!IsEngine(x) || engineSelection.Includes(x.Path))));
         TrackAssetDependencies(assetsDirectory, engineAssetsDirectory, entries);
         var manifest = new AssetManifest
         {
@@ -68,13 +71,15 @@ public static partial class AssetPipeline
         IReadOnlyDictionary<string, AssetManifestEntry> oldByPath,
         IReadOnlyDictionary<string, AssetManifestEntry[]> oldByHash,
         ISet<Guid> claimed,
-        IReadOnlyList<VPackPackageDefinition>? packages)
+        IReadOnlyList<VPackPackageDefinition>? packages,
+        Func<string, bool>? include = null)
     {
         foreach (var file in Directory.EnumerateFiles(assetsDirectory, "*", SearchOption.AllDirectories).Order())
         {
             if (string.Equals(Path.GetExtension(file), ".vpack", StringComparison.OrdinalIgnoreCase)) continue;
-            var kind = Classify(file);
             var relative = Normalize(Path.GetRelativePath(assetsDirectory, file));
+            if (include is not null && !include(relative)) continue;
+            var kind = Classify(file);
             var hash = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(file))).ToLowerInvariant();
             AssetManifestEntry? match = oldByPath.GetValueOrDefault(SourceKey(source, relative));
             if (match is null && oldByHash.TryGetValue(hash, out var candidates))
@@ -298,6 +303,55 @@ public static partial class AssetPipeline
         var name = baseName; for (var suffix = 2; !used.Add(name); suffix++) name = baseName + suffix;
         return name;
     }
+
+    private sealed class EngineAssetSelection
+    {
+        private static readonly HashSet<string> KnownFeatures = new(StringComparer.OrdinalIgnoreCase) { "Skybox" };
+        private static readonly HashSet<string> KnownContent = new(StringComparer.OrdinalIgnoreCase) { "DefaultSkybox" };
+        private readonly HashSet<string> _disabledFeatures;
+        private readonly HashSet<string> _disabledContent;
+
+        private EngineAssetSelection(HashSet<string> disabledFeatures, HashSet<string> disabledContent)
+        {
+            _disabledFeatures = disabledFeatures;
+            _disabledContent = disabledContent;
+        }
+
+        public static EngineAssetSelection Load(string projectDirectory)
+        {
+            var project = Directory.EnumerateFiles(projectDirectory, "*.csproj", SearchOption.TopDirectoryOnly).SingleOrDefault();
+            if (project is null) return new([], []);
+            var document = XDocument.Load(project);
+            var features = ReadList(document, "VecxyDisabledEngineFeatures");
+            var content = ReadList(document, "VecxyDisabledEngineContent");
+            Validate(features, KnownFeatures, "VecxyDisabledEngineFeatures", project);
+            Validate(content, KnownContent, "VecxyDisabledEngineContent", project);
+            return new(features, content);
+        }
+
+        public bool Includes(string path)
+        {
+            var normalized = Normalize(path);
+            if (_disabledFeatures.Contains("Skybox") &&
+                normalized.Equals("Shaders/Skybox.glsl", StringComparison.OrdinalIgnoreCase)) return false;
+            if (_disabledContent.Contains("DefaultSkybox") &&
+                normalized.StartsWith("SkyBox/", StringComparison.OrdinalIgnoreCase)) return false;
+            return true;
+        }
+
+        private static HashSet<string> ReadList(XDocument document, string propertyName) =>
+            document.Descendants().Where(x => x.Name.LocalName == propertyName)
+                .SelectMany(x => x.Value.Split([';', ','], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        private static void Validate(HashSet<string> values, HashSet<string> known, string property, string project)
+        {
+            var unknown = values.FirstOrDefault(value => !known.Contains(value));
+            if (unknown is not null)
+                throw new InvalidDataException($"Unknown Vecxy engine option '{unknown}' in {property} ({project}).");
+        }
+    }
+
     private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase, WriteIndented = true };
     [GeneratedRegex(@"\bAssets\.([A-Za-z_][A-Za-z0-9_]*)\.([A-Za-z_][A-Za-z0-9_]*)(?:\.([A-Za-z_][A-Za-z0-9_]*))?\b")]
     private static partial Regex AssetUseRegex();

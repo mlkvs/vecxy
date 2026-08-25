@@ -43,17 +43,36 @@ try
 
     var engineProject = Path.Combine(root, "Engine", "Vecxy.Engine");
     Directory.CreateDirectory(Path.Combine(engineProject, "Assets", "Shaders"));
+    Directory.CreateDirectory(Path.Combine(engineProject, "Assets", "SkyBox", "cubemap"));
     File.WriteAllText(Path.Combine(engineProject, "Vecxy.Engine.csproj"), "<Project Sdk=\"Microsoft.NET.Sdk\" />");
     File.WriteAllText(Path.Combine(engineProject, "Assets", "engine.vpack"), "name: Engine\nload: startup\ncompression: balanced\n");
     File.WriteAllText(Path.Combine(engineProject, "Assets", "Shaders", "sprite.glsl"), "#type vertex\n#type fragment");
+    File.WriteAllText(Path.Combine(engineProject, "Assets", "Shaders", "Skybox.glsl"), "#type vertex\n#type fragment");
+    File.WriteAllText(Path.Combine(engineProject, "Assets", "SkyBox", "Skybox.yaml"), "enabled: true");
+    File.WriteAllBytes(Path.Combine(engineProject, "Assets", "SkyBox", "cubemap", "px.png"), [9, 8, 7]);
     File.WriteAllText(Path.Combine(root, "Game.csproj"),
         "<Project Sdk=\"Microsoft.NET.Sdk\"><ItemGroup><ProjectReference Include=\"Engine/Vecxy.Engine/Vecxy.Engine.csproj\" /></ItemGroup></Project>");
     var withEngine = AssetPipeline.Scan(root);
-    var engineAsset = withEngine.Assets.Single(x => x.Source == "Engine");
+    var engineAsset = withEngine.Assets.Single(x => x.Source == "Engine" && x.Path == "Shaders/sprite.glsl");
     Assert(engineAsset.Path == "Shaders/sprite.glsl", "engine asset scanned from project reference");
     var enginePackage = withEngine.Packages.Single(x => x.Name == "Engine");
     Assert(engineAsset.Package == enginePackage.Id, "engine asset assigned to Engine package");
     Assert(AssetPipeline.GenerateSource(withEngine).Contains("class Engine", StringComparison.Ordinal), "engine generated namespace");
+
+    File.WriteAllText(Path.Combine(root, "Game.csproj"),
+        "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><VecxyDisabledEngineFeatures>Skybox</VecxyDisabledEngineFeatures><VecxyDisabledEngineContent>DefaultSkybox</VecxyDisabledEngineContent></PropertyGroup><ItemGroup><ProjectReference Include=\"Engine/Vecxy.Engine/Vecxy.Engine.csproj\" /></ItemGroup></Project>");
+    var withoutSkybox = AssetPipeline.Scan(root);
+    Assert(withoutSkybox.Assets.All(x => x.Source != "Engine" ||
+        (!x.Path.Equals("Shaders/Skybox.glsl", StringComparison.OrdinalIgnoreCase) &&
+         !x.Path.StartsWith("SkyBox/", StringComparison.OrdinalIgnoreCase))),
+        "project disables skybox renderer and default content without tombstones");
+
+    File.WriteAllText(Path.Combine(root, "Game.csproj"),
+        "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><VecxyDisabledEngineContent>DefaultSkybox</VecxyDisabledEngineContent></PropertyGroup><ItemGroup><ProjectReference Include=\"Engine/Vecxy.Engine/Vecxy.Engine.csproj\" /></ItemGroup></Project>");
+    var customSkybox = AssetPipeline.Scan(root);
+    Assert(customSkybox.Assets.Any(x => x.Source == "Engine" && x.Path.Equals("Shaders/Skybox.glsl", StringComparison.OrdinalIgnoreCase)) &&
+           customSkybox.Assets.All(x => x.Source != "Engine" || !x.Path.StartsWith("SkyBox/", StringComparison.OrdinalIgnoreCase)),
+        "custom skybox keeps renderer but excludes default content");
 
     await TestPackages(root);
     TestRemoteConfiguration(root);

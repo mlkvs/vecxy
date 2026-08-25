@@ -1,4 +1,5 @@
 using System.Numerics;
+using System.Diagnostics.CodeAnalysis;
 using Autofac;
 using Silk.NET.OpenGL;
 using Vecxy.Assets;
@@ -184,6 +185,7 @@ public sealed class RenderingModule(
     private Mesh? _fullscreenQuad;
     private Mesh? _skyboxCube;
     private SkyboxRuntime? _skybox;
+    private bool _skyboxUnavailable;
     private float _time;
     private int _sceneViewportWidth;
     private int _sceneViewportHeight;
@@ -208,14 +210,11 @@ public sealed class RenderingModule(
     {
         _litShader = assets.Load<ShaderAsset>("Shaders/Lit.glsl");
         _spriteShader = assets.Load<ShaderAsset>("Shaders/Sprite.glsl");
-        _skyboxShader = assets.Load<ShaderAsset>("Shaders/Skybox.glsl");
         _copyPostShader = assets.Load<ShaderAsset>("Shaders/PostProcessing/Copy.glsl");
         _sceneTarget = new SceneRenderTarget(device);
         _postProcessTargetA = new SceneRenderTarget(device);
         _postProcessTargetB = new SceneRenderTarget(device);
         _fullscreenQuad = CreateQuad();
-        _skyboxCube = CreateSkyboxCube();
-        _skybox = new SkyboxRuntime();
         device.GL.Enable(EnableCap.DepthTest);
         device.GL.DepthFunc(DepthFunction.Less);
     }
@@ -1053,8 +1052,7 @@ public sealed class RenderingModule(
     {
         if (!settings.Enabled ||
             !settings.HasAllFaces ||
-            _skyboxCube is null ||
-            _skyboxShader is null ||
+            !EnsureSkyboxInitialized() ||
             _skyboxShader.HasError)
         {
             return;
@@ -1096,6 +1094,23 @@ public sealed class RenderingModule(
 
         device.GL.DepthFunc(DepthFunction.Less);
         device.GL.DepthMask(true);
+    }
+
+    [MemberNotNullWhen(true, nameof(_skyboxShader), nameof(_skyboxCube), nameof(_skybox))]
+    private bool EnsureSkyboxInitialized()
+    {
+        if (_skyboxShader is not null && _skyboxCube is not null && _skybox is not null)
+            return true;
+        if (_skyboxUnavailable || !assets.Exists("Shaders/Skybox.glsl"))
+        {
+            _skyboxUnavailable = true;
+            return false;
+        }
+
+        _skyboxShader = assets.Load<ShaderAsset>("Shaders/Skybox.glsl");
+        _skyboxCube = CreateSkyboxCube();
+        _skybox = new SkyboxRuntime();
+        return true;
     }
 
     private static Matrix4x4 CreateSkyboxRotation(Vector3 rotationDegrees)

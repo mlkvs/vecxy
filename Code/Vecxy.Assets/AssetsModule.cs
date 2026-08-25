@@ -23,6 +23,7 @@ public interface IAssetsManager
     void RegisterImporter<T>(IAssetImporter<T> importer) where T : class;
     void UnregisterImporter<T>() where T : class;
     AssetId Find(string path);
+    bool Exists(string path);
     string GetPath(IAssetHandle handle);
     byte[] ReadAllBytes(IAssetHandle handle);
     AssetRef<T> Load<T>(AssetId id) where T : class;
@@ -198,6 +199,12 @@ public sealed class AssetsModule :
         });
 
         return id;
+    }
+
+    public bool Exists(string path)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        return Registry.TryFind(NormalizePath(path), out _);
     }
 
     public AssetRef<T> Load<T>(string path) where T : class =>
