@@ -72,6 +72,7 @@ static async Task TestPackages(string parent)
     Directory.CreateDirectory(Path.Combine(root, "Assets", "DLC", "Cars"));
     Directory.CreateDirectory(Path.Combine(root, "Assets", "Harbor"));
     File.WriteAllText(Path.Combine(root, "Game.csproj"), "<Project Sdk=\"Microsoft.NET.Sdk\" />");
+    File.WriteAllText(Path.Combine(root, "Assets", "game.vpack"), "name: Game\ncompression: maximum\nplatforms:\n  android:\n    compression: fast\n");
     File.WriteAllText(Path.Combine(root, "Assets", "player.txt"), "player");
     File.WriteAllText(Path.Combine(root, "Assets", "Shared", "shared.vpack"), "name: Shared\nload: startup\ncompression: balanced\nplatforms:\n  android:\n    compression:\n      algorithm: lz4\n      block-size: 256kb\n");
     File.WriteAllText(Path.Combine(root, "Assets", "Shared", "common.txt"), new string('s', 4096));
@@ -86,6 +87,9 @@ static async Task TestPackages(string parent)
 
     var packages = VPackPipeline.DiscoverPackages(root);
     Assert(packages.Count == 5, "implicit and explicit package discovery");
+    var game = packages.Single(x => x.Id == PackageId.Game);
+    Assert(game.DescriptorPath == "game.vpack" && game.Load == PackageLoadMode.Startup, "root Game descriptor");
+    Assert(VPackPipeline.ResolveCompression(game, VPackPlatform.Android).Algorithm == VPackCompressionAlgorithm.Lz4, "root Game platform configuration");
     var manifest = AssetPipeline.Scan(root);
     Assert(manifest.Assets.Single(x => x.Path == "player.txt").Package == PackageId.Game, "implicit Game membership");
     var dlc = packages.Single(x => x.Name == "DLC");

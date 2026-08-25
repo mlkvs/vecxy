@@ -19,13 +19,21 @@ public static partial class VPackPipeline
     {
         var assets = Path.Combine(Path.GetFullPath(projectDirectory), "Assets");
         Directory.CreateDirectory(assets);
-        var packages = new List<VPackPackageDefinition>
-        {
-            new(PackageId.Game, "Game", "", null, PackageLoadMode.Startup, "balanced", null, [],
-                new Dictionary<VPackPlatform, VPackPlatformOverride>())
-        };
-        foreach (var path in Directory.EnumerateFiles(assets, "*.vpack", SearchOption.AllDirectories).Order())
-            packages.Add(ParseDescriptor(assets, path));
+        var descriptors = Directory.EnumerateFiles(assets, "*.vpack", SearchOption.AllDirectories)
+            .Order().Select(path => ParseDescriptor(assets, path)).ToArray();
+        var rootDescriptors = descriptors.Where(x => x.Root.Length == 0).ToArray();
+        if (rootDescriptors.Length > 1)
+            throw new InvalidDataException("Assets/ may contain only one root VPack descriptor.");
+        var game = rootDescriptors.SingleOrDefault() ??
+            new VPackPackageDefinition(PackageId.Game, "Game", "", null, PackageLoadMode.Startup, "balanced", null, [],
+                new Dictionary<VPackPlatform, VPackPlatformOverride>());
+        if (!string.Equals(game.Name, "Game", StringComparison.OrdinalIgnoreCase))
+            throw new InvalidDataException($"Root VPack descriptor '{game.DescriptorPath}' must use 'name: Game'.");
+        if (game.Load != PackageLoadMode.Startup)
+            throw new InvalidDataException($"Root package Game must use 'load: startup' in {game.DescriptorPath}.");
+        game = game with { Id = PackageId.Game, Name = "Game" };
+        var packages = new List<VPackPackageDefinition> { game };
+        packages.AddRange(descriptors.Where(x => x.Root.Length > 0));
         ValidatePackages(packages);
         return packages;
     }
@@ -113,7 +121,10 @@ public static partial class VPackPipeline
         if (yaml.Documents.Count != 1 || yaml.Documents[0].RootNode is not YamlMappingNode root) throw new InvalidDataException($"VPack descriptor must contain one mapping: {path}");
         ValidateKeys(root, path, "name", "load", "compression", "dependencies", "platforms");
         var name = Scalar(root, "name") ?? throw new InvalidDataException($"VPack descriptor is missing 'name': {path}");
-        var load = (Scalar(root, "load") ?? "on-demand").ToLowerInvariant() switch { "startup" => PackageLoadMode.Startup, "on-demand" => PackageLoadMode.OnDemand, var x => throw new InvalidDataException($"Invalid load value '{x}' in {path}.") };
+        var rootPath = Normalize(Path.GetRelativePath(assetsRoot, Path.GetDirectoryName(path)!));
+        if (rootPath == ".") rootPath = "";
+        var defaultLoad = rootPath.Length == 0 ? "startup" : "on-demand";
+        var load = (Scalar(root, "load") ?? defaultLoad).ToLowerInvariant() switch { "startup" => PackageLoadMode.Startup, "on-demand" => PackageLoadMode.OnDemand, var x => throw new InvalidDataException($"Invalid load value '{x}' in {path}.") };
         var (preset, advanced) = Compression(root, "compression", "balanced", path, null);
         var dependencies = Sequence(root, "dependencies");
         var platforms = new Dictionary<VPackPlatform, VPackPlatformOverride>();
@@ -126,8 +137,6 @@ public static partial class VPackPipeline
             var resolved = Compression(values, "compression", null, path, platform);
             platforms.Add(platform, new VPackPlatformOverride(resolved.Preset, resolved.Advanced));
         }
-        var rootPath = Normalize(Path.GetRelativePath(assetsRoot, Path.GetDirectoryName(path)!));
-        if (rootPath == ".") rootPath = "";
         return new(PackageId.FromName(name), name, rootPath, Normalize(Path.GetRelativePath(assetsRoot, path)), load, preset!, advanced, dependencies, platforms);
     }
 
@@ -153,6 +162,10 @@ public static partial class VPackPipeline
         var roots = packages.Where(x => x.DescriptorPath is not null).GroupBy(x => x.Root, StringComparer.OrdinalIgnoreCase).FirstOrDefault(x => x.Count() > 1); if (roots is not null) throw new InvalidDataException($"Multiple VPack descriptors define the same package root '{roots.Key}'.");
         var byName = packages.ToDictionary(x => x.Name, StringComparer.OrdinalIgnoreCase);
         foreach (var p in packages) foreach (var d in p.Dependencies) if (!byName.ContainsKey(d)) throw new InvalidDataException($"Package '{p.Name}' depends on missing package '{d}'.");
+        var game = byName["Game"];
+        foreach (var dependency in game.Dependencies)
+            if (byName[dependency].Load == PackageLoadMode.OnDemand)
+                throw new InvalidDataException($"Root package Game cannot depend on on-demand package '{dependency}'.");
         var visiting = new HashSet<string>(StringComparer.OrdinalIgnoreCase); var visited = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         void Visit(VPackPackageDefinition p) { if (visited.Contains(p.Name)) return; if (!visiting.Add(p.Name)) throw new InvalidDataException($"Circular VPack dependency detected at '{p.Name}'."); foreach(var d in p.Dependencies) Visit(byName[d]); visiting.Remove(p.Name); visited.Add(p.Name); }
         foreach (var p in packages) Visit(p);
