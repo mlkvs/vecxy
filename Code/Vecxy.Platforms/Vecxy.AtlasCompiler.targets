@@ -18,6 +18,7 @@
     <MSBuild Projects="$(_VecxyAtlasCompilerProject)"
              Targets="Restore;Build"
              BuildInParallel="false"
+             RemoveProperties="RuntimeIdentifier;RuntimeIdentifiers;SelfContained"
              Properties="TargetFramework=net10.0;VecxyPlatform=Desktop;Configuration=$(Configuration);BaseIntermediateOutputPath=$(_VecxyAtlasCompilerBase)obj/;BaseOutputPath=$(_VecxyAtlasCompilerBase)bin/" />
     <MakeDir Directories="$(_VecxyCompiledAssetsDirectory)" />
     <Exec Command="dotnet &quot;$(_VecxyAtlasCompilerOutput)&quot; &quot;$(MSBuildProjectDirectory)/Assets&quot; &quot;$(_VecxyCompiledAssetsDirectory)&quot;" />

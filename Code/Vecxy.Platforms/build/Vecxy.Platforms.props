@@ -6,6 +6,18 @@
     <OutputType>Exe</OutputType>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <VecxyBuildVPack Condition="'$(VecxyBuildVPack)' == '' and '$(Configuration)' == 'Release'">true</VecxyBuildVPack>
+    <VecxyBuildVPack Condition="'$(VecxyBuildVPack)' == ''">false</VecxyBuildVPack>
+    <_VecxyVPackPlatform Condition="'$(VecxyPlatform)' == 'Android'">android</_VecxyVPackPlatform>
+    <_VecxyVPackOutputPlatform Condition="'$(VecxyPlatform)' == 'Android'">Android</_VecxyVPackOutputPlatform>
+    <_VecxyVPackPlatform Condition="'$(VecxyPlatform)' == 'Desktop' and $([MSBuild]::IsOSPlatform('Windows'))">windows</_VecxyVPackPlatform>
+    <_VecxyVPackOutputPlatform Condition="'$(VecxyPlatform)' == 'Desktop' and $([MSBuild]::IsOSPlatform('Windows'))">Windows</_VecxyVPackOutputPlatform>
+    <_VecxyVPackPlatform Condition="'$(VecxyPlatform)' == 'Desktop' and $([MSBuild]::IsOSPlatform('Linux'))">linux</_VecxyVPackPlatform>
+    <_VecxyVPackOutputPlatform Condition="'$(VecxyPlatform)' == 'Desktop' and $([MSBuild]::IsOSPlatform('Linux'))">Linux</_VecxyVPackOutputPlatform>
+    <VecxyPackagesDirectory Condition="'$(VecxyPackagesDirectory)' == '' and '$(VecxyBuildVPack)' == 'true'">$(MSBuildProjectDirectory)\Build\$(_VecxyVPackOutputPlatform)\Packages</VecxyPackagesDirectory>
+    <!-- VPack currently stores the existing runtime-importer payload. Do not run the
+         legacy loose-file atlas compiler after packaging or emit duplicate assets. -->
+    <VecxyCompileAtlases Condition="'$(VecxyPackagesDirectory)' != ''">false</VecxyCompileAtlases>
   </PropertyGroup>
 
   <ItemGroup>
@@ -50,15 +62,59 @@
 
   <PropertyGroup>
     <VecxyCliProject>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\..\..\tools\Vecxy.Cli\Vecxy.Cli.csproj'))</VecxyCliProject>
+    <VecxyCliArtifactsPath>$(MSBuildProjectDirectory)\obj\vecxy-cli-artifacts</VecxyCliArtifactsPath>
   </PropertyGroup>
+  <ItemGroup Condition="'$(VecxyBuildVPack)' == 'true'">
+    <_VecxyVPackInput Include="$(MSBuildProjectDirectory)\Assets\**\*;$(MSBuildProjectDirectory)\Assets.manifest;$(MSBuildThisFileDirectory)..\..\..\tools\Vecxy.AssetPipeline\**\*.cs" />
+  </ItemGroup>
 
   <!-- Every build surface, including ./build release and Android publish, receives
        an up-to-date manifest/generated API and fails before packaging missing assets. -->
   <Target
     Name="VecxyPrepareAssets"
     BeforeTargets="PrepareForBuild"
-    Condition="'$(VecxySkipAssetPipeline)' != 'true' and Exists('$(MSBuildProjectDirectory)\Assets') and Exists('$(VecxyCliProject)')">
+    Condition="'$(VecxySkipAssetPipeline)' != 'true' and '$(VecxyBuildVPack)' != 'true' and Exists('$(MSBuildProjectDirectory)\Assets') and Exists('$(VecxyCliProject)')">
     <Message Text="Vecxy: preparing assets for $(MSBuildProjectName)" Importance="high" />
     <Exec Command="dotnet run --project &quot;$(VecxyCliProject)&quot; -- --project &quot;$(MSBuildProjectDirectory)&quot; assets prepare" />
+  </Target>
+
+  <!-- Release builds from an IDE use the same production package stage as the
+       project-local build wrappers. The CLI uses isolated artifacts so its desktop
+       dependencies cannot overwrite an Android restore graph in shared obj folders. -->
+  <Target
+    Name="VecxyPackageAssets"
+    BeforeTargets="AssignTargetPaths;PrepareForBuild"
+    Inputs="@(_VecxyVPackInput)"
+    Outputs="$(VecxyPackagesDirectory)\packages.manifest"
+    Condition="'$(VecxySkipAssetPipeline)' != 'true' and '$(VecxyBuildVPack)' == 'true' and Exists('$(MSBuildProjectDirectory)\Assets') and Exists('$(VecxyCliProject)')">
+    <Error Condition="'$(_VecxyVPackPlatform)' == ''" Text="Vecxy VPack does not support the current build platform. Set VecxyBuildVPack=false or select windows, linux, or android." />
+    <Message Text="Vecxy: building $(_VecxyVPackPlatform) VPack packages for $(MSBuildProjectName)" Importance="high" />
+    <Exec Command="dotnet run --project &quot;$(VecxyCliProject)&quot; -p:UseArtifactsOutput=true -p:ArtifactsPath=&quot;$(VecxyCliArtifactsPath)&quot; -- --project &quot;$(MSBuildProjectDirectory)&quot; assets pack --platform $(_VecxyVPackPlatform)" />
+    <ItemGroup Condition="'$(VecxyPlatform)' == 'Android'">
+      <AndroidAsset Remove="$(MSBuildProjectDirectory)\Assets\**\*" />
+      <AndroidAsset Remove="$(VecxyPackagesDirectory)\**\*" />
+      <_VecxyBuiltPackage Include="$(VecxyPackagesDirectory)\**\*" />
+      <AndroidAsset
+        Include="@(_VecxyBuiltPackage)"
+        Link="Packages\%(_VecxyBuiltPackage.RecursiveDir)%(_VecxyBuiltPackage.Filename)%(_VecxyBuiltPackage.Extension)" />
+    </ItemGroup>
+    <ItemGroup Condition="'$(VecxyPlatform)' == 'Desktop'">
+      <Content Remove="$(MSBuildProjectDirectory)\Assets\**\*" />
+      <Content Remove="$(VecxyPackagesDirectory)\**\*" />
+      <_VecxyBuiltPackage Include="$(VecxyPackagesDirectory)\**\*" />
+      <Content
+        Include="@(_VecxyBuiltPackage)"
+        CopyToOutputDirectory="PreserveNewest"
+        TargetPath="Assets\Packages\%(_VecxyBuiltPackage.RecursiveDir)%(_VecxyBuiltPackage.Filename)%(_VecxyBuiltPackage.Extension)" />
+    </ItemGroup>
+  </Target>
+
+  <Target
+    Name="VecxyRestoreAndroidGraphAfterAssetTools"
+    BeforeTargets="IncludeVecxySpriteAtlases;PrepareForBuild"
+    DependsOnTargets="VecxyPackageAssets;CompileVecxySpriteAtlases"
+    Condition="'$(VecxySkipAssetPipeline)' != 'true' and '$(VecxyBuildVPack)' == 'true' and '$(VecxyPlatform)' == 'Android'">
+    <Message Text="Vecxy: restoring Android project graph after asset tools" Importance="high" />
+    <Exec Command="dotnet restore &quot;$(MSBuildProjectFullPath)&quot; --runtime &quot;$(RuntimeIdentifier)&quot; -p:VecxyPlatform=Android -p:VecxySkipAssetPipeline=true" />
   </Target>
 </Project>
