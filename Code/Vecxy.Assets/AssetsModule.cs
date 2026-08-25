@@ -27,6 +27,8 @@ public interface IAssetsManager
     AssetRef<T> Load<T>(string path) where T : class;
     bool IsLoaded(AssetId id);
     void Reload(AssetId id);
+    AssetPackage GetPackage(PackageId id);
+    ValueTask<AssetPackageLease> LoadPackageAsync(PackageId id, CancellationToken cancellationToken = default);
     void Unload<T>() where T : class;
     void LoadManifest(string path);
 }
@@ -44,6 +46,7 @@ public sealed class AssetsModule :
         public bool HotReloadEnabled { get; init; } = true;
         public TimeSpan HotReloadDelay { get; init; } =
             TimeSpan.FromMilliseconds(150);
+        public string? PackagesDirectory { get; init; }
     }
 
     public sealed class Definition : AModuleDefinition<AssetsModule>
@@ -87,6 +90,9 @@ public sealed class AssetsModule :
             .WithNamingConvention(CamelCaseNamingConvention.Instance)
             .Build();
     private readonly List<AssetFileWatcher> _fileWatchers = [];
+    private AssetPackageManager? _packages;
+    private AssetManifest? _manifest;
+    private readonly List<AssetPackageLease> _startupPackageLeases = [];
     private bool _disposed;
 
     public string AssetsDirectory { get; }
@@ -118,7 +124,8 @@ public sealed class AssetsModule :
         _importContext = new AssetImportContext(
             AssetsDirectory,
             _assetDirectories,
-            this);
+            this,
+            ReadPackagedAsset);
     }
 
     public void RegisterImporter<T>(IAssetImporter<T> importer) where T : class
@@ -208,6 +215,7 @@ public sealed class AssetsModule :
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         var manifest = AssetManifest.Load(path);
+        _manifest = manifest;
         foreach (var entry in manifest.Assets)
         {
             var normalized = NormalizePath(entry.Path);
@@ -223,10 +231,17 @@ public sealed class AssetsModule :
             {
                 Id = new AssetId(entry.Id),
                 AssetType = assetType,
-                Path = normalized
+                Path = normalized,
+                Package = entry.Package
             });
         }
     }
+
+    public AssetPackage GetPackage(PackageId id) =>
+        _packages?.Get(id) ?? throw new InvalidOperationException("Asset packages are not initialized.");
+
+    public ValueTask<AssetPackageLease> LoadPackageAsync(PackageId id, CancellationToken cancellationToken = default) =>
+        GetPackage(id).LoadAsync(cancellationToken);
 
 
     public ConfigRef<T> LoadConfig<T>(string path) where T : class, IYamlConfig
@@ -313,6 +328,9 @@ public sealed class AssetsModule :
         {
             throw new KeyNotFoundException($"Unknown asset ID: {id}");
         }
+
+        if (_packages is not null && !_packages.IsLoaded(metadata.Package))
+            throw new AssetPackageNotLoadedException(_packages.Get(metadata.Package).Name, id);
 
         if (!CanImportAs(metadata, typeof(T)))
         {
@@ -436,6 +454,7 @@ public sealed class AssetsModule :
             .FirstOrDefault(File.Exists);
         if (manifestPath is not null)
             LoadManifest(manifestPath);
+        InitializePackages();
         Logger.Info($"Assets directory: {AssetsDirectory}");
         foreach (var directory in _assetDirectories)
             Logger.Info($"Additional assets directory: {directory}");
@@ -584,6 +603,7 @@ public sealed class AssetsModule :
         var value = entry.ForceUnload();
         DisposeValue(value);
         Unloaded?.Invoke(entry.Id, entry.ValueType);
+        _packages?.TryUnload(entry.Metadata.Package);
     }
 
     private void RegisterConfigRef(IConfigRef configRef)
@@ -614,6 +634,31 @@ public sealed class AssetsModule :
 
         foreach (var configRef in refs.ToArray())
             configRef.NotifySourceChanged();
+    }
+
+    private void InitializePackages()
+    {
+        if (_manifest is null || _manifest.Packages.Count == 0) return;
+        var directory = Path.GetFullPath(_options.PackagesDirectory ?? Path.Combine(AssetsDirectory, "Packages"));
+        var packageManifestPath = Path.Combine(directory, "packages.manifest");
+        if (!File.Exists(packageManifestPath)) return;
+        _packages = new AssetPackageManager(directory, _manifest.Packages, package => _loaded.Keys.Any(key =>
+            Registry.TryGet(key.Id, out var metadata) && metadata?.Package == package));
+        var packageManifest = System.Text.Json.JsonSerializer.Deserialize<VPackBuildManifest>(
+            File.ReadAllText(packageManifestPath), AssetManifest.SerializerOptions)
+            ?? throw new InvalidDataException($"Package manifest is empty: {packageManifestPath}");
+        _packages.SetFiles(packageManifest);
+        AssetPackages.Bind(_packages);
+        foreach (var package in _manifest.Packages.Where(x => x.Load == PackageLoadMode.Startup))
+            _startupPackageLeases.Add(_packages.AcquireAsync(package.Id, CancellationToken.None).AsTask().GetAwaiter().GetResult());
+    }
+
+    private byte[]? ReadPackagedAsset(string path)
+    {
+        if (_packages is null || !Registry.TryFind(NormalizePath(path), out var id) ||
+            !Registry.TryGet(id, out var metadata) || metadata is null)
+            return null;
+        return _packages.ReadAsync(metadata.Package, id).AsTask().GetAwaiter().GetResult().ToArray();
     }
 
     private static void DisposeValue(object? value)
@@ -662,6 +707,13 @@ public sealed class AssetsModule :
         _loaded.Clear();
         _importers.Clear();
         _extensionTypes.Clear();
+        foreach (var lease in _startupPackageLeases) lease.Dispose();
+        _startupPackageLeases.Clear();
+        if (_packages is not null)
+        {
+            AssetPackages.Unbind(_packages);
+            _packages.DisposeAsync().AsTask().GetAwaiter().GetResult();
+        }
     }
 
     private readonly record struct AssetLoadKey(

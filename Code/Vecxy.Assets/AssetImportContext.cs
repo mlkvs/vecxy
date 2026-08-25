@@ -4,17 +4,20 @@ public sealed class AssetImportContext
 {
     private readonly IAssetsManager _assets;
     private readonly IReadOnlyList<string> _assetDirectories;
+    private readonly Func<string, byte[]?> _readPackaged;
 
     public string AssetsDirectory { get; }
 
     internal AssetImportContext(
         string assetsDirectory,
         IReadOnlyList<string> assetDirectories,
-        IAssetsManager assets)
+        IAssetsManager assets,
+        Func<string, byte[]?> readPackaged)
     {
         AssetsDirectory = assetsDirectory;
         _assetDirectories = assetDirectories;
         _assets = assets;
+        _readPackaged = readPackaged;
     }
 
     public string GetFullPath(string relativePath)
@@ -51,11 +54,18 @@ public sealed class AssetImportContext
         return fullPath;
     }
 
-    public string ReadAllText(string relativePath) =>
-        File.ReadAllText(GetFullPath(relativePath));
+    public string ReadAllText(string relativePath)
+    {
+        var packaged = _readPackaged(relativePath);
+        return packaged is null ? File.ReadAllText(GetFullPath(relativePath)) : System.Text.Encoding.UTF8.GetString(packaged);
+    }
 
     internal IReadOnlyList<string> ReadAllTextLayers(string relativePath)
     {
+        var packaged = _readPackaged(relativePath);
+        if (packaged is not null)
+            return [System.Text.Encoding.UTF8.GetString(packaged)];
+
         var normalized = AssetsModule.NormalizePath(relativePath);
         var sources = new List<string>();
 
@@ -70,7 +80,7 @@ public sealed class AssetImportContext
     }
 
     public byte[] ReadAllBytes(string relativePath) =>
-        File.ReadAllBytes(GetFullPath(relativePath));
+        _readPackaged(relativePath) ?? File.ReadAllBytes(GetFullPath(relativePath));
 
     public AssetRef<T> Load<T>(string path) where T : class =>
         _assets.Load<T>(path);

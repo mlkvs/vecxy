@@ -5,6 +5,7 @@ namespace Vecxy.Assets;
 public sealed class AssetManifest
 {
     public List<AssetManifestEntry> Assets { get; init; } = [];
+    public List<AssetPackageManifestEntry> Packages { get; init; } = [];
 
     public static AssetManifest Load(string path)
     {
@@ -29,4 +30,14 @@ public sealed class AssetManifestEntry
     public string? Name { get; init; }
     public string? Hash { get; init; }
     public List<Guid> Dependencies { get; init; } = [];
+    public PackageId Package { get; init; } = PackageId.Game;
+}
+
+public sealed class AssetPackageManifestEntry
+{
+    public PackageId Id { get; init; }
+    public required string Name { get; init; }
+    public string? Descriptor { get; init; }
+    public PackageLoadMode Load { get; init; } = PackageLoadMode.OnDemand;
+    public List<PackageId> Dependencies { get; init; } = [];
 }
