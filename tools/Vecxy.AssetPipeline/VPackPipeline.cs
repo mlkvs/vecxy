@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using System.Security.Cryptography;
 using Vecxy.Assets;
 using YamlDotNet.RepresentationModel;
 
@@ -8,10 +9,12 @@ namespace Vecxy.AssetPipeline;
 public sealed record VPackPackageDefinition(
     PackageId Id, string Name, string Source, string Root, string? DescriptorPath, PackageLoadMode Load,
     string CompressionPreset, VPackCompressionSettings? AdvancedCompression,
-    IReadOnlyList<string> Dependencies, IReadOnlyDictionary<VPackPlatform, VPackPlatformOverride> Platforms);
+    IReadOnlyList<string> Dependencies, IReadOnlyDictionary<VPackPlatform, VPackPlatformOverride> Platforms,
+    PackageVersion Version, VPackRemoteConfig? Remote);
 
 public sealed record VPackPlatformOverride(string? Preset, VPackCompressionSettings? Advanced);
-public sealed record VPackPackageBuild(PackageId Id, string Name, string File, VPackBuildResult Statistics);
+public sealed record VPackPackageBuild(PackageId Id, string Name, string File, PackageVersion Version,
+    string Sha256, VPackBuildResult Statistics);
 
 public static partial class VPackPipeline
 {
@@ -37,7 +40,7 @@ public static partial class VPackPipeline
             throw new InvalidDataException("Assets/ may contain only one root VPack descriptor.");
         var rootPackage = rootDescriptors.SingleOrDefault() ??
             new VPackPackageDefinition(rootPackageId, source, source, "", null, PackageLoadMode.Startup, "balanced", null, [],
-                new Dictionary<VPackPlatform, VPackPlatformOverride>());
+                new Dictionary<VPackPlatform, VPackPlatformOverride>(), PackageVersion.Default, null);
         if (!string.Equals(rootPackage.Name, source, StringComparison.OrdinalIgnoreCase))
             throw new InvalidDataException($"Root VPack descriptor '{rootPackage.DescriptorPath}' must use 'name: {source}'.");
         if (rootPackage.Load != PackageLoadMode.Startup)
@@ -117,14 +120,19 @@ public static partial class VPackPipeline
             await using var stream = new FileStream(path, FileMode.Create, FileAccess.ReadWrite, FileShare.None, 128 * 1024, useAsync: true);
             var result = await VPackWriter.WriteAsync(stream, definition.Id, platform,
                 definition.Dependencies.Select(PackageId.FromName).ToArray(), sources, ResolveCompression(definition, platform), cancellationToken);
-            builds.Add(new VPackPackageBuild(definition.Id, definition.Name, fileName, result));
+            await stream.FlushAsync(cancellationToken);
+            stream.Position = 0;
+            var hash = Convert.ToHexString(await SHA256.HashDataAsync(stream, cancellationToken)).ToLowerInvariant();
+            builds.Add(new VPackPackageBuild(definition.Id, definition.Name, fileName, definition.Version, hash, result));
         }
         var packageManifest = new VPackBuildManifest
         {
             FormatVersion = VPackFormat.Version, Platform = platform,
-            Packages = builds.Select(x => new VPackBuildManifestEntry { Id = x.Id, Name = x.Name, File = x.File }).ToList()
+            Packages = builds.Select(x => new VPackBuildManifestEntry
+                { Id = x.Id, Name = x.Name, File = x.File, Version = x.Version, Size = x.Statistics.PackedSize, Sha256 = x.Sha256 }).ToList()
         };
         await File.WriteAllTextAsync(Path.Combine(output, "packages.manifest"), JsonSerializer.Serialize(packageManifest, AssetManifest.SerializerOptions), cancellationToken);
+        await WriteRemoteManifestAsync(output, platform, packageDefinitions, builds, cancellationToken);
         return builds;
     }
 
@@ -133,8 +141,9 @@ public static partial class VPackPipeline
         using var input = File.OpenText(path); var yaml = new YamlStream();
         try { yaml.Load(input); } catch (Exception e) { throw new InvalidDataException($"Malformed VPack descriptor '{path}': {e.Message}", e); }
         if (yaml.Documents.Count != 1 || yaml.Documents[0].RootNode is not YamlMappingNode root) throw new InvalidDataException($"VPack descriptor must contain one mapping: {path}");
-        ValidateKeys(root, path, "name", "load", "compression", "dependencies", "platforms");
+        ValidateKeys(root, path, "name", "version", "load", "compression", "dependencies", "platforms", "remote");
         var name = Scalar(root, "name") ?? throw new InvalidDataException($"VPack descriptor is missing 'name': {path}");
+        var version = PackageVersion.Parse(Scalar(root, "version") ?? "1.0.0");
         var rootPath = Normalize(Path.GetRelativePath(assetsRoot, Path.GetDirectoryName(path)!));
         if (rootPath == ".") rootPath = "";
         var defaultLoad = rootPath.Length == 0 ? "startup" : "on-demand";
@@ -151,7 +160,77 @@ public static partial class VPackPipeline
             var resolved = Compression(values, "compression", null, path, platform);
             platforms.Add(platform, new VPackPlatformOverride(resolved.Preset, resolved.Advanced));
         }
-        return new(PackageId.FromName(name), name, source, rootPath, Normalize(Path.GetRelativePath(assetsRoot, path)), load, preset!, advanced, dependencies, platforms);
+        var remote = ParseRemote(root, path);
+        return new(PackageId.FromName(name), name, source, rootPath, Normalize(Path.GetRelativePath(assetsRoot, path)), load, preset!, advanced, dependencies, platforms, version, remote);
+    }
+
+    private static VPackRemoteConfig? ParseRemote(YamlMappingNode root, string path)
+    {
+        if (Node(root, "remote") is null) return null;
+        if (Node(root, "remote") is not YamlMappingNode map) throw new InvalidDataException($"'remote' must be a mapping in {path}.");
+        ValidateKeys(map, path, "manifest", "url", "cache", "update", "integrity", "size", "sha256");
+        var manifest = Scalar(map, "manifest"); var url = Scalar(map, "url");
+        if (string.IsNullOrWhiteSpace(manifest) == string.IsNullOrWhiteSpace(url))
+            throw new InvalidDataException($"Remote config in {path} must specify exactly one of 'manifest' or 'url'.");
+        ValidateRemoteUri(manifest ?? url!, path);
+        var cache = (Scalar(map, "cache") ?? "persistent").ToLowerInvariant() switch
+        { "persistent" => PackageCacheMode.Persistent, "session" => PackageCacheMode.Session, "none" => PackageCacheMode.None, var x => throw new InvalidDataException($"Invalid remote cache mode '{x}' in {path}.") };
+        var update = (Scalar(map, "update") ?? "check").ToLowerInvariant() switch
+        { "manual" => PackageUpdatePolicy.Manual, "check" => PackageUpdatePolicy.Check, "always" => PackageUpdatePolicy.Always, var x => throw new InvalidDataException($"Invalid remote update policy '{x}' in {path}.") };
+        var integrity = (Scalar(map, "integrity") ?? "sha256").ToLowerInvariant() switch
+        { "sha256" => PackageIntegrityMode.Sha256, var x => throw new InvalidDataException($"Invalid remote integrity mode '{x}' in {path}.") };
+        if (url is not null) ResolveUrlTemplate(url, "Package", PackageVersion.Default, VPackPlatform.Windows, "x64");
+        var size = long.TryParse(Scalar(map, "size"), out var parsedSize) && parsedSize >= 0 ? parsedSize : (long?)null;
+        var sha256 = Scalar(map, "sha256");
+        if (sha256 is not null && (sha256.Length != 64 || !sha256.All(Uri.IsHexDigit))) throw new InvalidDataException($"Invalid remote SHA-256 in {path}.");
+        return new VPackRemoteConfig { Manifest = manifest, Url = url, Cache = cache, Update = update, Integrity = integrity, Size = size, Sha256 = sha256 };
+    }
+
+    public static string ResolveUrlTemplate(string template, string name, PackageVersion version, VPackPlatform platform, string architecture)
+    {
+        var result = template.Replace("{name}", name.ToLowerInvariant(), StringComparison.Ordinal)
+            .Replace("{version}", version.ToString(), StringComparison.Ordinal)
+            .Replace("{platform}", platform.ToString().ToLowerInvariant(), StringComparison.Ordinal)
+            .Replace("{architecture}", architecture.ToLowerInvariant(), StringComparison.Ordinal);
+        if (Regex.IsMatch(result, "\\{[^}]+\\}")) throw new InvalidDataException($"Remote URL contains an unknown placeholder: {template}");
+        ValidateRemoteUri(result, "URL template");
+        return result;
+    }
+
+    private static async Task WriteRemoteManifestAsync(string output, VPackPlatform platform,
+        IReadOnlyDictionary<PackageId, VPackPackageDefinition> definitions, IReadOnlyList<VPackPackageBuild> builds,
+        CancellationToken cancellationToken)
+    {
+        var architecture = platform == VPackPlatform.Android ? "arm64" : "x64";
+        var remote = new RemotePackageManifest { Version = RemotePackageManifest.CurrentVersion };
+        foreach (var build in builds)
+        {
+            var definition = definitions[build.Id];
+            var url = definition.Remote?.Url is { } template
+                ? ResolveUrlTemplate(template, build.Name, build.Version, platform, architecture)
+                : build.File;
+            remote.Packages[build.Name] = new RemotePackageManifestPackage
+            {
+                Id = build.Id, Version = build.Version,
+                Platforms = new Dictionary<string, RemotePackagePlatformEntry>(StringComparer.OrdinalIgnoreCase)
+                {
+                    [platform.ToString().ToLowerInvariant()] = new()
+                    {
+                        Url = url, Size = build.Statistics.PackedSize, Sha256 = build.Sha256,
+                        VPackFormatVersion = VPackFormat.Version, Architecture = architecture
+                    }
+                }
+            };
+        }
+        await File.WriteAllTextAsync(Path.Combine(output, "packages.json"),
+            JsonSerializer.Serialize(remote, AssetManifest.SerializerOptions), cancellationToken);
+    }
+
+    private static void ValidateRemoteUri(string value, string path)
+    {
+        var candidate = Regex.Replace(value, "\\{(?:name|version|platform|architecture)\\}", "value");
+        if (!Uri.TryCreate(candidate, UriKind.Absolute, out var uri) || uri.Scheme is not ("http" or "https"))
+            throw new InvalidDataException($"Remote URL must be an absolute HTTP(S) URI in {path}: {value}");
     }
 
     private static (string? Preset, VPackCompressionSettings? Advanced) Compression(YamlMappingNode root, string key, string? fallback, string path, VPackPlatform? platform)

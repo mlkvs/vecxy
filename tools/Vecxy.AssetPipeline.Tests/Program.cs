@@ -4,6 +4,10 @@ using Vecxy.Assets;
 var root = Path.Combine(Path.GetTempPath(), "vecxy-asset-tests", Guid.NewGuid().ToString("N"));
 try
 {
+    Assert(PackageVersion.Parse("1.10.2") > PackageVersion.Parse("1.9.9"), "semantic package version comparison");
+    Assert(!PackageVersion.TryParse("1.0", out _) && !PackageVersion.TryParse("01.0.0", out _), "semantic package version validation");
+    Assert(typeof(PackageDownloadProgress).GetProperty(nameof(PackageDownloadProgress.TotalBytes))!.PropertyType == typeof(long) &&
+           typeof(RemotePackagePlatformEntry).GetProperty(nameof(RemotePackagePlatformEntry.Size))!.PropertyType == typeof(long), "multi-gigabyte-safe size types");
     Directory.CreateDirectory(Path.Combine(root, "Assets", "Textures"));
     var original = Path.Combine(root, "Assets", "Textures", "player.png");
     File.WriteAllBytes(original, [1, 2, 3, 4]);
@@ -52,7 +56,10 @@ try
     Assert(AssetPipeline.GenerateSource(withEngine).Contains("class Engine", StringComparison.Ordinal), "engine generated namespace");
 
     await TestPackages(root);
+    TestRemoteConfiguration(root);
     await TestBinaryFormat();
+    await TestHttpTransport();
+    await TestRemotePackages(root);
     TestDependencyCycle(root);
 
     Console.WriteLine("Vecxy.AssetPipeline tests passed.");
@@ -61,6 +68,20 @@ try
 finally
 {
     if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
+}
+
+static void TestRemoteConfiguration(string parent)
+{
+    var root = Path.Combine(parent, "remote-config"); Directory.CreateDirectory(Path.Combine(root, "Assets", "DLC"));
+    var descriptor = Path.Combine(root, "Assets", "DLC", "dlc.vpack");
+    File.WriteAllText(descriptor, "name: DLC\nversion: 2.3.4\nremote:\n  url: https://example.test/{platform}/{architecture}/{name}-{version}.vpack\n  cache: session\n  update: always\n  integrity: sha256\n  size: 5000000000\n  sha256: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n");
+    var package = VPackPipeline.DiscoverPackages(root).Single(x => x.Name == "DLC");
+    var remote = package.Remote ?? throw new InvalidOperationException("Test failed: direct remote YAML configuration");
+    Assert(remote.Cache == PackageCacheMode.Session && remote.Update == PackageUpdatePolicy.Always && remote.Size == 5_000_000_000L, "direct remote YAML policies");
+    Assert(VPackPipeline.ResolveUrlTemplate(remote.Url!, package.Name, package.Version, VPackPlatform.Android, "arm64") ==
+           "https://example.test/android/arm64/dlc-2.3.4.vpack", "URL placeholder resolution");
+    File.WriteAllText(descriptor, "name: DLC\nremote:\n  url: https://example.test/{unknown}/dlc.vpack\n  cache: none\n  update: manual\n");
+    AssertThrows<InvalidDataException>(() => VPackPipeline.DiscoverPackages(root), "unknown URL placeholder rejection");
 }
 
 static void Assert(bool condition, string name)
@@ -85,7 +106,7 @@ static async Task TestPackages(string parent)
     File.WriteAllText(Path.Combine(root, "Assets", "player.txt"), "player");
     File.WriteAllText(Path.Combine(root, "Assets", "Shared", "shared.vpack"), "name: Shared\nload: startup\ncompression: balanced\nplatforms:\n  android:\n    compression:\n      algorithm: lz4\n      block-size: 256kb\n");
     File.WriteAllText(Path.Combine(root, "Assets", "Shared", "common.txt"), new string('s', 4096));
-    File.WriteAllText(Path.Combine(root, "Assets", "DLC", "dlc.vpack"), "name: DLC\ndependencies:\n  - Shared\n");
+    File.WriteAllText(Path.Combine(root, "Assets", "DLC", "dlc.vpack"), "name: DLC\nversion: 1.2.0\ndependencies:\n  - Shared\nremote:\n  manifest: https://example.test/packages.json\n  cache: persistent\n  update: check\n  integrity: sha256\n");
     File.WriteAllText(Path.Combine(root, "Assets", "DLC", "links.xml"), "<asset>Shared/common.txt</asset>");
     File.WriteAllText(Path.Combine(root, "Assets", "DLC", "dlc.txt"), "dlc");
     File.WriteAllText(Path.Combine(root, "Assets", "DLC", "settings.yaml"), "value: 42");
@@ -102,6 +123,7 @@ static async Task TestPackages(string parent)
     var manifest = AssetPipeline.Scan(root);
     Assert(manifest.Assets.Single(x => x.Path == "player.txt").Package == PackageId.Game, "implicit Game membership");
     var dlc = packages.Single(x => x.Name == "DLC");
+    Assert(dlc.Version == PackageVersion.Parse("1.2.0") && dlc.Remote?.Update == PackageUpdatePolicy.Check && dlc.Remote.Cache == PackageCacheMode.Persistent, "remote YAML configuration");
     var cars = packages.Single(x => x.Name == "Cars");
     Assert(manifest.Assets.Single(x => x.Path.EndsWith("dlc.txt")).Package == dlc.Id, "explicit package membership");
     Assert(manifest.Assets.Single(x => x.Path.EndsWith("sedan.txt")).Package == cars.Id, "nested package boundary");
@@ -113,6 +135,7 @@ static async Task TestPackages(string parent)
     Assert(VPackPipeline.ValidatePackageDependencies(manifest).Count == 0, "declared cross-package dependency");
     var generated = AssetPipeline.GenerateSource(manifest);
     Assert(generated.Contains("public static class DLC", StringComparison.Ordinal) && generated.Contains("LoadAsync", StringComparison.Ordinal), "generated package API");
+    Assert(generated.Contains("EnsureLoadedAsync", StringComparison.Ordinal) && generated.Contains("CheckForUpdatesAsync", StringComparison.Ordinal), "generated remote package API");
     Assert(generated.Contains("TextHandle Dlc", StringComparison.Ordinal), "generated packaged asset handle");
 
     var builds = await VPackPipeline.BuildAsync(root, VPackPlatform.Windows);
@@ -120,6 +143,10 @@ static async Task TestPackages(string parent)
     Assert(builds.Count == 6 && File.Exists(Path.Combine(output, "packages.manifest")), "platform package build output");
     Assert(File.Exists(Path.Combine(output, "dlc.vpack")), "explicit package output");
     Assert(File.Exists(Path.Combine(output, "engine.vpack")), "engine package output");
+    var remoteBuildManifest = RemotePackageManifest.Parse(File.ReadAllText(Path.Combine(output, "packages.json")));
+    Assert(remoteBuildManifest.Packages["DLC"].Version == PackageVersion.Parse("1.2.0") &&
+           remoteBuildManifest.Packages["DLC"].Platforms["windows"].Size > 0, "remote manifest generation from build output");
+    AssertThrows<RemoteManifestException>(() => RemotePackageManifest.Parse("{\"version\":99,\"packages\":{}}"), "unknown remote manifest version rejection");
     await VPackPipeline.BuildAsync(root, VPackPlatform.Linux);
     await VPackPipeline.BuildAsync(root, VPackPlatform.Android);
     Assert(File.Exists(Path.Combine(root, "Build", "Linux", "game.vpack")) &&
@@ -160,6 +187,122 @@ static async Task TestPackages(string parent)
     var invalid = AssetPipeline.Scan(root);
     Assert(VPackPipeline.ValidatePackageDependencies(invalid).Any(x => x.Contains("VXY2104", StringComparison.Ordinal)), "undeclared cross-package dependency detection");
 }
+
+static async Task TestRemotePackages(string parent)
+{
+    var root = Path.Combine(parent, "remote-integration"); Directory.CreateDirectory(root);
+    var packageId = PackageId.FromName("DLC"); var assetId = AssetId.New();
+    var v1 = await BuildPackage(packageId, assetId, "remote-v1");
+    var transport = new FakeRemoteTransport(v1.Bytes) { FailOnceAfterBytes = Math.Max(1, v1.Bytes.Length / 2) };
+    transport.ManifestJson = RemoteManifest("1.0.0", packageId, v1.Bytes.Length, v1.Hash);
+    var manifest = new AssetManifest
+    {
+        Assets = [new AssetManifestEntry { Id = assetId.Value, Source = "Game", Path = "DLC/dlc.txt", Type = "Text", Name = "Dlc", Package = packageId }],
+        Packages = [new AssetPackageManifestEntry
+        {
+            Id = packageId, Name = "DLC", Load = PackageLoadMode.OnDemand, Version = PackageVersion.Parse("1.0.0"),
+            Remote = new VPackRemoteConfig { Manifest = "https://example.test/packages.json", Cache = PackageCacheMode.Persistent, Update = PackageUpdatePolicy.Check }
+        }]
+    };
+    File.WriteAllText(Path.Combine(root, "Assets.manifest"), System.Text.Json.JsonSerializer.Serialize(manifest, AssetManifest.SerializerOptions));
+    File.WriteAllText(Path.Combine(root, "packages.manifest"), System.Text.Json.JsonSerializer.Serialize(new VPackBuildManifest
+        { FormatVersion = VPackFormat.Version, Platform = VPackPlatform.Windows }, AssetManifest.SerializerOptions));
+    var module = new AssetsModule(new AssetsModule.Options
+    {
+        AssetsDirectory = Path.Combine(root, "Assets"), PackagesDirectory = root,
+        PackageCacheDirectory = Path.Combine(root, "Cache"), ApplicationId = "Vecxy.Remote.Tests",
+        RemoteTransport = transport, HotReloadEnabled = false
+    });
+    module.OnInitialize(); var package = module.GetPackage(packageId);
+    await AssertThrowsAsync<PackageDownloadException>(async () => await package.EnsureLoadedAsync(), "interrupted remote download");
+    var progress = new List<PackageDownloadProgress>();
+    var first = package.EnsureLoadedAsync(new InlineProgress<PackageDownloadProgress>(progress.Add)).AsTask();
+    var second = package.EnsureLoadedAsync().AsTask();
+    var leases = await Task.WhenAll(first, second);
+    Assert(transport.DownloadCalls == 2 && transport.LastResumeOffset > 0, "resumable and deduplicated package download");
+    Assert(progress.Last().Fraction == 1 && progress.Last().TotalBytes == v1.Bytes.Length, "download progress final state");
+    using (var loaded = module.Load<TextAsset>(assetId)) Assert(loaded.Value.Content == "remote-v1", "downloaded VPack loads through AssetManager");
+
+    var v11 = await BuildPackage(packageId, assetId, "remote-v1.1"); transport.Bytes = v11.Bytes;
+    transport.ManifestJson = RemoteManifest("1.1.0", packageId, v11.Bytes.Length, v11.Hash);
+    var status = await package.CheckForUpdatesAsync();
+    Assert(status.IsUpdateAvailable && status.LocalVersion == PackageVersion.Parse("1.0.0") && status.RemoteVersion == PackageVersion.Parse("1.1.0"), "remote update comparison");
+    await package.DownloadUpdateAsync();
+    Assert(package.IsLoaded, "old package remains loaded during atomic update");
+    foreach (var lease in leases) await lease.DisposeAsync();
+    await using (var updated = await package.LoadAsync())
+    using (var loaded = module.Load<TextAsset>(assetId)) Assert(loaded.Value.Content == "remote-v1.1", "atomic package update activation");
+
+    transport.ManifestJson = RemoteManifest("1.2.0", packageId, v11.Bytes.Length, new string('0', 64));
+    await AssertThrowsAsync<PackageIntegrityException>(async () => await package.DownloadUpdateAsync(), "remote SHA-256 rejection");
+    var preserved = await package.GetRemoteStatusAsync();
+    Assert(preserved.LocalVersion == PackageVersion.Parse("1.1.0"), "failed update preserves active cache version");
+    var cacheInfo = await package.GetCacheInfoAsync(); Assert(cacheInfo.CachedSize == v11.Bytes.Length && cacheInfo.Versions == 1, "cache info and old version cleanup");
+    transport.Offline = true;
+    await using (var offlineLease = await package.EnsureLoadedAsync())
+    using (var loaded = module.Load<TextAsset>(assetId)) Assert(loaded.Value.Content == "remote-v1.1", "offline cached package loading");
+    await package.RemoveCachedAsync();
+    await AssertThrowsAsync<RemotePackageException>(async () => await package.EnsureLoadedAsync(), "offline without local package");
+    module.Dispose();
+}
+
+static async Task TestHttpTransport()
+{
+    var bytes = System.Text.Encoding.UTF8.GetBytes("resumable-http-payload");
+    using var acceptingClient = new HttpClient(new StubHttpHandler((request, _) =>
+    {
+        var offset = request.Headers.Range?.Ranges.Single().From ?? 0;
+        var response = new HttpResponseMessage(offset > 0 ? System.Net.HttpStatusCode.PartialContent : System.Net.HttpStatusCode.OK)
+            { Content = new StreamContent(new MemoryStream(bytes[(int)offset..])) };
+        if (offset > 0) response.Content.Headers.ContentRange = new System.Net.Http.Headers.ContentRangeHeaderValue(offset, bytes.Length - 1, bytes.Length);
+        return Task.FromResult(response);
+    }));
+    using var transport = new HttpRemotePackageTransport(acceptingClient);
+    await using var resumed = new MemoryStream(); await resumed.WriteAsync(bytes.AsMemory(0, 5));
+    var result = await transport.DownloadAsync(new Uri("https://example.test/package"), resumed, 5);
+    Assert(result.ResumedBytes == 5 && resumed.ToArray().SequenceEqual(bytes), "HTTP range resume");
+
+    using var rejectingClient = new HttpClient(new StubHttpHandler((_, _) => Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.OK)
+        { Content = new StreamContent(new MemoryStream(bytes)) })));
+    using var rejectingTransport = new HttpRemotePackageTransport(rejectingClient);
+    await using var restarted = new MemoryStream(); await restarted.WriteAsync(new byte[8]);
+    var restartedResult = await rejectingTransport.DownloadAsync(new Uri("https://example.test/package"), restarted, 8);
+    Assert(restartedResult.ResumedBytes == 0 && restartedResult.TotalBytes == bytes.Length && restarted.ToArray().SequenceEqual(bytes), "server range rejection and unknown length recovery");
+
+    using var cancellingClient = new HttpClient(new StubHttpHandler(async (_, token) =>
+    { await Task.Delay(Timeout.InfiniteTimeSpan, token); return new HttpResponseMessage(); }));
+    using var cancellingTransport = new HttpRemotePackageTransport(cancellingClient);
+    using var cancellation = new CancellationTokenSource(TimeSpan.FromMilliseconds(20));
+    await AssertThrowsAsync<OperationCanceledException>(async () =>
+        await cancellingTransport.DownloadAsync(new Uri("https://example.test/package"), new MemoryStream(), 0, cancellationToken: cancellation.Token), "HTTP cancellation");
+}
+
+static async Task<(byte[] Bytes, string Hash)> BuildPackage(PackageId package, AssetId asset, string text)
+{
+    await using var stream = new MemoryStream();
+    await VPackWriter.WriteAsync(stream, package, VPackPlatform.Windows, [],
+        [new VPackAssetSource(asset, "Text", System.Text.Encoding.UTF8.GetBytes(text))],
+        new(VPackCompressionAlgorithm.None, 0, 4096));
+    var bytes = stream.ToArray();
+    return (bytes, Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(bytes)).ToLowerInvariant());
+}
+
+static string RemoteManifest(string version, PackageId id, long size, string hash) =>
+    System.Text.Json.JsonSerializer.Serialize(new RemotePackageManifest
+    {
+        Version = RemotePackageManifest.CurrentVersion,
+        Packages = new Dictionary<string, RemotePackageManifestPackage>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["DLC"] = new()
+            {
+                Id = id, Version = PackageVersion.Parse(version),
+                Platforms = new Dictionary<string, RemotePackagePlatformEntry>(StringComparer.OrdinalIgnoreCase)
+                {
+                    ["windows"] = new() { Url = "https://example.test/dlc.vpack", Size = size, Sha256 = hash }
+                }
+            }
+        }
+    }, AssetManifest.SerializerOptions);
 
 static async Task TestBinaryFormat()
 {
@@ -203,3 +346,47 @@ static void AssertThrows<T>(Action action, string name) where T : Exception { tr
 static async Task AssertThrowsAsync<T>(Func<Task> action, string name) where T : Exception { try { await action(); } catch (T) { return; } throw new InvalidOperationException($"Test failed: {name}"); }
 
 file sealed class TestConfig : IYamlConfig { public int Value { get; init; } }
+
+file sealed class InlineProgress<T>(Action<T> report) : IProgress<T>
+{
+    public void Report(T value) => report(value);
+}
+
+file sealed class FakeRemoteTransport(byte[] bytes) : IRemotePackageTransport
+{
+    public byte[] Bytes { get; set; } = bytes;
+    public string ManifestJson { get; set; } = "";
+    public int DownloadCalls { get; private set; }
+    public int FailOnceAfterBytes { get; set; }
+    public long LastResumeOffset { get; private set; }
+    public bool Offline { get; set; }
+
+    public Task<string> GetStringAsync(Uri uri, CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (Offline) throw new RemoteManifestException("Offline test transport.");
+        return Task.FromResult(ManifestJson);
+    }
+
+    public async Task<RemoteDownloadResult> DownloadAsync(Uri uri, Stream destination, long resumeOffset,
+        IProgress<PackageDownloadProgress>? progress = null, CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested(); if (Offline) throw new PackageDownloadException("Offline test transport.");
+        DownloadCalls++; LastResumeOffset = resumeOffset;
+        destination.Position = resumeOffset; var remaining = Bytes.AsMemory(checked((int)resumeOffset));
+        if (FailOnceAfterBytes > 0)
+        {
+            var count = Math.Min(FailOnceAfterBytes, remaining.Length);
+            await destination.WriteAsync(remaining[..count], cancellationToken); await destination.FlushAsync(cancellationToken);
+            FailOnceAfterBytes = 0; throw new PackageDownloadException("Simulated interrupted download.");
+        }
+        await destination.WriteAsync(remaining, cancellationToken); await destination.FlushAsync(cancellationToken);
+        progress?.Report(new(Bytes.Length, Bytes.Length, 1, Bytes.Length, TimeSpan.Zero, resumeOffset));
+        return new(Bytes.Length, resumeOffset, "test", null);
+    }
+}
+
+file sealed class StubHttpHandler(Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>> handler) : HttpMessageHandler
+{
+    protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) => handler(request, cancellationToken);
+}

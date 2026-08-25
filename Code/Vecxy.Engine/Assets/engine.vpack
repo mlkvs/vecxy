@@ -6,6 +6,9 @@
 # Runtime и registry используют PackageId, вычисляемый из этого имени, а не путь к файлу.
 name: Engine
 
+# Версия содержимого engine package (semantic version), отдельно от VPack format version.
+version: 1.0.0
+
 # Доступные режимы:
 #   startup   — пакет загружается автоматически при запуске;
 #   on-demand — пакет нужно явно загрузить через LoadAsync.
@@ -15,6 +18,18 @@ load: startup
 # Зависимости перечисляются по логическим именам других пакетов.
 # Engine является базовым пакетом и не должен зависеть от Game или DLC.
 dependencies: []
+
+# Engine поставляется вместе с executable, поэтому remote здесь выключен.
+# Для on-demand package поддерживается такая конфигурация:
+# remote:
+#   manifest: https://cdn.example.com/game/packages.json
+#   # Альтернатива manifest: url с {name}, {version}, {platform}, {architecture}.
+#   # url: https://cdn.example.com/{platform}/{name}-{version}.vpack
+#   # size: 123456789
+#   # sha256: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+#   cache: persistent  # persistent | session | none
+#   update: check      # manual | check | always
+#   integrity: sha256
 
 # Общие настройки сжатия. Доступны два варианта записи:
 #   compression: none      — хранить без сжатия;

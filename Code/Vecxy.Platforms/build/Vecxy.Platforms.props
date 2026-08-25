@@ -85,7 +85,7 @@
     Name="VecxyPackageAssets"
     BeforeTargets="AssignTargetPaths;PrepareForBuild"
     Inputs="@(_VecxyVPackInput)"
-    Outputs="$(VecxyPackagesDirectory)\packages.manifest"
+    Outputs="$(VecxyPackagesDirectory)\packages.manifest;$(VecxyPackagesDirectory)\packages.json"
     Condition="'$(VecxySkipAssetPipeline)' != 'true' and '$(VecxyBuildVPack)' == 'true' and Exists('$(MSBuildProjectDirectory)\Assets') and Exists('$(VecxyCliProject)')">
     <Error Condition="'$(_VecxyVPackPlatform)' == ''" Text="Vecxy VPack does not support the current build platform. Set VecxyBuildVPack=false or select windows, linux, or android." />
     <Message Text="Vecxy: building $(_VecxyVPackPlatform) VPack packages for $(MSBuildProjectName)" Importance="high" />

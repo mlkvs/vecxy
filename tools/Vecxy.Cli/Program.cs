@@ -30,6 +30,14 @@ try
         ReportPackages(await VPackPipeline.BuildAsync(project, ParsePlatform(platformOption ?? "windows")));
         return 0;
     }
+    if (arguments is ["packages", "manifest"])
+    {
+        if (Prepare(project) != 0) return 1;
+        var platform = ParsePlatform(platformOption ?? "windows");
+        await VPackPipeline.BuildAsync(project, platform);
+        Console.WriteLine($"Generated {Path.Combine(project, "Build", platform.ToString(), "packages.json")}");
+        return 0;
+    }
     if (arguments is ["assets", "analyze"])
     {
         Pipeline.Analyze(project);
@@ -136,4 +144,4 @@ static string ResolveProject(string? value)
         throw new InvalidOperationException($"No .csproj found in '{path}'. Select a game: --project HardCore.Cultivation");
     throw new InvalidOperationException($"More than one .csproj found in '{path}'. Select one with --project <path>.");
 }
-static void PrintUsage() => Console.WriteLine("Usage: vecxy --project <game-directory|csproj> assets <scan|generate|analyze|validate|packages|pack|prepare|build> [--platform <windows|linux|android>]\n       vecxy --project <game-directory|csproj> build --platform <windows|linux|android>\n\n--project may be omitted when the current directory contains exactly one .csproj.");
+static void PrintUsage() => Console.WriteLine("Usage: vecxy --project <game-directory|csproj> assets <scan|generate|analyze|validate|packages|pack|prepare|build> [--platform <windows|linux|android>]\n       vecxy --project <game-directory|csproj> packages manifest --platform <windows|linux|android>\n       vecxy --project <game-directory|csproj> build --platform <windows|linux|android>\n\n--project may be omitted when the current directory contains exactly one .csproj.");
