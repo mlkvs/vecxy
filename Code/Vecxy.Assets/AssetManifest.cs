@@ -40,4 +40,6 @@ public sealed class AssetPackageManifestEntry
     public string? Descriptor { get; init; }
     public PackageLoadMode Load { get; init; } = PackageLoadMode.OnDemand;
     public List<PackageId> Dependencies { get; init; } = [];
+    public PackageVersion Version { get; init; } = PackageVersion.Default;
+    public VPackRemoteConfig? Remote { get; init; }
 }

@@ -4,6 +4,8 @@ using System.ComponentModel.DataAnnotations;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Reflection;
+using System.Runtime.InteropServices;
 using Autofac;
 using Vecxy.Diagnostics;
 using Vecxy.Kernel;
@@ -47,6 +49,9 @@ public sealed class AssetsModule :
         public TimeSpan HotReloadDelay { get; init; } =
             TimeSpan.FromMilliseconds(150);
         public string? PackagesDirectory { get; init; }
+        public string? ApplicationId { get; init; }
+        public string? PackageCacheDirectory { get; init; }
+        public IRemotePackageTransport? RemoteTransport { get; init; }
     }
 
     public sealed class Definition : AModuleDefinition<AssetsModule>
@@ -646,13 +651,21 @@ public sealed class AssetsModule :
         var packageManifestPath = Path.Combine(directory, "packages.manifest");
         _packages = new AssetPackageManager(directory, _manifest.Packages, package => _loaded.Keys.Any(key =>
             Registry.TryGet(key.Id, out var metadata) && metadata?.Package == package));
+        var applicationId = _options.ApplicationId ?? Assembly.GetEntryAssembly()?.GetName().Name ?? "Vecxy.Game";
+        var platform = OperatingSystem.IsAndroid() ? VPackPlatform.Android : OperatingSystem.IsLinux() ? VPackPlatform.Linux : VPackPlatform.Windows;
+        var architecture = RuntimeInformation.ProcessArchitecture.ToString().ToLowerInvariant();
+        var transport = _options.RemoteTransport ?? new HttpRemotePackageTransport();
+        var remote = new RemotePackageManager(platform, architecture, _manifest.Packages,
+            new PackageCache(applicationId, _options.PackageCacheDirectory),
+            transport, _packages.SetFile, ownsTransport: _options.RemoteTransport is null);
+        _packages.SetRemote(remote);
         var packageManifest = System.Text.Json.JsonSerializer.Deserialize<VPackBuildManifest>(
             File.ReadAllText(packageManifestPath), AssetManifest.SerializerOptions)
             ?? throw new InvalidDataException($"Package manifest is empty: {packageManifestPath}");
         _packages.SetFiles(packageManifest);
         AssetPackages.Bind(_packages);
         foreach (var package in _manifest.Packages.Where(x => x.Load == PackageLoadMode.Startup))
-            _startupPackageLeases.Add(_packages.AcquireAsync(package.Id, CancellationToken.None).AsTask().GetAwaiter().GetResult());
+            _startupPackageLeases.Add(_packages.Get(package.Id).EnsureLoadedAsync(cancellationToken: CancellationToken.None).AsTask().GetAwaiter().GetResult());
     }
 
     private string? FindPackagesDirectory()
