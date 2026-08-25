@@ -141,8 +141,11 @@ static async Task TestPackages(string parent)
     var builds = await VPackPipeline.BuildAsync(root, VPackPlatform.Windows);
     var output = Path.Combine(root, "Build", "Windows");
     Assert(builds.Count == 6 && File.Exists(Path.Combine(output, "packages.manifest")), "platform package build output");
-    Assert(File.Exists(Path.Combine(output, "dlc.vpack")), "explicit package output");
+    Assert(File.Exists(Path.Combine(output, "Remote", "dlc.vpack")), "remote package distribution output");
     Assert(File.Exists(Path.Combine(output, "engine.vpack")), "engine package output");
+    var bundledBuildManifest = System.Text.Json.JsonSerializer.Deserialize<VPackBuildManifest>(
+        File.ReadAllText(Path.Combine(output, "packages.manifest")), AssetManifest.SerializerOptions)!;
+    Assert(bundledBuildManifest.Packages.All(x => x.Id != dlc.Id), "remote package excluded from application manifest");
     var remoteBuildManifest = RemotePackageManifest.Parse(File.ReadAllText(Path.Combine(output, "packages.json")));
     Assert(remoteBuildManifest.Packages["DLC"].Version == PackageVersion.Parse("1.2.0") &&
            remoteBuildManifest.Packages["DLC"].Platforms["windows"].Size > 0, "remote manifest generation from build output");
@@ -151,7 +154,7 @@ static async Task TestPackages(string parent)
     await VPackPipeline.BuildAsync(root, VPackPlatform.Android);
     Assert(File.Exists(Path.Combine(root, "Build", "Linux", "game.vpack")) &&
            File.Exists(Path.Combine(root, "Build", "Android", "game.vpack")), "per-platform build outputs");
-    await using (var reader = await VPackReader.OpenAsync(File.OpenRead(Path.Combine(output, "dlc.vpack"))))
+    await using (var reader = await VPackReader.OpenAsync(File.OpenRead(Path.Combine(output, "Remote", "dlc.vpack"))))
     {
         var asset = manifest.Assets.Single(x => x.Path.EndsWith("links.xml"));
         Assert(System.Text.Encoding.UTF8.GetString((await reader.ReadAssetAsync(new AssetId(asset.Id))).Span).Contains("Shared/common.txt"), "lookup by AssetId");
@@ -159,17 +162,15 @@ static async Task TestPackages(string parent)
 
     var module = new AssetsModule(new AssetsModule.Options { AssetsDirectory = Path.Combine(root, "Assets"), PackagesDirectory = output, HotReloadEnabled = false });
     module.OnInitialize();
-    var dlcAsset = manifest.Assets.Single(x => x.Path.EndsWith("dlc.txt"));
-    var dlcConfig = manifest.Assets.Single(x => x.Path.EndsWith("settings.yaml"));
-    AssertThrows<AssetPackageNotLoadedException>(() => module.Load<TextAsset>(new AssetId(dlcAsset.Id)), "unloaded package diagnostic");
-    await using (var lease = await module.LoadPackageAsync(dlc.Id))
+    var carsAsset = manifest.Assets.Single(x => x.Path.EndsWith("sedan.txt"));
+    AssertThrows<AssetPackageNotLoadedException>(() => module.Load<TextAsset>(new AssetId(carsAsset.Id)), "unloaded package diagnostic");
+    await using (var lease = await module.LoadPackageAsync(cars.Id))
     {
         Assert(lease.Package.IsLoaded && module.GetPackage(shared.Id).IsLoaded, "dependency package loading");
-        using var loaded = module.Load<TextAsset>(new AssetId(dlcAsset.Id));
-        using var config = module.LoadConfig<TestConfig>(new ConfigHandle(dlcConfig.Id));
-        Assert(config.Value.Value == 42, "packaged config loading");
+        using var loaded = module.Load<TextAsset>(new AssetId(carsAsset.Id));
+        Assert(loaded.Value.Content == "sedan", "packaged asset loading");
     }
-    Assert(!module.GetPackage(dlc.Id).IsLoaded, "package reference-counted unload");
+    Assert(!module.GetPackage(cars.Id).IsLoaded, "package reference-counted unload");
     module.Dispose();
 
     var runtimeAssets = Path.Combine(root, "RuntimeAssets");

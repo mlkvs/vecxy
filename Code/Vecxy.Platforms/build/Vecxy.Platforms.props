@@ -42,13 +42,13 @@
   </ItemGroup>
   <ItemGroup Condition="'$(VecxyPlatform)' == 'Android' and '$(VecxyPackagesDirectory)' != '' and Exists('$(VecxyPackagesDirectory)')">
     <AndroidAsset Remove="$(MSBuildProjectDirectory)\Assets\**\*" />
-    <AndroidAsset Include="$(VecxyPackagesDirectory)\**\*">
+    <AndroidAsset Include="$(VecxyPackagesDirectory)\**\*" Exclude="$(VecxyPackagesDirectory)\Remote\**\*">
       <Link>%(RecursiveDir)%(Filename)%(Extension)</Link>
     </AndroidAsset>
   </ItemGroup>
   <ItemGroup Condition="'$(VecxyPlatform)' == 'Desktop' and '$(VecxyPackagesDirectory)' != '' and Exists('$(VecxyPackagesDirectory)')">
     <Content Remove="$(MSBuildProjectDirectory)\Assets\**\*" />
-    <Content Include="$(VecxyPackagesDirectory)\**\*">
+    <Content Include="$(VecxyPackagesDirectory)\**\*" Exclude="$(VecxyPackagesDirectory)\Remote\**\*">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <TargetPath>%(RecursiveDir)%(Filename)%(Extension)</TargetPath>
     </Content>
@@ -93,7 +93,7 @@
     <ItemGroup Condition="'$(VecxyPlatform)' == 'Android'">
       <AndroidAsset Remove="$(MSBuildProjectDirectory)\Assets\**\*" />
       <AndroidAsset Remove="$(VecxyPackagesDirectory)\**\*" />
-      <_VecxyBuiltPackage Include="$(VecxyPackagesDirectory)\**\*" />
+      <_VecxyBuiltPackage Include="$(VecxyPackagesDirectory)\**\*" Exclude="$(VecxyPackagesDirectory)\Remote\**\*" />
       <AndroidAsset
         Include="@(_VecxyBuiltPackage)"
         Link="%(_VecxyBuiltPackage.RecursiveDir)%(_VecxyBuiltPackage.Filename)%(_VecxyBuiltPackage.Extension)" />
@@ -101,7 +101,7 @@
     <ItemGroup Condition="'$(VecxyPlatform)' == 'Desktop'">
       <Content Remove="$(MSBuildProjectDirectory)\Assets\**\*" />
       <Content Remove="$(VecxyPackagesDirectory)\**\*" />
-      <_VecxyBuiltPackage Include="$(VecxyPackagesDirectory)\**\*" />
+      <_VecxyBuiltPackage Include="$(VecxyPackagesDirectory)\**\*" Exclude="$(VecxyPackagesDirectory)\Remote\**\*" />
       <Content
         Include="@(_VecxyBuiltPackage)"
         CopyToOutputDirectory="PreserveNewest"

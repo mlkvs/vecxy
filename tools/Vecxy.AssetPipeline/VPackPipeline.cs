@@ -115,8 +115,14 @@ public static partial class VPackPipeline
                 var bytes = File.ReadAllBytes(Path.Combine(baseDirectory, entry.Path.Replace('/', Path.DirectorySeparatorChar)));
                 return new VPackAssetSource(new AssetId(entry.Id), entry.Type, bytes, IsUsuallyCompressed(entry.Path));
             }).ToArray();
-            var fileName = definition.Name.ToLowerInvariant() + ".vpack";
+            // Remote packages are distribution artifacts, not application payload.
+            // Keeping them below Remote also prevents a stale optional package from
+            // accidentally being bundled by the SDK's recursive content glob.
+            var fileName = Normalize(Path.Combine(
+                definition.Remote is null ? string.Empty : "Remote",
+                definition.Name.ToLowerInvariant() + ".vpack"));
             var path = Path.Combine(output, fileName);
+            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
             await using var stream = new FileStream(path, FileMode.Create, FileAccess.ReadWrite, FileShare.None, 128 * 1024, useAsync: true);
             var result = await VPackWriter.WriteAsync(stream, definition.Id, platform,
                 definition.Dependencies.Select(PackageId.FromName).ToArray(), sources, ResolveCompression(definition, platform), cancellationToken);
@@ -128,7 +134,7 @@ public static partial class VPackPipeline
         var packageManifest = new VPackBuildManifest
         {
             FormatVersion = VPackFormat.Version, Platform = platform,
-            Packages = builds.Select(x => new VPackBuildManifestEntry
+            Packages = builds.Where(x => packageDefinitions[x.Id].Remote is null).Select(x => new VPackBuildManifestEntry
                 { Id = x.Id, Name = x.Name, File = x.File, Version = x.Version, Size = x.Statistics.PackedSize, Sha256 = x.Sha256 }).ToList()
         };
         await File.WriteAllTextAsync(Path.Combine(output, "packages.manifest"), JsonSerializer.Serialize(packageManifest, AssetManifest.SerializerOptions), cancellationToken);
