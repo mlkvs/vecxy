@@ -1,0 +1,15 @@
+<Project>
+	<!--
+		IDEs may invoke Build without Restore after VecxyPlatform changes the obj path.
+		Restore only when the active platform does not have a NuGet assets file yet.
+	-->
+	<Target Name="VecxyRestoreMissingProjectAssets"
+			BeforeTargets="ResolvePackageAssets"
+			Condition="'$(DesignTimeBuild)' != 'true' and !Exists('$(ProjectAssetsFile)')">
+		<Message Importance="high" Text="Vecxy: restoring NuGet assets for $(VecxyPlatform)" />
+		<MSBuild Projects="$(MSBuildProjectFullPath)"
+				 Targets="Restore"
+				 BuildInParallel="false"
+				 Properties="VecxyPlatform=$(VecxyPlatform);Configuration=$(Configuration)" />
+	</Target>
+</Project>
