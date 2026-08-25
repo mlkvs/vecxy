@@ -47,7 +47,7 @@ try
         var projectFile = Directory.EnumerateFiles(project, "*.csproj", SearchOption.TopDirectoryOnly).SingleOrDefault();
         if (projectFile is null) throw new FileNotFoundException($"Expected one .csproj in {project}");
         var platformProperty = platform == Vecxy.Assets.VPackPlatform.Android ? "Android" : "Desktop";
-        var packagesDirectory = Path.Combine(project, "Build", platform.ToString(), "Packages");
+        var packagesDirectory = Path.Combine(project, "Build", platform.ToString());
         using var process = Process.Start(new ProcessStartInfo("dotnet", $"build \"{projectFile}\" -p:VecxyPlatform={platformProperty} -p:VecxySkipAssetPipeline=true -p:VecxyPackagesDirectory=\"{packagesDirectory}\"") { UseShellExecute = false });
         process!.WaitForExit();
         return process.ExitCode;

@@ -18,7 +18,7 @@
     </ItemGroup>
     
     <ItemGroup>
-        <Content Include="Assets\**\*" Condition="'$(TargetPlatformIdentifier)' != 'android'">
+        <Content Include="Assets\**\*" Condition="'$(TargetPlatformIdentifier)' != 'android' and '$(VecxyPackagesDirectory)' == ''">
             <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
             <TargetPath>Assets\%(RecursiveDir)%(Filename)%(Extension)</TargetPath>
         </Content>

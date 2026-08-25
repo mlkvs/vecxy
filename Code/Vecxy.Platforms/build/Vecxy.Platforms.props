@@ -14,7 +14,7 @@
     <_VecxyVPackOutputPlatform Condition="'$(VecxyPlatform)' == 'Desktop' and $([MSBuild]::IsOSPlatform('Windows'))">Windows</_VecxyVPackOutputPlatform>
     <_VecxyVPackPlatform Condition="'$(VecxyPlatform)' == 'Desktop' and $([MSBuild]::IsOSPlatform('Linux'))">linux</_VecxyVPackPlatform>
     <_VecxyVPackOutputPlatform Condition="'$(VecxyPlatform)' == 'Desktop' and $([MSBuild]::IsOSPlatform('Linux'))">Linux</_VecxyVPackOutputPlatform>
-    <VecxyPackagesDirectory Condition="'$(VecxyPackagesDirectory)' == '' and '$(VecxyBuildVPack)' == 'true'">$(MSBuildProjectDirectory)\Build\$(_VecxyVPackOutputPlatform)\Packages</VecxyPackagesDirectory>
+    <VecxyPackagesDirectory Condition="'$(VecxyPackagesDirectory)' == '' and '$(VecxyBuildVPack)' == 'true'">$(MSBuildProjectDirectory)\Build\$(_VecxyVPackOutputPlatform)</VecxyPackagesDirectory>
     <!-- VPack currently stores the existing runtime-importer payload. Do not run the
          legacy loose-file atlas compiler after packaging or emit duplicate assets. -->
     <VecxyCompileAtlases Condition="'$(VecxyPackagesDirectory)' != ''">false</VecxyCompileAtlases>
@@ -43,14 +43,14 @@
   <ItemGroup Condition="'$(VecxyPlatform)' == 'Android' and '$(VecxyPackagesDirectory)' != '' and Exists('$(VecxyPackagesDirectory)')">
     <AndroidAsset Remove="$(MSBuildProjectDirectory)\Assets\**\*" />
     <AndroidAsset Include="$(VecxyPackagesDirectory)\**\*">
-      <Link>Packages\%(RecursiveDir)%(Filename)%(Extension)</Link>
+      <Link>%(RecursiveDir)%(Filename)%(Extension)</Link>
     </AndroidAsset>
   </ItemGroup>
   <ItemGroup Condition="'$(VecxyPlatform)' == 'Desktop' and '$(VecxyPackagesDirectory)' != '' and Exists('$(VecxyPackagesDirectory)')">
     <Content Remove="$(MSBuildProjectDirectory)\Assets\**\*" />
     <Content Include="$(VecxyPackagesDirectory)\**\*">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-      <TargetPath>Assets\Packages\%(RecursiveDir)%(Filename)%(Extension)</TargetPath>
+      <TargetPath>%(RecursiveDir)%(Filename)%(Extension)</TargetPath>
     </Content>
   </ItemGroup>
 
@@ -65,7 +65,7 @@
     <VecxyCliArtifactsPath>$(MSBuildProjectDirectory)\obj\vecxy-cli-artifacts</VecxyCliArtifactsPath>
   </PropertyGroup>
   <ItemGroup Condition="'$(VecxyBuildVPack)' == 'true'">
-    <_VecxyVPackInput Include="$(MSBuildProjectDirectory)\Assets\**\*;$(MSBuildProjectDirectory)\Assets.manifest;$(MSBuildThisFileDirectory)..\..\..\tools\Vecxy.AssetPipeline\**\*.cs" />
+    <_VecxyVPackInput Include="$(MSBuildProjectDirectory)\Assets\**\*;$(MSBuildProjectDirectory)\Assets.manifest;$(MSBuildThisFileDirectory)..\..\Vecxy.Engine\Assets\**\*;$(MSBuildThisFileDirectory)..\..\..\tools\Vecxy.AssetPipeline\**\*.cs" />
   </ItemGroup>
 
   <!-- Every build surface, including ./build release and Android publish, receives
@@ -96,7 +96,7 @@
       <_VecxyBuiltPackage Include="$(VecxyPackagesDirectory)\**\*" />
       <AndroidAsset
         Include="@(_VecxyBuiltPackage)"
-        Link="Packages\%(_VecxyBuiltPackage.RecursiveDir)%(_VecxyBuiltPackage.Filename)%(_VecxyBuiltPackage.Extension)" />
+        Link="%(_VecxyBuiltPackage.RecursiveDir)%(_VecxyBuiltPackage.Filename)%(_VecxyBuiltPackage.Extension)" />
     </ItemGroup>
     <ItemGroup Condition="'$(VecxyPlatform)' == 'Desktop'">
       <Content Remove="$(MSBuildProjectDirectory)\Assets\**\*" />
@@ -105,7 +105,7 @@
       <Content
         Include="@(_VecxyBuiltPackage)"
         CopyToOutputDirectory="PreserveNewest"
-        TargetPath="Assets\Packages\%(_VecxyBuiltPackage.RecursiveDir)%(_VecxyBuiltPackage.Filename)%(_VecxyBuiltPackage.Extension)" />
+        TargetPath="%(_VecxyBuiltPackage.RecursiveDir)%(_VecxyBuiltPackage.Filename)%(_VecxyBuiltPackage.Extension)" />
     </ItemGroup>
   </Target>
 
@@ -116,5 +116,14 @@
     Condition="'$(VecxySkipAssetPipeline)' != 'true' and '$(VecxyBuildVPack)' == 'true' and '$(VecxyPlatform)' == 'Android'">
     <Message Text="Vecxy: restoring Android project graph after asset tools" Importance="high" />
     <Exec Command="dotnet restore &quot;$(MSBuildProjectFullPath)&quot; --runtime &quot;$(RuntimeIdentifier)&quot; -p:VecxyPlatform=Android -p:VecxySkipAssetPipeline=true" />
+  </Target>
+
+  <!-- Remove loose assets left by an older build layout. Production VPack files
+       live beside the executable and are the only asset payload in Release. -->
+  <Target
+    Name="VecxyRemoveLegacyLooseAssetOutput"
+    AfterTargets="Build"
+    Condition="'$(VecxyPlatform)' == 'Desktop' and '$(VecxyBuildVPack)' == 'true' and Exists('$(TargetDir)Assets')">
+    <RemoveDir Directories="$(TargetDir)Assets" />
   </Target>
 </Project>

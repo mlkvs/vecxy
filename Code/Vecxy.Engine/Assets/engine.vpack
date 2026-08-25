@@ -1,0 +1,56 @@
+# Корневой VPack-пакет ресурсов Vecxy Engine.
+# Descriptor лежит в корне Vecxy.Engine/Assets, поэтому все engine assets ниже
+# автоматически входят в пакет Engine. Сам этот YAML в бинарный пакет не попадает.
+
+# Стабильное логическое имя пакета. Для корневого descriptor движка имя всегда Engine.
+# Runtime и registry используют PackageId, вычисляемый из этого имени, а не путь к файлу.
+name: Engine
+
+# Доступные режимы:
+#   startup   — пакет загружается автоматически при запуске;
+#   on-demand — пакет нужно явно загрузить через LoadAsync.
+# Базовые шейдеры, материалы и текстуры нужны движку сразу, поэтому Engine — startup.
+load: startup
+
+# Зависимости перечисляются по логическим именам других пакетов.
+# Engine является базовым пакетом и не должен зависеть от Game или DLC.
+dependencies: []
+
+# Общие настройки сжатия. Доступны два варианта записи:
+#   compression: none      — хранить без сжатия;
+#   compression: fast      — LZ4, минимальная задержка распаковки;
+#   compression: balanced  — Zstd level 3 на desktop, level 1 на Android;
+#   compression: maximum   — Zstd level 12 на desktop, level 6 на Android.
+#
+# Ниже показана расширенная форма со всеми поддерживаемыми полями.
+compression:
+  # Поддерживаемые алгоритмы: none, lz4, zstd.
+  algorithm: zstd
+
+  # Уровень используется Zstd: от -5 (быстрее) до 22 (плотнее).
+  # Для none и lz4 level указывать не требуется.
+  level: 3
+
+  # Независимые блоки позволяют читать один asset без распаковки всего пакета.
+  # Суффиксы: b, kb, mb. Рекомендуется 512kb desktop и 256kb Android.
+  block-size: 512kb
+
+# Platform override имеет больший приоритет, чем общая настройка выше.
+# Поддерживаемые платформы: windows, linux, android.
+platforms:
+  windows:
+    # Короткая preset-форма; maximum = Zstd level 12, блок 512 KB.
+    compression: maximum
+
+  linux:
+    # Расширенная форма override также поддерживает все три поля.
+    compression:
+      algorithm: zstd
+      level: 5
+      block-size: 512kb
+
+  android:
+    # LZ4 уменьшает задержку старта на мобильном устройстве.
+    compression:
+      algorithm: lz4
+      block-size: 256kb

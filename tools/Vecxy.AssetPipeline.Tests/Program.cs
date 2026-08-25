@@ -40,12 +40,15 @@ try
     var engineProject = Path.Combine(root, "Engine", "Vecxy.Engine");
     Directory.CreateDirectory(Path.Combine(engineProject, "Assets", "Shaders"));
     File.WriteAllText(Path.Combine(engineProject, "Vecxy.Engine.csproj"), "<Project Sdk=\"Microsoft.NET.Sdk\" />");
+    File.WriteAllText(Path.Combine(engineProject, "Assets", "engine.vpack"), "name: Engine\nload: startup\ncompression: balanced\n");
     File.WriteAllText(Path.Combine(engineProject, "Assets", "Shaders", "sprite.glsl"), "#type vertex\n#type fragment");
     File.WriteAllText(Path.Combine(root, "Game.csproj"),
         "<Project Sdk=\"Microsoft.NET.Sdk\"><ItemGroup><ProjectReference Include=\"Engine/Vecxy.Engine/Vecxy.Engine.csproj\" /></ItemGroup></Project>");
     var withEngine = AssetPipeline.Scan(root);
     var engineAsset = withEngine.Assets.Single(x => x.Source == "Engine");
     Assert(engineAsset.Path == "Shaders/sprite.glsl", "engine asset scanned from project reference");
+    var enginePackage = withEngine.Packages.Single(x => x.Name == "Engine");
+    Assert(engineAsset.Package == enginePackage.Id, "engine asset assigned to Engine package");
     Assert(AssetPipeline.GenerateSource(withEngine).Contains("class Engine", StringComparison.Ordinal), "engine generated namespace");
 
     await TestPackages(root);
@@ -71,7 +74,13 @@ static async Task TestPackages(string parent)
     Directory.CreateDirectory(Path.Combine(root, "Assets", "Shared"));
     Directory.CreateDirectory(Path.Combine(root, "Assets", "DLC", "Cars"));
     Directory.CreateDirectory(Path.Combine(root, "Assets", "Harbor"));
-    File.WriteAllText(Path.Combine(root, "Game.csproj"), "<Project Sdk=\"Microsoft.NET.Sdk\" />");
+    var engineProject = Path.Combine(root, "Engine", "Vecxy.Engine");
+    Directory.CreateDirectory(Path.Combine(engineProject, "Assets", "Shaders"));
+    File.WriteAllText(Path.Combine(engineProject, "Vecxy.Engine.csproj"), "<Project Sdk=\"Microsoft.NET.Sdk\" />");
+    File.WriteAllText(Path.Combine(engineProject, "Assets", "engine.vpack"), "name: Engine\nload: startup\ncompression: balanced\n");
+    File.WriteAllText(Path.Combine(engineProject, "Assets", "Shaders", "engine.glsl"), "#type vertex\n#type fragment");
+    File.WriteAllText(Path.Combine(root, "Game.csproj"),
+        "<Project Sdk=\"Microsoft.NET.Sdk\"><ItemGroup><ProjectReference Include=\"Engine/Vecxy.Engine/Vecxy.Engine.csproj\" /></ItemGroup></Project>");
     File.WriteAllText(Path.Combine(root, "Assets", "game.vpack"), "name: Game\ncompression: maximum\nplatforms:\n  android:\n    compression: fast\n");
     File.WriteAllText(Path.Combine(root, "Assets", "player.txt"), "player");
     File.WriteAllText(Path.Combine(root, "Assets", "Shared", "shared.vpack"), "name: Shared\nload: startup\ncompression: balanced\nplatforms:\n  android:\n    compression:\n      algorithm: lz4\n      block-size: 256kb\n");
@@ -86,7 +95,7 @@ static async Task TestPackages(string parent)
     File.WriteAllText(Path.Combine(root, "Assets", "Harbor", "harbor.txt"), "harbor");
 
     var packages = VPackPipeline.DiscoverPackages(root);
-    Assert(packages.Count == 5, "implicit and explicit package discovery");
+    Assert(packages.Count == 6, "implicit, engine, and explicit package discovery");
     var game = packages.Single(x => x.Id == PackageId.Game);
     Assert(game.DescriptorPath == "game.vpack" && game.Load == PackageLoadMode.Startup, "root Game descriptor");
     Assert(VPackPipeline.ResolveCompression(game, VPackPlatform.Android).Algorithm == VPackCompressionAlgorithm.Lz4, "root Game platform configuration");
@@ -107,13 +116,14 @@ static async Task TestPackages(string parent)
     Assert(generated.Contains("TextHandle Dlc", StringComparison.Ordinal), "generated packaged asset handle");
 
     var builds = await VPackPipeline.BuildAsync(root, VPackPlatform.Windows);
-    var output = Path.Combine(root, "Build", "Windows", "Packages");
-    Assert(builds.Count == 5 && File.Exists(Path.Combine(output, "packages.manifest")), "platform package build output");
+    var output = Path.Combine(root, "Build", "Windows");
+    Assert(builds.Count == 6 && File.Exists(Path.Combine(output, "packages.manifest")), "platform package build output");
     Assert(File.Exists(Path.Combine(output, "dlc.vpack")), "explicit package output");
+    Assert(File.Exists(Path.Combine(output, "engine.vpack")), "engine package output");
     await VPackPipeline.BuildAsync(root, VPackPlatform.Linux);
     await VPackPipeline.BuildAsync(root, VPackPlatform.Android);
-    Assert(File.Exists(Path.Combine(root, "Build", "Linux", "Packages", "game.vpack")) &&
-           File.Exists(Path.Combine(root, "Build", "Android", "Packages", "game.vpack")), "per-platform build outputs");
+    Assert(File.Exists(Path.Combine(root, "Build", "Linux", "game.vpack")) &&
+           File.Exists(Path.Combine(root, "Build", "Android", "game.vpack")), "per-platform build outputs");
     await using (var reader = await VPackReader.OpenAsync(File.OpenRead(Path.Combine(output, "dlc.vpack"))))
     {
         var asset = manifest.Assets.Single(x => x.Path.EndsWith("links.xml"));
@@ -134,6 +144,17 @@ static async Task TestPackages(string parent)
     }
     Assert(!module.GetPackage(dlc.Id).IsLoaded, "package reference-counted unload");
     module.Dispose();
+
+    var runtimeAssets = Path.Combine(root, "RuntimeAssets");
+    var packagedModule = new AssetsModule(new AssetsModule.Options
+    {
+        AssetsDirectory = runtimeAssets,
+        PackagesDirectory = output,
+        HotReloadEnabled = true
+    });
+    packagedModule.OnInitialize();
+    Assert(!Directory.Exists(runtimeAssets), "packaged runtime does not create loose Assets directory");
+    packagedModule.Dispose();
 
     File.WriteAllText(Path.Combine(root, "Assets", "DLC", "dlc.vpack"), "name: DLC\n");
     var invalid = AssetPipeline.Scan(root);

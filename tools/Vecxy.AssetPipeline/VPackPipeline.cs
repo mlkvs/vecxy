@@ -6,7 +6,7 @@ using YamlDotNet.RepresentationModel;
 namespace Vecxy.AssetPipeline;
 
 public sealed record VPackPackageDefinition(
-    PackageId Id, string Name, string Root, string? DescriptorPath, PackageLoadMode Load,
+    PackageId Id, string Name, string Source, string Root, string? DescriptorPath, PackageLoadMode Load,
     string CompressionPreset, VPackCompressionSettings? AdvancedCompression,
     IReadOnlyList<string> Dependencies, IReadOnlyDictionary<VPackPlatform, VPackPlatformOverride> Platforms);
 
@@ -17,24 +17,34 @@ public static partial class VPackPipeline
 {
     public static IReadOnlyList<VPackPackageDefinition> DiscoverPackages(string projectDirectory)
     {
-        var assets = Path.Combine(Path.GetFullPath(projectDirectory), "Assets");
+        var root = Path.GetFullPath(projectDirectory);
+        var assets = Path.Combine(root, "Assets");
         Directory.CreateDirectory(assets);
+        var packages = DiscoverPackages(assets, "Game", PackageId.Game).ToList();
+        var engineAssets = AssetPipeline.FindEngineAssetsDirectory(root);
+        if (engineAssets is not null)
+            packages.AddRange(DiscoverPackages(engineAssets, "Engine", PackageId.FromName("Engine")));
+        ValidatePackages(packages);
+        return packages;
+    }
+
+    private static IReadOnlyList<VPackPackageDefinition> DiscoverPackages(string assets, string source, PackageId rootPackageId)
+    {
         var descriptors = Directory.EnumerateFiles(assets, "*.vpack", SearchOption.AllDirectories)
-            .Order().Select(path => ParseDescriptor(assets, path)).ToArray();
+            .Order().Select(path => ParseDescriptor(assets, path, source)).ToArray();
         var rootDescriptors = descriptors.Where(x => x.Root.Length == 0).ToArray();
         if (rootDescriptors.Length > 1)
             throw new InvalidDataException("Assets/ may contain only one root VPack descriptor.");
-        var game = rootDescriptors.SingleOrDefault() ??
-            new VPackPackageDefinition(PackageId.Game, "Game", "", null, PackageLoadMode.Startup, "balanced", null, [],
+        var rootPackage = rootDescriptors.SingleOrDefault() ??
+            new VPackPackageDefinition(rootPackageId, source, source, "", null, PackageLoadMode.Startup, "balanced", null, [],
                 new Dictionary<VPackPlatform, VPackPlatformOverride>());
-        if (!string.Equals(game.Name, "Game", StringComparison.OrdinalIgnoreCase))
-            throw new InvalidDataException($"Root VPack descriptor '{game.DescriptorPath}' must use 'name: Game'.");
-        if (game.Load != PackageLoadMode.Startup)
-            throw new InvalidDataException($"Root package Game must use 'load: startup' in {game.DescriptorPath}.");
-        game = game with { Id = PackageId.Game, Name = "Game" };
-        var packages = new List<VPackPackageDefinition> { game };
+        if (!string.Equals(rootPackage.Name, source, StringComparison.OrdinalIgnoreCase))
+            throw new InvalidDataException($"Root VPack descriptor '{rootPackage.DescriptorPath}' must use 'name: {source}'.");
+        if (rootPackage.Load != PackageLoadMode.Startup)
+            throw new InvalidDataException($"Root package {source} must use 'load: startup' in {rootPackage.DescriptorPath}.");
+        rootPackage = rootPackage with { Id = rootPackageId, Name = source };
+        var packages = new List<VPackPackageDefinition> { rootPackage };
         packages.AddRange(descriptors.Where(x => x.Root.Length > 0));
-        ValidatePackages(packages);
         return packages;
     }
 
@@ -83,8 +93,12 @@ public static partial class VPackPipeline
         var validation = ValidatePackageDependencies(manifest);
         if (validation.Count > 0) throw new InvalidDataException(string.Join(Environment.NewLine + Environment.NewLine, validation));
         var platformName = platform.ToString();
-        var output = Path.Combine(root, "Build", platformName, "Packages");
+        var output = Path.Combine(root, "Build", platformName);
         Directory.CreateDirectory(output);
+        // VPack outputs used to live one level deeper. It contains generated data
+        // only, so remove the obsolete layout when a project is built after upgrade.
+        var legacyOutput = Path.Combine(output, "Packages");
+        if (Directory.Exists(legacyOutput)) Directory.Delete(legacyOutput, recursive: true);
         var engineAssets = AssetPipeline.FindEngineAssetsDirectory(root);
         var builds = new List<VPackPackageBuild>();
         foreach (var definition in packageDefinitions.Values.OrderBy(x => x.Id.Value))
@@ -114,7 +128,7 @@ public static partial class VPackPipeline
         return builds;
     }
 
-    private static VPackPackageDefinition ParseDescriptor(string assetsRoot, string path)
+    private static VPackPackageDefinition ParseDescriptor(string assetsRoot, string path, string source)
     {
         using var input = File.OpenText(path); var yaml = new YamlStream();
         try { yaml.Load(input); } catch (Exception e) { throw new InvalidDataException($"Malformed VPack descriptor '{path}': {e.Message}", e); }
@@ -137,7 +151,7 @@ public static partial class VPackPipeline
             var resolved = Compression(values, "compression", null, path, platform);
             platforms.Add(platform, new VPackPlatformOverride(resolved.Preset, resolved.Advanced));
         }
-        return new(PackageId.FromName(name), name, rootPath, Normalize(Path.GetRelativePath(assetsRoot, path)), load, preset!, advanced, dependencies, platforms);
+        return new(PackageId.FromName(name), name, source, rootPath, Normalize(Path.GetRelativePath(assetsRoot, path)), load, preset!, advanced, dependencies, platforms);
     }
 
     private static (string? Preset, VPackCompressionSettings? Advanced) Compression(YamlMappingNode root, string key, string? fallback, string path, VPackPlatform? platform)
@@ -159,7 +173,7 @@ public static partial class VPackPipeline
         foreach (var package in packages) if (!NameRegex().IsMatch(package.Name)) throw new InvalidDataException($"Invalid VPack package name '{package.Name}' in {package.DescriptorPath}. Use a C# identifier.");
         var duplicate = packages.GroupBy(x => x.Name, StringComparer.OrdinalIgnoreCase).FirstOrDefault(x => x.Count() > 1); if (duplicate is not null) throw new InvalidDataException($"Duplicate VPack package name '{duplicate.Key}'.");
         var ids = packages.GroupBy(x => x.Id).FirstOrDefault(x => x.Count() > 1); if (ids is not null) throw new InvalidDataException($"Duplicate VPack package ID '{ids.Key}'.");
-        var roots = packages.Where(x => x.DescriptorPath is not null).GroupBy(x => x.Root, StringComparer.OrdinalIgnoreCase).FirstOrDefault(x => x.Count() > 1); if (roots is not null) throw new InvalidDataException($"Multiple VPack descriptors define the same package root '{roots.Key}'.");
+        var roots = packages.Where(x => x.DescriptorPath is not null).GroupBy(x => $"{x.Source}:{x.Root}", StringComparer.OrdinalIgnoreCase).FirstOrDefault(x => x.Count() > 1); if (roots is not null) throw new InvalidDataException($"Multiple VPack descriptors define the same package root '{roots.Key}'.");
         var byName = packages.ToDictionary(x => x.Name, StringComparer.OrdinalIgnoreCase);
         foreach (var p in packages) foreach (var d in p.Dependencies) if (!byName.ContainsKey(d)) throw new InvalidDataException($"Package '{p.Name}' depends on missing package '{d}'.");
         var game = byName["Game"];

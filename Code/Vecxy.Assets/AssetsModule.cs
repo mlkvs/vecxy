@@ -437,7 +437,9 @@ public sealed class AssetsModule :
 
     public void OnInitialize()
     {
-        Directory.CreateDirectory(AssetsDirectory);
+        var packagesDirectory = FindPackagesDirectory();
+        if (packagesDirectory is null)
+            Directory.CreateDirectory(AssetsDirectory);
         RegisterImporter<TextAsset>(new TextAssetImporter());
         RegisterImporter<ShaderAsset>(new ShaderAssetImporter());
         RegisterImporter<TextureAsset>(new TextureAssetImporter());
@@ -459,7 +461,7 @@ public sealed class AssetsModule :
         foreach (var directory in _assetDirectories)
             Logger.Info($"Additional assets directory: {directory}");
 
-        if (_options.HotReloadEnabled)
+        if (_options.HotReloadEnabled && packagesDirectory is null)
         {
             foreach (var directory in new[] { AssetsDirectory }.Concat(_assetDirectories))
             {
@@ -639,9 +641,9 @@ public sealed class AssetsModule :
     private void InitializePackages()
     {
         if (_manifest is null || _manifest.Packages.Count == 0) return;
-        var directory = Path.GetFullPath(_options.PackagesDirectory ?? Path.Combine(AssetsDirectory, "Packages"));
+        var directory = FindPackagesDirectory();
+        if (directory is null) return;
         var packageManifestPath = Path.Combine(directory, "packages.manifest");
-        if (!File.Exists(packageManifestPath)) return;
         _packages = new AssetPackageManager(directory, _manifest.Packages, package => _loaded.Keys.Any(key =>
             Registry.TryGet(key.Id, out var metadata) && metadata?.Package == package));
         var packageManifest = System.Text.Json.JsonSerializer.Deserialize<VPackBuildManifest>(
@@ -651,6 +653,14 @@ public sealed class AssetsModule :
         AssetPackages.Bind(_packages);
         foreach (var package in _manifest.Packages.Where(x => x.Load == PackageLoadMode.Startup))
             _startupPackageLeases.Add(_packages.AcquireAsync(package.Id, CancellationToken.None).AsTask().GetAwaiter().GetResult());
+    }
+
+    private string? FindPackagesDirectory()
+    {
+        var candidates = _options.PackagesDirectory is null
+            ? new[] { AssetsDirectory, AppContext.BaseDirectory }
+            : new[] { Path.GetFullPath(_options.PackagesDirectory) };
+        return candidates.FirstOrDefault(directory => File.Exists(Path.Combine(directory, "packages.manifest")));
     }
 
     private byte[]? ReadPackagedAsset(string path)
