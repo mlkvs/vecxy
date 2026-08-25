@@ -25,7 +25,7 @@
 
   <ItemGroup>
     <ProjectReference Include="$(MSBuildThisFileDirectory)..\Vecxy.Platforms.Android.csproj" />
-    <AndroidAsset Include="$(MSBuildThisFileDirectory)..\..\Vecxy.Engine\Assets\**\*">
+    <AndroidAsset Include="$(MSBuildThisFileDirectory)..\..\Vecxy.Engine\Assets\**\*" Condition="'$(VecxyPackagesDirectory)' == ''">
       <Link>Assets\%(RecursiveDir)%(Filename)%(Extension)</Link>
     </AndroidAsset>
   </ItemGroup>

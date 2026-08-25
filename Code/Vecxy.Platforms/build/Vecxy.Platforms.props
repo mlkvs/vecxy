@@ -28,6 +28,19 @@
       <Link>Assets.manifest</Link>
     </AndroidAsset>
   </ItemGroup>
+  <ItemGroup Condition="'$(VecxyPlatform)' == 'Android' and '$(VecxyPackagesDirectory)' != '' and Exists('$(VecxyPackagesDirectory)')">
+    <AndroidAsset Remove="$(MSBuildProjectDirectory)\Assets\**\*" />
+    <AndroidAsset Include="$(VecxyPackagesDirectory)\**\*">
+      <Link>Packages\%(RecursiveDir)%(Filename)%(Extension)</Link>
+    </AndroidAsset>
+  </ItemGroup>
+  <ItemGroup Condition="'$(VecxyPlatform)' == 'Desktop' and '$(VecxyPackagesDirectory)' != '' and Exists('$(VecxyPackagesDirectory)')">
+    <Content Remove="$(MSBuildProjectDirectory)\Assets\**\*" />
+    <Content Include="$(VecxyPackagesDirectory)\**\*">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <TargetPath>Assets\Packages\%(RecursiveDir)%(Filename)%(Extension)</TargetPath>
+    </Content>
+  </ItemGroup>
 
   <Import
     Project="$(MSBuildThisFileDirectory)..\..\Vecxy.Platforms.Android\build\Vecxy.Platforms.Android.props"
