@@ -23,4 +23,13 @@
             <TargetPath>Assets\%(RecursiveDir)%(Filename)%(Extension)</TargetPath>
         </Content>
     </ItemGroup>
+
+    <!-- Android SDK treats a project's Assets directory as AndroidAsset by
+         convention. Production game builds already carry these bytes in
+         engine.vpack, so remove the implicit loose copy from the library. Debug
+         keeps loose assets for the normal IDE development workflow. -->
+    <ItemGroup Condition="'$(TargetPlatformIdentifier)' == 'android' and '$(Configuration)' == 'Release'">
+        <AndroidAsset Remove="Assets\**\*" />
+        <Content Remove="Assets\**\*" />
+    </ItemGroup>
 </Project>
