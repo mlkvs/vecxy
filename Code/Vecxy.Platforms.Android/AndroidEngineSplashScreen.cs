@@ -57,6 +57,10 @@ internal sealed class AndroidEngineSplashScreen : global::Android.Views.View, IE
                 {
                     // The progress indicator remains usable without an optional logo.
                 }
+                catch (Java.IO.IOException)
+                {
+                    // Android AssetManager reports missing packaged files using Java.IO.
+                }
 
                 try
                 {
@@ -66,6 +70,10 @@ internal sealed class AndroidEngineSplashScreen : global::Android.Views.View, IE
                 catch (IOException)
                 {
                     // FMOD attribution is displayed when its bundled logo is available.
+                }
+                catch (Java.IO.IOException)
+                {
+                    // FMOD attribution remains optional when a custom engine package omits it.
                 }
 
                 var dialog = new Dialog(

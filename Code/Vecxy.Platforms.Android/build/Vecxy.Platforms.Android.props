@@ -28,5 +28,14 @@
     <AndroidAsset Include="$(MSBuildThisFileDirectory)..\..\Vecxy.Engine\Assets\**\*" Condition="'$(VecxyPackagesDirectory)' == ''">
       <Link>Assets\%(RecursiveDir)%(Filename)%(Extension)</Link>
     </AndroidAsset>
+    <!-- The native Android splash is displayed before AssetsModule can open
+         engine.vpack, so its logo is the single engine asset that must remain
+         directly addressable by Android's AssetManager in packaged builds. -->
+    <AndroidAsset Include="$(MSBuildThisFileDirectory)..\..\Vecxy.Engine\Assets\Textures\Logo.png" Condition="'$(VecxyPackagesDirectory)' != ''">
+      <Link>Textures\Logo.png</Link>
+    </AndroidAsset>
+    <AndroidAsset Include="$(MSBuildThisFileDirectory)..\..\Vecxy.Engine\Assets\Textures\FmodLogo.png" Condition="'$(VecxyPackagesDirectory)' != ''">
+      <Link>Textures\FmodLogo.png</Link>
+    </AndroidAsset>
   </ItemGroup>
 </Project>

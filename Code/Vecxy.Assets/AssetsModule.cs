@@ -24,6 +24,7 @@ public interface IAssetsManager
     void UnregisterImporter<T>() where T : class;
     AssetId Find(string path);
     string GetPath(IAssetHandle handle);
+    byte[] ReadAllBytes(IAssetHandle handle);
     AssetRef<T> Load<T>(AssetId id) where T : class;
     AssetRef<T> Load<T>(IAssetHandle handle) where T : class;
     AssetRef<T> Load<T>(string path) where T : class;
@@ -214,6 +215,16 @@ public sealed class AssetsModule :
         if (!Registry.TryGet(handle.Id, out var metadata) || metadata is null)
             throw new KeyNotFoundException($"Unknown asset ID: {handle.Id}");
         return metadata.Path;
+    }
+
+    public byte[] ReadAllBytes(IAssetHandle handle)
+    {
+        ArgumentNullException.ThrowIfNull(handle);
+        if (!Registry.TryGet(handle.Id, out var metadata) || metadata is null)
+            throw new KeyNotFoundException($"Unknown asset ID: {handle.Id}");
+        if (_packages is not null && !_packages.IsLoaded(metadata.Package))
+            throw new AssetPackageNotLoadedException(_packages.Get(metadata.Package).Name, handle.Id);
+        return _importContext.ReadAllBytes(metadata.Path);
     }
 
     public void LoadManifest(string path)

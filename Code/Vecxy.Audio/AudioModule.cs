@@ -40,6 +40,7 @@ public sealed class AudioModule(IAssetsManager assets) : IModule, IModule.IUpdat
 #endif
     private bool _initialized;
     private bool _disposed;
+    private readonly Dictionary<AssetId, string> _extractedAssets = [];
 
     public void OnInitialize()
     {
@@ -239,7 +240,23 @@ public sealed class AudioModule(IAssetsManager assets) : IModule, IModule.IUpdat
     {
         if (!assets.Registry.TryGet(handle.Id, out var metadata) || metadata is null)
             throw new KeyNotFoundException($"Unknown audio asset ID: {handle.Id}");
-        return metadata.Path;
+
+        var loosePath = Path.GetFullPath(metadata.Path, assets.AssetsDirectory);
+        if (File.Exists(loosePath))
+            return loosePath;
+        if (_extractedAssets.TryGetValue(handle.Id, out var cached) && File.Exists(cached))
+            return cached;
+
+        // Native audio backends consume seekable files. Materialize only requested
+        // packaged sounds into the process temp directory instead of shipping a
+        // second loose copy of the complete Sounds tree.
+        var directory = Path.Combine(Path.GetTempPath(), "vecxy-audio");
+        Directory.CreateDirectory(directory);
+        var extension = Path.GetExtension(metadata.Path);
+        var path = Path.Combine(directory, handle.Id + extension);
+        File.WriteAllBytes(path, assets.ReadAllBytes(handle));
+        _extractedAssets[handle.Id] = path;
+        return path;
     }
 
 #if ANDROID
