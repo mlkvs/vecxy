@@ -53,5 +53,14 @@ namespace JetBrains.Annotations
 namespace Vecxy.Kernel
 {
     [AttributeUsage(AttributeTargets.Class, Inherited = false)]
-    public sealed class VecxyApplicationAttribute : Attribute;
+    public sealed class VecxyApplicationAttribute(string configPath = "Configs/Application.yaml") : Attribute
+    {
+        public string ConfigPath { get; } = configPath;
+    }
+
+    [AttributeUsage(AttributeTargets.Class, Inherited = false)]
+    public sealed class AppLayerDefinitionAttribute(string id) : Attribute
+    {
+        public string Id { get; } = id;
+    }
 }

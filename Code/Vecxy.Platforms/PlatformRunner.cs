@@ -43,4 +43,16 @@ public static class PlatformRunner
             new TApplication(),
             new PlatformContext(PlatformKind.Desktop, assetsDirectory));
     }
+
+    public static void RunDesktopApplication()
+    {
+        var assetsDirectory = Assembly.GetEntryAssembly()?
+            .GetCustomAttributes<AssemblyMetadataAttribute>()
+            .FirstOrDefault(attribute => attribute.Key == "VecxyAssetsDirectory")?.Value;
+        assetsDirectory = Path.GetFullPath(assetsDirectory ??
+            Path.Combine(AppContext.BaseDirectory, "Assets"));
+        Run(
+            ApplicationResolver.Create(),
+            new PlatformContext(PlatformKind.Desktop, assetsDirectory));
+    }
 }

@@ -19,6 +19,7 @@ public sealed class EngineLayer(
     IInputManager input,
     IWindow window) : AAppLayer
 {
+    [AppLayerDefinition("engine")]
     public sealed class Definition : ADefinition<EngineLayer>
     {
         public override IReadOnlyList<Vecxy.Kernel.IDefinition> Children { get; }

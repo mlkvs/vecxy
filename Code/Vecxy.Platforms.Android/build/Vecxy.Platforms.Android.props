@@ -25,6 +25,9 @@
 
   <ItemGroup>
     <ProjectReference Include="$(MSBuildThisFileDirectory)..\Vecxy.Platforms.Android.csproj" />
+    <AndroidAsset Include="$(MSBuildProjectDirectory)\Assets\Configs\Application.yaml" Condition="Exists('$(MSBuildProjectDirectory)\Assets\Configs\Application.yaml')">
+      <Link>Assets\Configs\Application.yaml</Link>
+    </AndroidAsset>
     <AndroidAsset Include="$(MSBuildThisFileDirectory)..\..\Vecxy.Engine\Assets\**\*" Condition="'$(VecxyPackagesDirectory)' == ''">
       <Link>Assets\%(RecursiveDir)%(Filename)%(Extension)</Link>
     </AndroidAsset>

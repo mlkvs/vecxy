@@ -24,6 +24,10 @@
     <ProjectReference Include="$(MSBuildThisFileDirectory)..\Vecxy.Platforms.csproj" />
   </ItemGroup>
 
+  <ItemGroup Condition="'$(VecxyPlatform)' == 'Desktop' and '$(VecxyGenerateEntryPoint)' == 'true'">
+    <Compile Include="$(MSBuildThisFileDirectory)VecxyDesktopHost.cs" Link="Generated\VecxyDesktopHost.g.cs" />
+  </ItemGroup>
+
   <ItemGroup Condition="'$(VecxyPlatform)' == 'Desktop' and '$(VecxyBuildVPack)' != 'true'">
     <AssemblyMetadata Include="VecxyAssetsDirectory" Value="$(MSBuildProjectDirectory)/Assets" />
     <AssemblyMetadata Include="VecxyAdditionalAssetsDirectory" Value="$(MSBuildThisFileDirectory)../../Vecxy.Engine/Assets" />
@@ -91,6 +95,11 @@
       <AndroidAsset
         Include="@(_VecxyBuiltPackage)"
         Link="%(_VecxyBuiltPackage.RecursiveDir)%(_VecxyBuiltPackage.Filename)%(_VecxyBuiltPackage.Extension)" />
+      <!-- Application configuration is needed before packages are extracted so
+           the Android host can configure the splash screen and engine startup. -->
+      <AndroidAsset Include="$(MSBuildProjectDirectory)\Assets\Configs\Application.yaml" Condition="Exists('$(MSBuildProjectDirectory)\Assets\Configs\Application.yaml')">
+        <Link>Assets\Configs\Application.yaml</Link>
+      </AndroidAsset>
     </ItemGroup>
     <ItemGroup Condition="'$(VecxyPlatform)' == 'Desktop'">
       <Content Remove="$(MSBuildProjectDirectory)\Assets\**\*" />

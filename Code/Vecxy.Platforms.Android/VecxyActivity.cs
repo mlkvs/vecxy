@@ -43,10 +43,11 @@ public sealed class VecxyActivity : SilkActivity
                 throw new InvalidOperationException("Android asset manager is unavailable.");
             var context = new PlatformContext(
                 PlatformKind.Android,
-                Path.Combine(filesDirectory, "Assets"));
+                Path.Combine(filesDirectory, "Assets"),
+                relativePath => assetManager.Open($"Assets/{relativePath}"));
 
             phase = "resolving the game application";
-            var application = AndroidApplicationResolver.Create();
+            var application = ApplicationResolver.Create();
             var options = new Engine.Engine.Options();
             var layers = new List<AAppLayer.IDefinition>();
 
