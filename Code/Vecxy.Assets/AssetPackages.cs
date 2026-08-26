@@ -69,14 +69,17 @@ internal sealed class AssetPackageManager : IAsyncDisposable
     private readonly string _directory;
     private readonly Dictionary<PackageId, State> _states = [];
     private readonly Func<PackageId, bool> _hasLiveAssets;
+    private readonly bool _useLooseAssets;
     private RemotePackageManager? _remote;
-    public AssetPackageManager(string directory, IEnumerable<AssetPackageManifestEntry> definitions, Func<PackageId, bool> hasLiveAssets)
+    public AssetPackageManager(string directory, IEnumerable<AssetPackageManifestEntry> definitions,
+        Func<PackageId, bool> hasLiveAssets, bool useLooseAssets = false)
     {
-        _directory = directory; _hasLiveAssets = hasLiveAssets;
+        _directory = directory; _hasLiveAssets = hasLiveAssets; _useLooseAssets = useLooseAssets;
         foreach (var definition in definitions) { var package = new AssetPackage(this, definition); _states.Add(definition.Id, new State(package)); }
     }
     public AssetPackage Get(PackageId id) => _states.TryGetValue(id, out var state) ? state.Package : throw new KeyNotFoundException($"Unknown asset package {id}.");
-    public bool IsLoaded(PackageId id) => _states.TryGetValue(id, out var state) && state.Reader is not null;
+    public bool IsLoaded(PackageId id) => _states.ContainsKey(id) && (_useLooseAssets || _states[id].Reader is not null);
+    internal bool UsesLooseAssets => _useLooseAssets;
     internal void SetRemote(RemotePackageManager remote) => _remote = remote;
 
     public async ValueTask<AssetPackageLease> AcquireAsync(PackageId id, CancellationToken cancellationToken)
@@ -85,6 +88,11 @@ internal sealed class AssetPackageManager : IAsyncDisposable
         await state.Gate.WaitAsync(cancellationToken);
         try
         {
+            if (_useLooseAssets)
+            {
+                state.References++;
+                return new AssetPackageLease(this, state.Package);
+            }
             if (state.References == 0)
             {
                 var dependencyLeases = new List<AssetPackageLease>();
@@ -108,10 +116,10 @@ internal sealed class AssetPackageManager : IAsyncDisposable
     public void Release(PackageId id)
     {
         var state = GetState(id); state.Gate.Wait();
-        try { if (state.References <= 0) throw new InvalidOperationException($"Package '{state.Package.Name}' has no active leases."); state.References--; TryUnloadCore(state); }
+        try { if (state.References <= 0) throw new InvalidOperationException($"Package '{state.Package.Name}' has no active leases."); state.References--; if (!_useLooseAssets) TryUnloadCore(state); }
         finally { state.Gate.Release(); }
     }
-    public bool TryUnload(PackageId id) { var state=GetState(id); state.Gate.Wait(); try{return TryUnloadCore(state);}finally{state.Gate.Release();} }
+    public bool TryUnload(PackageId id) { var state=GetState(id); state.Gate.Wait(); try{return !_useLooseAssets && TryUnloadCore(state);}finally{state.Gate.Release();} }
     public async ValueTask<ReadOnlyMemory<byte>> ReadAsync(PackageId package, AssetId asset, CancellationToken cancellationToken = default)
     { var state=GetState(package); var reader=state.Reader ?? throw new AssetPackageNotLoadedException(state.Package.Name, asset); return await reader.ReadAssetAsync(asset,cancellationToken); }
     public void SetFiles(VPackBuildManifest manifest)
@@ -124,7 +132,8 @@ internal sealed class AssetPackageManager : IAsyncDisposable
     { var status=await GetRemote().CheckForUpdatesAsync(id,token); return IsLoaded(id)?status with { State=PackageState.Loaded }:status; }
     internal Task DownloadAsync(PackageId id,IProgress<PackageDownloadProgress>? progress,CancellationToken token)=>GetRemote().DownloadAsync(id,progress,token);
     internal Task DownloadUpdateAsync(PackageId id,IProgress<PackageDownloadProgress>? progress,CancellationToken token)=>GetRemote().DownloadUpdateAsync(id,progress,token);
-    internal Task EnsureAvailableAsync(PackageId id,IProgress<PackageDownloadProgress>? progress,CancellationToken token)=>GetRemote().EnsureAvailableAsync(id,progress,token);
+    internal Task EnsureAvailableAsync(PackageId id,IProgress<PackageDownloadProgress>? progress,CancellationToken token)=>
+        _useLooseAssets ? Task.CompletedTask : GetRemote().EnsureAvailableAsync(id,progress,token);
     internal Task<PackageCacheInfo> GetCacheInfoAsync(PackageId id,CancellationToken token)=>GetRemote().GetCacheInfoAsync(id,token);
     internal Task RemoveCachedAsync(PackageId id,CancellationToken token)=>GetRemote().RemoveCachedAsync(id,token);
     private RemotePackageManager GetRemote()=>_remote??throw new InvalidOperationException("Remote package services are not initialized.");

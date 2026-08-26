@@ -1,4 +1,5 @@
 using Vecxy.Engine;
+using System.Reflection;
 
 namespace Vecxy.Platforms;
 
@@ -33,7 +34,10 @@ public static class PlatformRunner
     public static void RunDesktop<TApplication>()
         where TApplication : IEntryPoint, new()
     {
-        var assetsDirectory = Path.GetFullPath(
+        var assetsDirectory = Assembly.GetEntryAssembly()?
+            .GetCustomAttributes<AssemblyMetadataAttribute>()
+            .FirstOrDefault(attribute => attribute.Key == "VecxyAssetsDirectory")?.Value;
+        assetsDirectory = Path.GetFullPath(assetsDirectory ??
             Path.Combine(AppContext.BaseDirectory, "Assets"));
         Run(
             new TApplication(),

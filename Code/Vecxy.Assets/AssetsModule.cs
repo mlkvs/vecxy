@@ -120,7 +120,13 @@ public sealed class AssetsModule :
         AssetsDirectory = Path.GetFullPath(
             options.AssetsDirectory ??
             Path.Combine(AppContext.BaseDirectory, "Assets"));
+        var assemblyAssetDirectories = Assembly.GetEntryAssembly()?
+            .GetCustomAttributes<AssemblyMetadataAttribute>()
+            .Where(attribute => attribute.Key == "VecxyAdditionalAssetsDirectory")
+            .Select(attribute => attribute.Value)
+            .OfType<string>() ?? [];
         _assetDirectories = (options.AdditionalAssetDirectories ?? [])
+            .Concat(assemblyAssetDirectories)
             .Select(Path.GetFullPath)
             .Where(directory => !string.Equals(
                 directory,
@@ -665,7 +671,13 @@ public sealed class AssetsModule :
     {
         if (_manifest is null || _manifest.Packages.Count == 0) return;
         var directory = FindPackagesDirectory();
-        if (directory is null) return;
+        if (directory is null)
+        {
+            _packages = new AssetPackageManager(AssetsDirectory, _manifest.Packages, _ => false,
+                useLooseAssets: true);
+            AssetPackages.Bind(_packages);
+            return;
+        }
         var packageManifestPath = Path.Combine(directory, "packages.manifest");
         _packages = new AssetPackageManager(directory, _manifest.Packages, package => _loaded.Keys.Any(key =>
             Registry.TryGet(key.Id, out var metadata) && metadata?.Package == package));
@@ -696,7 +708,7 @@ public sealed class AssetsModule :
 
     private byte[]? ReadPackagedAsset(string path)
     {
-        if (_packages is null || !Registry.TryFind(NormalizePath(path), out var id) ||
+        if (_packages is null || _packages.UsesLooseAssets || !Registry.TryFind(NormalizePath(path), out var id) ||
             !Registry.TryGet(id, out var metadata) || metadata is null)
             return null;
         return _packages.ReadAsync(metadata.Package, id).AsTask().GetAwaiter().GetResult().ToArray();

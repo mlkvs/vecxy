@@ -24,15 +24,9 @@
     <ProjectReference Include="$(MSBuildThisFileDirectory)..\Vecxy.Platforms.csproj" />
   </ItemGroup>
 
-  <ItemGroup Condition="'$(VecxyPlatform)' == 'Desktop'">
-    <Content Include="$(MSBuildProjectDirectory)\Assets\**\*">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-      <TargetPath>Assets\%(RecursiveDir)%(Filename)%(Extension)</TargetPath>
-    </Content>
-    <Content Include="$(MSBuildProjectDirectory)\Assets.manifest" Condition="Exists('$(MSBuildProjectDirectory)\Assets.manifest')">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-      <TargetPath>Assets.manifest</TargetPath>
-    </Content>
+  <ItemGroup Condition="'$(VecxyPlatform)' == 'Desktop' and '$(VecxyBuildVPack)' != 'true'">
+    <AssemblyMetadata Include="VecxyAssetsDirectory" Value="$(MSBuildProjectDirectory)/Assets" />
+    <AssemblyMetadata Include="VecxyAdditionalAssetsDirectory" Value="$(MSBuildThisFileDirectory)../../Vecxy.Engine/Assets" />
   </ItemGroup>
 
   <ItemGroup Condition="'$(VecxyPlatform)' == 'Android' and Exists('$(MSBuildProjectDirectory)\Assets.manifest')">
@@ -125,5 +119,19 @@
     AfterTargets="Build"
     Condition="'$(VecxyPlatform)' == 'Desktop' and '$(VecxyBuildVPack)' == 'true' and Exists('$(TargetDir)Assets')">
     <RemoveDir Directories="$(TargetDir)Assets" />
+  </Target>
+
+  <!-- Development reads directly from the project tree. Remove files copied by
+       older builds so bin/Debug cannot accidentally become a second asset root. -->
+  <Target
+    Name="VecxyRemoveCopiedDevelopmentAssets"
+    AfterTargets="Build"
+    Condition="'$(VecxyPlatform)' == 'Desktop' and '$(VecxyBuildVPack)' != 'true'">
+    <RemoveDir Directories="$(TargetDir)Assets" Condition="Exists('$(TargetDir)Assets')" />
+    <Delete Files="$(TargetDir)Assets.manifest;$(TargetDir)packages.manifest;$(TargetDir)packages.json" />
+    <ItemGroup>
+      <_VecxyStalePackage Include="$(TargetDir)*.vpack" />
+    </ItemGroup>
+    <Delete Files="@(_VecxyStalePackage)" />
   </Target>
 </Project>

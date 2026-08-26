@@ -192,6 +192,20 @@ static async Task TestPackages(string parent)
     Assert(!module.GetPackage(cars.Id).IsLoaded, "package reference-counted unload");
     module.Dispose();
 
+    var looseModule = new AssetsModule(new AssetsModule.Options
+    {
+        AssetsDirectory = Path.Combine(root, "Assets"),
+        HotReloadEnabled = false
+    });
+    looseModule.OnInitialize();
+    await using (var lease = await looseModule.LoadPackageAsync(cars.Id))
+    {
+        Assert(lease.Package.IsLoaded, "loose package is available without VPack output");
+        using var loaded = looseModule.Load<TextAsset>(new AssetId(carsAsset.Id));
+        Assert(loaded.Value.Content == "sedan", "packaged asset API reads loose files in development");
+    }
+    looseModule.Dispose();
+
     var runtimeAssets = Path.Combine(root, "RuntimeAssets");
     var packagedModule = new AssetsModule(new AssetsModule.Options
     {
