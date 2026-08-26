@@ -323,45 +323,37 @@ internal sealed class DesktopSplashScreen : IEngineSplashScreen
 
     private unsafe void TryLoadLogo(string logoPath)
     {
-        _logoTexture = TryLoadTexture(logoPath);
+        _logoTexture = TryLoadTexture(logoPath, EngineSplashAssets.OpenLogo);
     }
 
     private void TryLoadFmodLogo(string logoPath)
     {
         var directory = Path.GetDirectoryName(logoPath);
-        if (!string.IsNullOrEmpty(directory))
-            _fmodLogoTexture = TryLoadTexture(Path.Combine(directory, "FmodLogo.png"));
+        var fmodLogoPath = string.IsNullOrEmpty(directory)
+            ? "FmodLogo.png"
+            : Path.Combine(directory, "FmodLogo.png");
+        _fmodLogoTexture = TryLoadTexture(fmodLogoPath, EngineSplashAssets.OpenFmodLogo);
     }
 
-    private unsafe uint TryLoadTexture(string texturePath)
+    private uint TryLoadTexture(string texturePath, Func<Stream?> openFallback)
     {
         try
         {
             using var stream = File.OpenRead(texturePath);
-            var image = ImageResult.FromStream(stream, ColorComponents.RedGreenBlueAlpha);
+            return LoadTexture(stream);
+        }
+        catch (IOException)
+        {
+            // Packaged builds do not expose splash assets as loose files.
+        }
+        catch (InvalidDataException)
+        {
+        }
 
-            var texture = _gl.GenTexture();
-            _gl.BindTexture(TextureTarget.Texture2D, texture);
-            fixed (byte* pixels = image.Data)
-            {
-                _gl.TexImage2D(
-                    TextureTarget.Texture2D,
-                    0,
-                    InternalFormat.Rgba8,
-                    (uint)image.Width,
-                    (uint)image.Height,
-                    0,
-                    PixelFormat.Rgba,
-                    PixelType.UnsignedByte,
-                    pixels);
-            }
-
-            _gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Linear);
-            _gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Linear);
-            _gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)TextureWrapMode.ClampToEdge);
-            _gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)TextureWrapMode.ClampToEdge);
-            _gl.BindTexture(TextureTarget.Texture2D, 0);
-            return texture;
+        try
+        {
+            using var stream = openFallback();
+            return stream is null ? 0 : LoadTexture(stream);
         }
         catch (IOException)
         {
@@ -372,6 +364,34 @@ internal sealed class DesktopSplashScreen : IEngineSplashScreen
         }
 
         return 0;
+    }
+
+    private unsafe uint LoadTexture(Stream stream)
+    {
+        var image = ImageResult.FromStream(stream, ColorComponents.RedGreenBlueAlpha);
+
+        var texture = _gl.GenTexture();
+        _gl.BindTexture(TextureTarget.Texture2D, texture);
+        fixed (byte* pixels = image.Data)
+        {
+            _gl.TexImage2D(
+                TextureTarget.Texture2D,
+                0,
+                InternalFormat.Rgba8,
+                (uint)image.Width,
+                (uint)image.Height,
+                0,
+                PixelFormat.Rgba,
+                PixelType.UnsignedByte,
+                pixels);
+        }
+
+        _gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Linear);
+        _gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Linear);
+        _gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)TextureWrapMode.ClampToEdge);
+        _gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)TextureWrapMode.ClampToEdge);
+        _gl.BindTexture(TextureTarget.Texture2D, 0);
+        return texture;
     }
 
     private unsafe void DrawRectangle(

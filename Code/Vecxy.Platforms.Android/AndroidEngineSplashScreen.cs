@@ -46,35 +46,11 @@ internal sealed class AndroidEngineSplashScreen : global::Android.Views.View, IE
         {
             try
             {
-                Bitmap? logo = null;
-                Bitmap? fmodLogo = null;
-                try
-                {
-                    using var stream = assets.Open(logoPath, Access.Streaming);
-                    logo = BitmapFactory.DecodeStream(stream);
-                }
-                catch (IOException)
-                {
-                    // The progress indicator remains usable without an optional logo.
-                }
-                catch (Java.IO.IOException)
-                {
-                    // Android AssetManager reports missing packaged files using Java.IO.
-                }
-
-                try
-                {
-                    using var stream = assets.Open("Textures/FmodLogo.png", Access.Streaming);
-                    fmodLogo = BitmapFactory.DecodeStream(stream);
-                }
-                catch (IOException)
-                {
-                    // FMOD attribution is displayed when its bundled logo is available.
-                }
-                catch (Java.IO.IOException)
-                {
-                    // FMOD attribution remains optional when a custom engine package omits it.
-                }
+                var logo = DecodeBitmap(assets, logoPath, EngineSplashAssets.OpenLogo);
+                var fmodLogo = DecodeBitmap(
+                    assets,
+                    "Textures/FmodLogo.png",
+                    EngineSplashAssets.OpenFmodLogo);
 
                 var dialog = new Dialog(
                     activity,
@@ -90,8 +66,8 @@ internal sealed class AndroidEngineSplashScreen : global::Android.Views.View, IE
                 dialog.Show();
                 if (dialog.Window is { } window)
                 {
-                    // The view itself is white. A transparent window lets its alpha fade
-                    // reveal the already-rendered SDL frame instead of another white layer.
+                    // A transparent window lets the black splash view fade away and reveal
+                    // the already-rendered SDL frame without flashing another window layer.
                     window.SetBackgroundDrawable(new ColorDrawable(global::Android.Graphics.Color.Transparent));
                     window.ClearFlags(WindowManagerFlags.DimBehind);
                     window.SetFlags(WindowManagerFlags.Fullscreen, WindowManagerFlags.Fullscreen);
@@ -143,6 +119,37 @@ internal sealed class AndroidEngineSplashScreen : global::Android.Views.View, IE
             throw new InvalidOperationException("Unable to create the Android splash screen.", failure);
 
         return splash!;
+    }
+
+    private static Bitmap? DecodeBitmap(
+        AssetManager assets,
+        string assetPath,
+        Func<Stream?> openFallback)
+    {
+        try
+        {
+            using var stream = assets.Open(assetPath, Access.Streaming);
+            return BitmapFactory.DecodeStream(stream);
+        }
+        catch (IOException)
+        {
+            // Release packages can keep engine assets exclusively in a VPack.
+        }
+        catch (Java.IO.IOException)
+        {
+            // Android AssetManager reports missing packaged files using Java.IO.
+        }
+
+        try
+        {
+            using var stream = openFallback();
+            return stream is null ? null : BitmapFactory.DecodeStream(stream);
+        }
+        catch (IOException)
+        {
+            // The progress indicator remains usable without optional branding.
+            return null;
+        }
     }
 
     public void ReportProgress(float progress)

@@ -22,6 +22,8 @@
             <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
             <TargetPath>Assets\%(RecursiveDir)%(Filename)%(Extension)</TargetPath>
         </Content>
+        <EmbeddedResource Include="Assets\Textures\Logo.png" LogicalName="Vecxy.Engine.Splash.Logo.png" />
+        <EmbeddedResource Include="Assets\Textures\FmodLogo.png" LogicalName="Vecxy.Engine.Splash.FmodLogo.png" />
     </ItemGroup>
 
     <!-- Android SDK treats a project's Assets directory as AndroidAsset by
