@@ -6,22 +6,22 @@ namespace Vecxy.Platforms;
 
 public static class ApplicationResolver
 {
-    public static IEntryPoint Create()
+    public static IVEntry Create()
     {
         var candidates = GetLoadableTypes()
             .Where(type => type is { IsAbstract: false, IsInterface: false, IsPublic: true } &&
-                           type.IsDefined(typeof(VecxyApplicationAttribute), false) &&
-                           typeof(IEntryPoint).IsAssignableFrom(type) &&
+                           type.IsDefined(typeof(Kernel.VecxyAttribute), false) &&
+                           typeof(IVEntry).IsAssignableFrom(type) &&
                            type.GetConstructor(Type.EmptyTypes) is not null)
             .ToArray();
 
         return candidates.Length switch
         {
-            1 => (IEntryPoint)Activator.CreateInstance(candidates[0])!,
+            1 => (IVEntry)Activator.CreateInstance(candidates[0])!,
             0 => throw new InvalidOperationException(
-                $"No public {nameof(IEntryPoint)} marked with [{nameof(VecxyApplicationAttribute)}] was found."),
+                $"No public {nameof(IVEntry)} marked with [{nameof(Kernel.VecxyAttribute)}] was found."),
             _ => throw new InvalidOperationException(
-                $"Multiple classes marked with [{nameof(VecxyApplicationAttribute)}] were found: " +
+                $"Multiple classes marked with [{nameof(Kernel.VecxyAttribute)}] were found: " +
                 string.Join(", ", candidates.Select(type => type.FullName)))
         };
     }
@@ -53,7 +53,7 @@ internal static class ApplicationLayerResolver
         var candidates = ApplicationResolver.GetLoadableTypes()
             .Where(type => typeof(AAppLayer.IDefinition).IsAssignableFrom(type) &&
                            type is { IsAbstract: false, IsInterface: false } &&
-                           type.GetCustomAttribute<AppLayerDefinitionAttribute>()?.Id.Equals(
+                           type.GetCustomAttribute<AppLayerDefAttribute>()?.Id.Equals(
                                id, StringComparison.OrdinalIgnoreCase) == true)
             .ToArray();
 
@@ -64,7 +64,7 @@ internal static class ApplicationLayerResolver
             1 => throw new InvalidOperationException(
                 $"Layer definition '{candidates[0].FullName}' must have a parameterless constructor."),
             0 => throw new InvalidDataException(
-                $"Unknown application layer '{id}'. Add [{nameof(AppLayerDefinitionAttribute)}(\"{id}\")] to its definition."),
+                $"Unknown application layer '{id}'. Add [{nameof(AppLayerDefAttribute)}(\"{id}\")] to its definition."),
             _ => throw new InvalidDataException(
                 $"Multiple application layers use id '{id}': " +
                 string.Join(", ", candidates.Select(type => type.FullName)))

@@ -6,7 +6,7 @@ namespace Vecxy.Platforms;
 public static class PlatformRunner
 {
     public static void Run(
-        IEntryPoint application,
+        IVEntry application,
         PlatformContext context,
         Engine.Engine.Options? options = null,
         IEngineSplashScreen? splashScreen = null)
@@ -32,7 +32,7 @@ public static class PlatformRunner
     }
 
     public static void RunDesktop<TApplication>()
-        where TApplication : IEntryPoint, new()
+        where TApplication : IVEntry, new()
     {
         var assetsDirectory = Assembly.GetEntryAssembly()?
             .GetCustomAttributes<AssemblyMetadataAttribute>()

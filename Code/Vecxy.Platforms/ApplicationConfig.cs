@@ -82,7 +82,7 @@ internal static class ApplicationConfigLoader
     }
 }
 
-public abstract class ConfiguredApplication : IEntryPoint
+public abstract class AApp : IVEntry
 {
     private ApplicationConfig? _config;
 
@@ -119,10 +119,10 @@ public abstract class ConfiguredApplication : IEntryPoint
     {
         if (_config is not null)
             return _config;
-        var attribute = GetType().GetCustomAttributes(typeof(VecxyApplicationAttribute), false)
-            .Cast<VecxyApplicationAttribute>()
+        var attribute = GetType().GetCustomAttributes(typeof(Kernel.VecxyAttribute), false)
+            .Cast<Kernel.VecxyAttribute>()
             .SingleOrDefault() ?? throw new InvalidOperationException(
-                $"{GetType().FullName} must be marked with [{nameof(VecxyApplicationAttribute)}].");
+                $"{GetType().FullName} must be marked with [{nameof(Kernel.VecxyAttribute)}].");
         return _config = ApplicationConfigLoader.Load(context, attribute.ConfigPath);
     }
 }

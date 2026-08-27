@@ -2,7 +2,7 @@ using Vecxy.Engine;
 
 namespace Vecxy.Platforms;
 
-public interface IEntryPoint
+public interface IVEntry
 {
     void OnConfigureEngine(PlatformContext context, Engine.Engine.Options options);
 
