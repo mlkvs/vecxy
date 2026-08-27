@@ -8,6 +8,7 @@ using Vecxy.Messaging;
 using Vecxy.Physics;
 using Vecxy.Rendering;
 using Vecxy.Scene;
+using Vecxy.Scripting;
 using Vecxy.UI;
 
 namespace Vecxy.Engine;
@@ -31,6 +32,7 @@ public sealed class EngineLayer(
             Children =
             [
                 new AssetsModule.Definition(assets),
+                new ScriptingModule.Definition(),
                 new RenderingModule.Definition(),
                 new InputModule.Definition(),
                 new ScenesModule.Definition(),

@@ -22,6 +22,7 @@ public static partial class AssetPipeline
         [".frag"] = ("Text", "Shaders"), [".input"] = ("Input", "Inputs"),
         [".txt"] = ("Text", "Texts"), [".postfx"] = ("Text", "PostProcessing"),
         [".xml"] = ("Asset", "UI"), [".css"] = ("Asset", "UI"),
+        [".luau"] = ("Script", "Scripts"),
         [".atlas"] = ("Asset", "Atlases"), [".ttf"] = ("Asset", "Fonts"),
         [".otf"] = ("Asset", "Fonts")
     };
@@ -229,12 +230,54 @@ public static partial class AssetPipeline
             var sourceDirectory = IsEngine(owner) ? engineAssetsDirectory : assetsDirectory;
             if (sourceDirectory is null) continue;
             var fullPath = Path.Combine(sourceDirectory, owner.Path.Replace('/', Path.DirectorySeparatorChar));
-            if (!File.Exists(fullPath) || Path.GetExtension(fullPath).ToLowerInvariant() is not (".material" or ".atlas" or ".xml" or ".css")) continue;
+            if (!File.Exists(fullPath)) continue;
+            var extension = Path.GetExtension(fullPath).ToLowerInvariant();
+            if (extension == ".luau")
+            {
+                var luauSource = File.ReadAllText(fullPath);
+                foreach (Match match in LuauRequirePattern().Matches(luauSource))
+                {
+                    var dependencyPath = ResolveLuauDependency(owner.Path, match.Groups["path"].Value);
+                    var dependency = entries.FirstOrDefault(candidate =>
+                        candidate.Id != owner.Id &&
+                        string.Equals(candidate.Source, owner.Source, StringComparison.OrdinalIgnoreCase) &&
+                        string.Equals(candidate.Path, dependencyPath, StringComparison.OrdinalIgnoreCase));
+                    if (dependency is not null && !owner.Dependencies.Contains(dependency.Id))
+                        owner.Dependencies.Add(dependency.Id);
+                }
+                continue;
+            }
+            if (extension is not (".material" or ".atlas" or ".xml" or ".css")) continue;
             var source = File.ReadAllText(fullPath);
             foreach (var dependency in entries)
                 if (dependency.Id != owner.Id && source.Contains(dependency.Path, StringComparison.OrdinalIgnoreCase)) owner.Dependencies.Add(dependency.Id);
         }
     }
+    private static string ResolveLuauDependency(string ownerPath, string request)
+    {
+        var combined = request.StartsWith(".", StringComparison.Ordinal)
+            ? Path.Combine(Path.GetDirectoryName(ownerPath) ?? string.Empty, request)
+            : request;
+        var segments = Normalize(combined).Split('/', StringSplitOptions.RemoveEmptyEntries);
+        var result = new List<string>(segments.Length);
+        foreach (var segment in segments)
+        {
+            if (segment == ".") continue;
+            if (segment == "..")
+            {
+                if (result.Count == 0) return "../";
+                result.RemoveAt(result.Count - 1);
+            }
+            else result.Add(segment);
+        }
+        var path = string.Join('/', result);
+        return Path.GetExtension(path).Length == 0 ? path + ".luau" : path;
+    }
+
+    [GeneratedRegex(
+        "\\brequire\\s*\\(\\s*[\"'](?<path>[^\"']+)[\"']\\s*\\)",
+        RegexOptions.CultureInvariant)]
+    private static partial Regex LuauRequirePattern();
     private static string SourceKey(string source, string path) => $"{source}:{Normalize(path)}";
     private static bool IsEngine(AssetManifestEntry entry) => string.Equals(entry.Source, "Engine", StringComparison.OrdinalIgnoreCase);
     internal static string? FindEngineAssetsDirectory(string projectDirectory)
