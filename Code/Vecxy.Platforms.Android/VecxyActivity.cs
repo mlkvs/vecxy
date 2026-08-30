@@ -44,7 +44,7 @@ public sealed class VecxyActivity : SilkActivity
             var context = new PlatformContext(
                 PlatformKind.Android,
                 Path.Combine(filesDirectory, "Assets"),
-                relativePath => assetManager.Open($"Assets/{relativePath}"));
+                relativePath => assetManager.Open(relativePath));
 
             phase = "resolving the game application";
             var application = ApplicationResolver.Create();
