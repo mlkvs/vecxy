@@ -11,6 +11,8 @@
       <ProjectReference Include="..\Vecxy.Input\Vecxy.Input.csproj" />
       <ProjectReference Include="..\Vecxy.Kernel\Vecxy.Kernel.csproj" />
       <ProjectReference Include="..\Vecxy.Messaging\Vecxy.Messaging.csproj" />
+      <ProjectReference Include="..\Vecxy.Networking\Vecxy.Networking.csproj" />
+      <ProjectReference Include="..\Vecxy.Pathfinding\Vecxy.Pathfinding.csproj" />
       <ProjectReference Include="..\Vecxy.Physics\Vecxy.Physics.csproj" />
       <ProjectReference Include="..\Vecxy.Rendering\Vecxy.Rendering.csproj" />
       <ProjectReference Include="..\Vecxy.Scene\Vecxy.Scene.csproj" />

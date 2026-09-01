@@ -10,7 +10,7 @@ public static class ApplicationResolver
     {
         var candidates = GetLoadableTypes()
             .Where(type => type is { IsAbstract: false, IsInterface: false, IsPublic: true } &&
-                           type.IsDefined(typeof(Kernel.VecxyAttribute), false) &&
+                           type.IsDefined(typeof(Kernel.AppAttribute), false) &&
                            typeof(IVEntry).IsAssignableFrom(type) &&
                            type.GetConstructor(Type.EmptyTypes) is not null)
             .ToArray();
@@ -19,9 +19,9 @@ public static class ApplicationResolver
         {
             1 => (IVEntry)Activator.CreateInstance(candidates[0])!,
             0 => throw new InvalidOperationException(
-                $"No public {nameof(IVEntry)} marked with [{nameof(Kernel.VecxyAttribute)}] was found."),
+                $"No public {nameof(IVEntry)} marked with [{nameof(Kernel.AppAttribute)}] was found."),
             _ => throw new InvalidOperationException(
-                $"Multiple classes marked with [{nameof(Kernel.VecxyAttribute)}] were found: " +
+                $"Multiple classes marked with [{nameof(Kernel.AppAttribute)}] were found: " +
                 string.Join(", ", candidates.Select(type => type.FullName)))
         };
     }
@@ -50,24 +50,40 @@ internal static class ApplicationLayerResolver
 {
     public static AAppLayer.IDefinition Create(string id)
     {
-        var candidates = ApplicationResolver.GetLoadableTypes()
-            .Where(type => typeof(AAppLayer.IDefinition).IsAssignableFrom(type) &&
+        var loadableTypes = ApplicationResolver.GetLoadableTypes().ToArray();
+        var layers = loadableTypes
+            .Where(type => typeof(AAppLayer).IsAssignableFrom(type) &&
                            type is { IsAbstract: false, IsInterface: false } &&
-                           type.GetCustomAttribute<AppLayerDefAttribute>()?.Id.Equals(
+                           type.GetCustomAttribute<LayerAttribute>()?.Id.Equals(
                                id, StringComparison.OrdinalIgnoreCase) == true)
             .ToArray();
 
-        return candidates.Length switch
+        var layer = layers.Length switch
         {
-            1 when candidates[0].GetConstructor(Type.EmptyTypes) is not null =>
-                (AAppLayer.IDefinition)Activator.CreateInstance(candidates[0])!,
-            1 => throw new InvalidOperationException(
-                $"Layer definition '{candidates[0].FullName}' must have a parameterless constructor."),
+            1 => layers[0],
             0 => throw new InvalidDataException(
-                $"Unknown application layer '{id}'. Add [{nameof(AppLayerDefAttribute)}(\"{id}\")] to its definition."),
+                $"Unknown application layer '{id}'. Add [{nameof(LayerAttribute)}(\"{id}\")] to its layer class."),
             _ => throw new InvalidDataException(
                 $"Multiple application layers use id '{id}': " +
-                string.Join(", ", candidates.Select(type => type.FullName)))
+                string.Join(", ", layers.Select(type => type.FullName)))
+        };
+
+        var definitions = loadableTypes
+            .Where(type => typeof(AAppLayer.IDefinition).IsAssignableFrom(type) &&
+                           type is { IsAbstract: false, IsInterface: false } &&
+                           type.GetConstructor(Type.EmptyTypes) is not null)
+            .Select(type => (Type: type, Value: (AAppLayer.IDefinition)Activator.CreateInstance(type)!))
+            .Where(candidate => candidate.Value.LayerType == layer)
+            .ToArray();
+
+        return definitions.Length switch
+        {
+            1 => definitions[0].Value,
+            0 => throw new InvalidOperationException(
+                $"Application layer '{layer.FullName}' must have one definition with a parameterless constructor."),
+            _ => throw new InvalidOperationException(
+                $"Application layer '{layer.FullName}' has multiple definitions: " +
+                string.Join(", ", definitions.Select(candidate => candidate.Type.FullName)))
         };
     }
 }

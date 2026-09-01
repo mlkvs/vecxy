@@ -141,17 +141,21 @@ public static partial class AssetPipeline
 
     private static void AppendCategories(StringBuilder builder, IEnumerable<AssetManifestEntry> assets, string indent, string? trimRoot = null)
     {
-        foreach (var category in assets.GroupBy(x => Category(x, trimRoot)).OrderBy(x => x.Key, StringComparer.Ordinal))
+        AppendAssetNodes(builder, BuildAssetTree(assets, trimRoot), indent);
+    }
+
+    private static void AppendAssetNodes(StringBuilder builder, AssetSymbolNode node, string indent)
+    {
+        foreach (var child in node.Children.OrderBy(x => x.Key, StringComparer.Ordinal))
         {
-            builder.Append(indent).Append("public static class ").Append(category.Key).Append('\n')
+            builder.Append(indent).Append("public static class ").Append(child.Key).Append('\n')
                 .Append(indent).Append("{\n");
-            var used = new HashSet<string>(StringComparer.Ordinal);
-            foreach (var asset in category.OrderBy(x => x.Path, StringComparer.Ordinal))
+            AppendAssetNodes(builder, child.Value, indent + "    ");
+            foreach (var asset in child.Value.Assets.OrderBy(x => x.Name, StringComparer.Ordinal))
             {
-                var name = UniqueIdentifier(asset.Name ?? Path.GetFileNameWithoutExtension(asset.Path), used);
-                builder.Append(indent).Append("    [AssetReference(\"").Append(asset.Id.ToString("D"))
-                    .Append("\")]\n").Append(indent).Append("    public static ").Append(Handle(asset.Type)).Append(' ').Append(name)
-                    .Append(" => new(new Guid(\"").Append(asset.Id.ToString("D")).Append("\"));\n");
+                builder.Append(indent).Append("    [AssetReference(\"").Append(asset.Entry.Id.ToString("D"))
+                    .Append("\")]\n").Append(indent).Append("    public static ").Append(Handle(asset.Entry.Type)).Append(' ').Append(asset.Name)
+                    .Append(" => new(new Guid(\"").Append(asset.Entry.Id.ToString("D")).Append("\"));\n");
             }
             builder.Append(indent).Append("}\n\n");
         }
@@ -188,9 +192,7 @@ public static partial class AssetPipeline
             for (var lineIndex = 0; lineIndex < lines.Length; lineIndex++)
             foreach (Match match in AssetUseRegex().Matches(lines[lineIndex]))
             {
-                var symbol = match.Groups[3].Success
-                    ? $"{match.Groups[1].Value}.{match.Groups[2].Value}.{match.Groups[3].Value}"
-                    : $"{match.Groups[1].Value}.{match.Groups[2].Value}";
+                var symbol = match.Value["Assets.".Length..];
                 if (!symbols.TryGetValue(symbol, out var id)) continue;
                 if (!references.TryGetValue(id, out var locations)) references[id] = locations = [];
                 locations.Add(new AssetReferenceLocation { File = Normalize(Path.GetRelativePath(root, file)), Line = lineIndex + 1 });
@@ -284,14 +286,30 @@ public static partial class AssetPipeline
     {
         var project = Directory.EnumerateFiles(projectDirectory, "*.csproj", SearchOption.TopDirectoryOnly).SingleOrDefault();
         if (project is null) return null;
+        return FindEngineAssetsDirectory(project, new HashSet<string>(StringComparer.OrdinalIgnoreCase));
+    }
+
+    private static string? FindEngineAssetsDirectory(string project, ISet<string> visited)
+    {
+        project = Path.GetFullPath(project);
+        if (!visited.Add(project)) return null;
+        if (Path.GetFileName(project).Equals("Vecxy.Engine.csproj", StringComparison.OrdinalIgnoreCase))
+        {
+            var assets = Path.Combine(Path.GetDirectoryName(project)!, "Assets");
+            if (Directory.Exists(assets)) return assets;
+        }
+
         var document = XDocument.Load(project);
         foreach (var reference in document.Descendants().Where(x => x.Name.LocalName == "ProjectReference"))
         {
             var include = reference.Attribute("Include")?.Value;
-            if (string.IsNullOrWhiteSpace(include) || !include.EndsWith("Vecxy.Engine.csproj", StringComparison.OrdinalIgnoreCase)) continue;
-            var engineProject = Path.GetFullPath(include.Replace('\\', Path.DirectorySeparatorChar), projectDirectory);
-            var assets = Path.Combine(Path.GetDirectoryName(engineProject)!, "Assets");
-            if (Directory.Exists(assets)) return assets;
+            if (string.IsNullOrWhiteSpace(include)) continue;
+            var referencedProject = Path.GetFullPath(
+                include.Replace('\\', Path.DirectorySeparatorChar),
+                Path.GetDirectoryName(project)!);
+            if (!File.Exists(referencedProject)) continue;
+            var assets = FindEngineAssetsDirectory(referencedProject, visited);
+            if (assets is not null) return assets;
         }
         return null;
     }
@@ -317,26 +335,54 @@ public static partial class AssetPipeline
     {
         var result = new Dictionary<string, Guid>(StringComparer.Ordinal);
         foreach (var package in manifest.Packages.Where(x => x.Id != PackageId.Game))
-        foreach (var group in manifest.Assets.Where(x => !IsEngine(x) && x.Package == package.Id).GroupBy(x => Category(x, PackageRoot(package))))
-        {
-            var used = new HashSet<string>(StringComparer.Ordinal);
-            foreach (var asset in group.OrderBy(x => x.Path, StringComparer.Ordinal))
-                result[$"{package.Name}.{group.Key}.{UniqueIdentifier(asset.Name ?? Path.GetFileNameWithoutExtension(asset.Path), used)}"] = asset.Id;
-        }
-        foreach (var source in manifest.Assets.Where(x => IsEngine(x) || x.Package == PackageId.Game).GroupBy(IsEngine))
-        {
-            foreach (var group in source.GroupBy(x => Category(x)))
-            {
-                var used = new HashSet<string>(StringComparer.Ordinal);
-                foreach (var asset in group.OrderBy(x => x.Path, StringComparer.Ordinal))
-                {
-                    var prefix = source.Key ? "Engine." : string.Empty;
-                    result[$"{prefix}{group.Key}.{UniqueIdentifier(asset.Name ?? Path.GetFileNameWithoutExtension(asset.Path), used)}"] = asset.Id;
-                }
-            }
-        }
+            AddSymbols(result,
+                BuildAssetTree(manifest.Assets.Where(x => !IsEngine(x) && x.Package == package.Id), PackageRoot(package)),
+                UniqueIdentifier(package.Name, new HashSet<string>()));
+        AddSymbols(result, BuildAssetTree(manifest.Assets.Where(x => !IsEngine(x) && x.Package == PackageId.Game)), string.Empty);
+        AddSymbols(result, BuildAssetTree(manifest.Assets.Where(IsEngine)), "Engine");
         return result;
     }
+
+    private static AssetSymbolNode BuildAssetTree(IEnumerable<AssetManifestEntry> assets, string? trimRoot = null)
+    {
+        var root = new AssetSymbolNode();
+        foreach (var asset in assets.OrderBy(x => x.Path, StringComparer.Ordinal))
+        {
+            var path = asset.Path;
+            if (!string.IsNullOrEmpty(trimRoot) && path.StartsWith(trimRoot + "/", StringComparison.OrdinalIgnoreCase))
+                path = path[(trimRoot.Length + 1)..];
+            var segments = Normalize(path).Split('/', StringSplitOptions.RemoveEmptyEntries);
+            var directories = segments.Length > 1 ? segments[..^1] : [Classify(path).Category];
+            var node = root;
+            foreach (var directory in directories)
+            {
+                var name = UniqueIdentifier(directory, new HashSet<string>());
+                if (!node.Children.TryGetValue(name, out var child))
+                    node.Children.Add(name, child = new AssetSymbolNode());
+                node = child;
+            }
+            var used = node.Children.Keys.Concat(node.Assets.Select(x => x.Name)).ToHashSet(StringComparer.Ordinal);
+            var assetName = UniqueIdentifier(asset.Name ?? Path.GetFileNameWithoutExtension(path), used);
+            node.Assets.Add(new AssetSymbol(assetName, asset));
+        }
+        return root;
+    }
+
+    private static void AddSymbols(Dictionary<string, Guid> result, AssetSymbolNode node, string prefix)
+    {
+        foreach (var asset in node.Assets)
+            result[string.IsNullOrEmpty(prefix) ? asset.Name : $"{prefix}.{asset.Name}"] = asset.Entry.Id;
+        foreach (var child in node.Children)
+            AddSymbols(result, child.Value, string.IsNullOrEmpty(prefix) ? child.Key : $"{prefix}.{child.Key}");
+    }
+
+    private sealed class AssetSymbolNode
+    {
+        public Dictionary<string, AssetSymbolNode> Children { get; } = new(StringComparer.Ordinal);
+        public List<AssetSymbol> Assets { get; } = [];
+    }
+
+    private sealed record AssetSymbol(string Name, AssetManifestEntry Entry);
     private static string UniqueIdentifier(string value, HashSet<string> used)
     {
         var words = Regex.Split(value, "[^A-Za-z0-9]+").Where(x => x.Length > 0);
@@ -396,7 +442,7 @@ public static partial class AssetPipeline
     }
 
     private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase, WriteIndented = true };
-    [GeneratedRegex(@"\bAssets\.([A-Za-z_][A-Za-z0-9_]*)\.([A-Za-z_][A-Za-z0-9_]*)(?:\.([A-Za-z_][A-Za-z0-9_]*))?\b")]
+    [GeneratedRegex(@"\bAssets(?:\.[A-Za-z_][A-Za-z0-9_]*){2,}\b")]
     private static partial Regex AssetUseRegex();
 }
 

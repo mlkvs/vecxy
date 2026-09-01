@@ -5,6 +5,8 @@ using Vecxy.Input;
 using Vecxy.Interaction;
 using Vecxy.Kernel;
 using Vecxy.Messaging;
+using Vecxy.Networking;
+using Vecxy.Pathfinding;
 using Vecxy.Physics;
 using Vecxy.Rendering;
 using Vecxy.Scene;
@@ -14,13 +16,13 @@ using Vecxy.UI;
 namespace Vecxy.Engine;
 
 [UsedImplicitly]
+[Layer("engine")]
 public sealed class EngineLayer(
     IEnumerable<IModule> modules,
     IAssetsManager assets,
     IInputManager input,
     IWindow window) : AAppLayer
 {
-    [AppLayerDef("engine")]
     public sealed class Definition : ADefinition<EngineLayer>
     {
         public override IReadOnlyList<Vecxy.Kernel.IDefinition> Children { get; }
@@ -36,6 +38,8 @@ public sealed class EngineLayer(
                 new RenderingModule.Definition(),
                 new InputModule.Definition(),
                 new ScenesModule.Definition(),
+                new NetworkingModule.Definition(),
+                new PathfindingModule.Definition(),
                 new PhysicsModule.Definition(physics),
                 new UiModule.Definition(),
                 new PointerInteractionModule.Definition(),

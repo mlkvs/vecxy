@@ -39,20 +39,22 @@ public static class PlatformRunner
             .FirstOrDefault(attribute => attribute.Key == "VecxyAssetsDirectory")?.Value;
         assetsDirectory = Path.GetFullPath(assetsDirectory ??
             Path.Combine(AppContext.BaseDirectory, "Assets"));
+        var openBootstrapAsset = DesktopBootstrapAssets.CreateReader(AppContext.BaseDirectory);
         Run(
             new TApplication(),
-            new PlatformContext(PlatformKind.Desktop, assetsDirectory));
+            new PlatformContext(PlatformKind.Desktop, assetsDirectory, openBootstrapAsset));
     }
 
-    public static void RunDesktopApplication()
+    public static void RunDesktopApplication(string[]? args = null)
     {
         var assetsDirectory = Assembly.GetEntryAssembly()?
             .GetCustomAttributes<AssemblyMetadataAttribute>()
             .FirstOrDefault(attribute => attribute.Key == "VecxyAssetsDirectory")?.Value;
         assetsDirectory = Path.GetFullPath(assetsDirectory ??
             Path.Combine(AppContext.BaseDirectory, "Assets"));
+        var openBootstrapAsset = DesktopBootstrapAssets.CreateReader(AppContext.BaseDirectory);
         Run(
             ApplicationResolver.Create(),
-            new PlatformContext(PlatformKind.Desktop, assetsDirectory));
+            new PlatformContext(PlatformKind.Desktop, assetsDirectory, openBootstrapAsset));
     }
 }

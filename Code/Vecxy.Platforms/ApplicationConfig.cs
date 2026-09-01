@@ -119,10 +119,10 @@ public abstract class AApp : IVEntry
     {
         if (_config is not null)
             return _config;
-        var attribute = GetType().GetCustomAttributes(typeof(Kernel.VecxyAttribute), false)
-            .Cast<Kernel.VecxyAttribute>()
+        var attribute = GetType().GetCustomAttributes(typeof(Kernel.AppAttribute), false)
+            .Cast<Kernel.AppAttribute>()
             .SingleOrDefault() ?? throw new InvalidOperationException(
-                $"{GetType().FullName} must be marked with [{nameof(Kernel.VecxyAttribute)}].");
+                $"{GetType().FullName} must be marked with [{nameof(Kernel.AppAttribute)}].");
         return _config = ApplicationConfigLoader.Load(context, attribute.ConfigPath);
     }
 }

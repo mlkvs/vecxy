@@ -20,6 +20,19 @@ try
     Assert(generated.Contains("public static TextureHandle Player", StringComparison.Ordinal), "generated property");
     Assert(generated.Contains(id.ToString("D"), StringComparison.Ordinal), "generated stable ID");
 
+    var nestedUi = new AssetManifest
+    {
+        Assets =
+        [
+            new AssetManifestEntry { Id = Guid.NewGuid(), Path = "UI/Grid.xml", Type = "Asset", Name = "Grid" },
+            new AssetManifestEntry { Id = Guid.NewGuid(), Path = "UI/Styles/Grid.css", Type = "Asset", Name = "Grid" }
+        ]
+    };
+    var nestedSource = AssetPipeline.GenerateSource(nestedUi);
+    Assert(nestedSource.Contains("public static class Styles", StringComparison.Ordinal) &&
+           nestedSource.Contains("public static AssetHandle Grid", StringComparison.Ordinal) &&
+           !nestedSource.Contains(" Grid2", StringComparison.Ordinal), "nested asset directories generate nested classes");
+
     var renamed = Path.Combine(root, "Assets", "Textures", "hero.png");
     File.Move(original, renamed);
     var second = AssetPipeline.Scan(root);

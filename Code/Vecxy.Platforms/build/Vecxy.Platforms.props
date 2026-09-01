@@ -8,6 +8,9 @@
     <Nullable>enable</Nullable>
     <VecxyBuildVPack Condition="'$(VecxyBuildVPack)' == '' and '$(Configuration)' == 'Release'">true</VecxyBuildVPack>
     <VecxyBuildVPack Condition="'$(VecxyBuildVPack)' == ''">false</VecxyBuildVPack>
+    <VecxyTarget Condition="'$(VecxyTarget)' == ''">Universal</VecxyTarget>
+    <DefineConstants Condition="'$(VecxyTarget)' == 'Client'">$(DefineConstants);VECXY_CLIENT</DefineConstants>
+    <DefineConstants Condition="'$(VecxyTarget)' == 'Server'">$(DefineConstants);VECXY_SERVER</DefineConstants>
     <_VecxyVPackPlatform Condition="'$(VecxyPlatform)' == 'Android'">android</_VecxyVPackPlatform>
     <_VecxyVPackOutputPlatform Condition="'$(VecxyPlatform)' == 'Android'">Android</_VecxyVPackOutputPlatform>
     <_VecxyVPackPlatform Condition="'$(VecxyPlatform)' == 'Desktop' and $([MSBuild]::IsOSPlatform('Windows'))">windows</_VecxyVPackPlatform>
@@ -22,6 +25,9 @@
 
   <ItemGroup>
     <ProjectReference Include="$(MSBuildThisFileDirectory)..\Vecxy.Platforms.csproj" />
+    <ProjectReference Include="$(MSBuildThisFileDirectory)..\..\Vecxy.Networking.Generator\Vecxy.Networking.Generator.csproj"
+                      OutputItemType="Analyzer"
+                      ReferenceOutputAssembly="false" />
   </ItemGroup>
 
   <ItemGroup Condition="'$(VecxyPlatform)' == 'Desktop' and '$(VecxyGenerateEntryPoint)' == 'true'">
@@ -61,6 +67,7 @@
   <PropertyGroup>
     <VecxyCliProject>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\..\..\tools\Vecxy.Cli\Vecxy.Cli.csproj'))</VecxyCliProject>
     <VecxyCliArtifactsPath>$(MSBuildProjectDirectory)\obj\vecxy-cli-artifacts</VecxyCliArtifactsPath>
+    <VecxyNetworkingWeaverProject>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\..\Vecxy.Networking.Weaver\Vecxy.Networking.Weaver.csproj'))</VecxyNetworkingWeaverProject>
   </PropertyGroup>
   <ItemGroup Condition="'$(VecxyBuildVPack)' == 'true'">
     <_VecxyVPackInput Include="$(MSBuildProjectDirectory)\Assets\**\*;$(MSBuildProjectDirectory)\Assets.manifest;$(MSBuildThisFileDirectory)..\..\Vecxy.Engine\Assets\**\*;$(MSBuildThisFileDirectory)..\..\..\tools\Vecxy.AssetPipeline\**\*.cs" />
@@ -104,6 +111,9 @@
     <ItemGroup Condition="'$(VecxyPlatform)' == 'Desktop'">
       <Content Remove="$(MSBuildProjectDirectory)\Assets\**\*" />
       <Content Remove="$(VecxyPackagesDirectory)\**\*" />
+      <Content Include="$(MSBuildProjectDirectory)\Assets.manifest"
+               CopyToOutputDirectory="PreserveNewest"
+               TargetPath="Assets.manifest" />
       <_VecxyBuiltPackage Include="$(VecxyPackagesDirectory)\**\*" Exclude="$(VecxyPackagesDirectory)\Remote\**\*" />
       <Content
         Include="@(_VecxyBuiltPackage)"
@@ -142,5 +152,12 @@
       <_VecxyStalePackage Include="$(TargetDir)*.vpack" />
     </ItemGroup>
     <Delete Files="@(_VecxyStalePackage)" />
+  </Target>
+
+  <Target Name="VecxyWeaveNetworking"
+          AfterTargets="Build"
+          Condition="'$(DesignTimeBuild)' != 'true' and '$(VecxySkipNetworkingWeaver)' != 'true' and Exists('$(VecxyNetworkingWeaverProject)') and Exists('$(TargetPath)')">
+    <Message Text="Vecxy: weaving networking RPC and replicated state for $(MSBuildProjectName)" Importance="high" />
+    <Exec Command="dotnet run --project &quot;$(VecxyNetworkingWeaverProject)&quot; -c $(Configuration) -- &quot;$(TargetPath)&quot; &quot;$(VecxyTarget)&quot; &quot;$(TargetDir)rpc-manifest.json&quot;" />
   </Target>
 </Project>

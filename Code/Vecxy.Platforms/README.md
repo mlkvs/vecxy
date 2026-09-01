@@ -58,12 +58,13 @@ assets are extracted. This allows splash-screen settings to take effect during
 Android startup.
 
 The built-in `engine` layer is always available. Register game layers with a
-stable id on their parameterless definition:
+stable id on the layer class and keep a parameterless definition for creating it:
 
 ```csharp
-[AppLayerDefinition("game")]
-public sealed class Definition : ADefinition<GameLayer>
+[AppLayerDef("game")]
+public sealed class GameLayer : AAppLayer
 {
+    public sealed class Definition : ADefinition<GameLayer>;
 }
 ```
 
