@@ -284,9 +284,37 @@ public static partial class AssetPipeline
     private static bool IsEngine(AssetManifestEntry entry) => string.Equals(entry.Source, "Engine", StringComparison.OrdinalIgnoreCase);
     internal static string? FindEngineAssetsDirectory(string projectDirectory)
     {
+        var configured = FindConfiguredEngineAssetsDirectory(projectDirectory);
+        if (configured is not null) return configured;
         var project = Directory.EnumerateFiles(projectDirectory, "*.csproj", SearchOption.TopDirectoryOnly).SingleOrDefault();
         if (project is null) return null;
         return FindEngineAssetsDirectory(project, new HashSet<string>(StringComparer.OrdinalIgnoreCase));
+    }
+
+    private static string? FindConfiguredEngineAssetsDirectory(string projectDirectory)
+    {
+        var engineRoot = Environment.GetEnvironmentVariable("VECXY_ENGINE_PATH");
+        var props = Path.Combine(projectDirectory, ".vecxy", "Engine.props");
+        if (string.IsNullOrWhiteSpace(engineRoot) && File.Exists(props))
+        {
+            var document = XDocument.Load(props);
+            engineRoot = document.Descendants().FirstOrDefault(x =>
+                x.Name.LocalName.Equals("VecxyEnginePath", StringComparison.OrdinalIgnoreCase))?.Value;
+            if (!string.IsNullOrWhiteSpace(engineRoot) && !Path.IsPathFullyQualified(engineRoot))
+                engineRoot = Path.GetFullPath(engineRoot, projectDirectory);
+        }
+
+        if (string.IsNullOrWhiteSpace(engineRoot) || engineRoot.Contains("$(", StringComparison.Ordinal)) return null;
+        engineRoot = Environment.ExpandEnvironmentVariables(engineRoot);
+        foreach (var candidate in new[]
+                 {
+                     Path.Combine(engineRoot, "Code", "Vecxy.Engine", "Assets"),
+                     Path.Combine(engineRoot, "Vecxy.Engine", "Assets"),
+                     Path.Combine(engineRoot, "Assets")
+                 })
+            if (Directory.Exists(candidate) && File.Exists(Path.Combine(candidate, "engine.vpack")))
+                return Path.GetFullPath(candidate);
+        return null;
     }
 
     private static string? FindEngineAssetsDirectory(string project, ISet<string> visited)

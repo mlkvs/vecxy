@@ -72,6 +72,17 @@ try
     Assert(engineAsset.Package == enginePackage.Id, "engine asset assigned to Engine package");
     Assert(AssetPipeline.GenerateSource(withEngine).Contains("class Engine", StringComparison.Ordinal), "engine generated namespace");
 
+    Directory.CreateDirectory(Path.Combine(root, ".vecxy"));
+    File.WriteAllText(Path.Combine(root, ".vecxy", "Engine.props"),
+        $"<Project><PropertyGroup><VecxyEnginePath>{Path.Combine(root, "Engine")}</VecxyEnginePath></PropertyGroup></Project>");
+    File.WriteAllText(Path.Combine(root, "Game.csproj"),
+        "<Project Sdk=\"Microsoft.NET.Sdk\"><Import Project=\".vecxy/Engine.props\" /></Project>");
+    var withConfiguredEngine = AssetPipeline.Scan(root);
+    Assert(withConfiguredEngine.Assets.Any(x => x.Source == "Engine" && x.Path == "Shaders/sprite.glsl"),
+        ".vecxy Engine.props discovers engine assets through an MSBuild import");
+    Assert(VPackPipeline.DiscoverPackages(root).Any(x => x.Name == "Engine"),
+        ".vecxy Engine.props discovers the Engine VPack package");
+
     File.WriteAllText(Path.Combine(root, "Game.csproj"),
         "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><VecxyDisabledEngineFeatures>Skybox</VecxyDisabledEngineFeatures><VecxyDisabledEngineContent>DefaultSkybox</VecxyDisabledEngineContent></PropertyGroup><ItemGroup><ProjectReference Include=\"Engine/Vecxy.Engine/Vecxy.Engine.csproj\" /></ItemGroup></Project>");
     var withoutSkybox = AssetPipeline.Scan(root);
@@ -327,7 +338,7 @@ static async Task TestHttpTransport()
 static async Task<(byte[] Bytes, string Hash)> BuildPackage(PackageId package, AssetId asset, string text)
 {
     await using var stream = new MemoryStream();
-    await VPackWriter.WriteAsync(stream, package, VPackPlatform.Windows, [],
+    await VPackWriter.WriteAsync(stream, package, OperatingSystem.IsLinux() ? VPackPlatform.Linux : VPackPlatform.Windows, [],
         [new VPackAssetSource(asset, "Text", System.Text.Encoding.UTF8.GetBytes(text))],
         new(VPackCompressionAlgorithm.None, 0, 4096));
     var bytes = stream.ToArray();
@@ -345,7 +356,10 @@ static string RemoteManifest(string version, PackageId id, long size, string has
                 Id = id, Version = PackageVersion.Parse(version),
                 Platforms = new Dictionary<string, RemotePackagePlatformEntry>(StringComparer.OrdinalIgnoreCase)
                 {
-                    ["windows"] = new() { Url = "https://example.test/dlc.vpack", Size = size, Sha256 = hash }
+                    [OperatingSystem.IsLinux() ? "linux" : "windows"] = new()
+                    {
+                        Url = "https://example.test/dlc.vpack", Size = size, Sha256 = hash
+                    }
                 }
             }
         }
