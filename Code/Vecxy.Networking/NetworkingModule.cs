@@ -35,6 +35,7 @@ public sealed class NetworkingModule : IModule, IModule.IUpdatable, INetworking
     public event Action<NetworkConnection>? Connected { add => _runtime.Connected += value; remove => _runtime.Connected -= value; }
     public event Action<NetworkConnection>? Disconnected { add => _runtime.Disconnected += value; remove => _runtime.Disconnected -= value; }
     public Task StartServerAsync(int port, CancellationToken cancellationToken = default) => _runtime.StartServerAsync(port, cancellationToken);
+    public Task StartHostAsync(int port, CancellationToken cancellationToken = default) => _runtime.StartHostAsync(port, cancellationToken);
     public Task ConnectAsync(string host, int port, CancellationToken cancellationToken = default) => _runtime.ConnectAsync(host, port, cancellationToken);
     public void Configure(NetworkRole role, NetworkConnection? local = null, NetworkConnection? server = null) =>
         _runtime.Configure(role, local, server);

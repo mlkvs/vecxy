@@ -5,7 +5,7 @@ public abstract class NetworkBehaviour
     private RpcContext? _currentRpcContext;
     public NetworkObject NetworkObject { get; private set; } = null!;
     public byte BehaviourId { get; private set; }
-    public bool IsServer => NetworkObject.Runtime.IsServer;
+    public bool IsServer => NetworkObject.Runtime.IsServer && !NetworkObject.Runtime.IsExecutingLocalClientRpc;
     public bool IsClient => NetworkObject.Runtime.IsClient;
     public bool IsOwner => NetworkObject.Owner == NetworkObject.Runtime.LocalConnection;
     public NetworkConnection? Owner => NetworkObject.Owner;

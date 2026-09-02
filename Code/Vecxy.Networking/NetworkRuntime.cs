@@ -13,6 +13,7 @@ public interface INetworking
     event Action<NetworkConnection>? Connected;
     event Action<NetworkConnection>? Disconnected;
     Task StartServerAsync(int port, CancellationToken cancellationToken = default);
+    Task StartHostAsync(int port, CancellationToken cancellationToken = default);
     Task ConnectAsync(string host, int port, CancellationToken cancellationToken = default);
     void Configure(NetworkRole role, NetworkConnection? local = null, NetworkConnection? server = null);
     NetworkObject CreateObject(NetworkObjectId id, NetworkConnection? owner = null);
@@ -36,6 +37,7 @@ public sealed class NetworkRuntime : INetworking, IDisposable
     public NetworkRole Role { get; private set; }
     public bool IsServer => Role is NetworkRole.Server or NetworkRole.Host;
     public bool IsClient => Role is NetworkRole.Client or NetworkRole.Host;
+    internal bool IsExecutingLocalClientRpc { get; private set; }
     public NetworkConnection? LocalConnection { get; private set; }
     public NetworkConnection? ServerConnection { get; private set; }
     public event Action<NetworkConnection>? Connected;
@@ -49,6 +51,15 @@ public sealed class NetworkRuntime : INetworking, IDisposable
         var transport = await UdpNetworkTransport.StartServerAsync(port, cancellationToken);
         ReplaceTransport(transport);
         Configure(NetworkRole.Server);
+    }
+
+    public async Task StartHostAsync(int port, CancellationToken cancellationToken = default)
+    {
+        var transport = await UdpNetworkTransport.StartServerAsync(port, cancellationToken);
+        ReplaceTransport(transport);
+        var localConnection = new NetworkConnection(0);
+        Configure(NetworkRole.Host, localConnection, localConnection);
+        _connectionEvents.Enqueue((true, localConnection));
     }
 
     public async Task ConnectAsync(string host, int port, CancellationToken cancellationToken = default)
@@ -91,12 +102,47 @@ public sealed class NetworkRuntime : INetworking, IDisposable
     {
         if (!IsServer) throw new InvalidOperationException("ClientRpc can only be sent by a server.");
         foreach (var connection in SelectTargets(behaviour.NetworkObject, target)) Send(connection, behaviour, methodId, payload, channel);
+        if (IsLocalTarget(behaviour.NetworkObject, target)) DispatchLocalClientRpc(behaviour, methodId, payload, channel);
     }
 
     internal void SendTargetRpc(NetworkBehaviour behaviour, NetworkConnection target, uint methodId, ReadOnlySpan<byte> payload, RpcChannel channel)
     {
         if (!IsServer) throw new InvalidOperationException("TargetRpc can only be sent by a server.");
-        Send(target, behaviour, methodId, payload, channel);
+        if (Role == NetworkRole.Host && target == LocalConnection)
+            DispatchLocalClientRpc(behaviour, methodId, payload, channel);
+        else
+            Send(target, behaviour, methodId, payload, channel);
+    }
+
+    private bool IsLocalTarget(NetworkObject networkObject, RpcTarget target)
+    {
+        if (Role != NetworkRole.Host || LocalConnection is null) return false;
+        return target switch
+        {
+            RpcTarget.All => true,
+            RpcTarget.Owner => networkObject.Owner == LocalConnection,
+            RpcTarget.NonOwner => networkObject.Owner != LocalConnection,
+            _ => networkObject.Observers.Contains(LocalConnection)
+        };
+    }
+
+    private void DispatchLocalClientRpc(NetworkBehaviour behaviour, uint methodId, ReadOnlySpan<byte> payload, RpcChannel channel)
+    {
+        if (!_registry.TryGet(methodId, out var descriptor) || descriptor is null || descriptor.Direction == RpcDirection.Server)
+            throw new InvalidOperationException($"Unknown client RPC 0x{methodId:X8}.");
+        var localConnection = LocalConnection ?? throw new InvalidOperationException("The host has no local connection.");
+        try
+        {
+            IsExecutingLocalClientRpc = true;
+            var context = new RpcContext(localConnection, channel);
+            behaviour.BeginRpc(context);
+            descriptor.Handler(behaviour, payload, context);
+        }
+        finally
+        {
+            behaviour.EndRpc();
+            IsExecutingLocalClientRpc = false;
+        }
     }
 
     private void Send(NetworkConnection connection, NetworkBehaviour behaviour, uint methodId, ReadOnlySpan<byte> payload, RpcChannel channel)
