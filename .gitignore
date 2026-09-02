@@ -1,5 +1,7 @@
 # Build results
 [Bb]in/
+!npm/vecxy/bin/
+!npm/vecxy/bin/vecxy.js
 [Oo]bj/
 [Bb]uild
 
