@@ -16,16 +16,19 @@ internal static partial class NewProjectCommand
         Directory.CreateDirectory(Path.Combine(destination, "Assets", "Configs"));
         Directory.CreateDirectory(Path.Combine(destination, "Generated"));
         Directory.CreateDirectory(Path.Combine(destination, "Properties"));
+        Directory.CreateDirectory(Path.Combine(destination, ".vecxy"));
 
         var projectName = name;
         var rootNamespace = NamespacePart().Replace(name, "_");
         var applicationId = $"game.vecxy.{Slug(name)}";
-        Write(Path.Combine(destination, $"{projectName}.csproj"), ProjectFile(destination, engine, applicationId, name));
+        Write(Path.Combine(destination, $"{projectName}.csproj"), ProjectFile(applicationId, name));
         Write(Path.Combine(destination, "Program.cs"), EntryPoint(rootNamespace));
         Write(Path.Combine(destination, "Assets", "Configs", "Application.yaml"), ApplicationConfig(name));
         Write(Path.Combine(destination, "Assets", "game.vpack"), PackageConfig());
         Write(Path.Combine(destination, "Properties", "launchSettings.json"), LaunchSettings());
         Write(Path.Combine(destination, ".gitignore"), GitIgnore());
+        Write(Path.Combine(destination, ".vecxy", "Engine.props"), EngineProps(engine));
+        Write(Path.Combine(destination, ".vecxy", "config.json"), EngineConfig());
 
         Pipeline.Scan(destination);
         Pipeline.Generate(destination);
@@ -56,13 +59,8 @@ internal static partial class NewProjectCommand
 
     private static bool IsEngine(string path) => File.Exists(Path.Combine(path, "Code", "Vecxy.Platforms", "build", "Vecxy.Platforms.props"));
 
-    private static string ProjectFile(string destination, string engine, string applicationId, string title)
+    private static string ProjectFile(string applicationId, string title)
     {
-        string Relative(string path) => Path.GetRelativePath(destination, path).Replace('\\', '/');
-        var props = Relative(Path.Combine(engine, "Code", "Vecxy.Platforms", "build", "Vecxy.Platforms.props"));
-        var engineProject = Relative(Path.Combine(engine, "Code", "Vecxy.Engine", "Vecxy.Engine.csproj"));
-        var assetsProject = Relative(Path.Combine(engine, "Code", "Vecxy.Assets", "Vecxy.Assets.csproj"));
-        var kernelProject = Relative(Path.Combine(engine, "Code", "Vecxy.Kernel", "Vecxy.Kernel.csproj"));
         return $$"""
         <Project Sdk="Microsoft.NET.Sdk">
           <PropertyGroup>
@@ -73,14 +71,35 @@ internal static partial class NewProjectCommand
             <Version>1.0.0</Version>
           </PropertyGroup>
 
-          <Import Project="{{EscapeXml(props)}}" />
+          <Import Project=".vecxy/Engine.props" />
+        </Project>
+        """;
+    }
 
+    private static string EngineProps(string engine) => $$"""
+        <Project>
+          <PropertyGroup>
+            <VecxyEnginePath>{{EscapeXml(engine.Replace('\\', '/'))}}</VecxyEnginePath>
+          </PropertyGroup>
+          <Import Project="$(VecxyEnginePath)/Code/Vecxy.Platforms/build/Vecxy.Platforms.props" />
           <ItemGroup>
-            <ProjectReference Include="{{EscapeXml(engineProject)}}" />
-            <ProjectReference Include="{{EscapeXml(assetsProject)}}" />
-            <ProjectReference Include="{{EscapeXml(kernelProject)}}" />
+            <ProjectReference Include="$(VecxyEnginePath)/Code/Vecxy.Engine/Vecxy.Engine.csproj" />
+            <ProjectReference Include="$(VecxyEnginePath)/Code/Vecxy.Assets/Vecxy.Assets.csproj" />
+            <ProjectReference Include="$(VecxyEnginePath)/Code/Vecxy.Kernel/Vecxy.Kernel.csproj" />
           </ItemGroup>
         </Project>
+        """;
+
+    private static string EngineConfig()
+    {
+        var reference = Environment.GetEnvironmentVariable("VECXY_ENGINE_REF") ?? "develop";
+        return $$"""
+        {
+          "engine": {
+            "repository": "https://github.com/mlkvs/vecxy.git",
+            "ref": "{{JsonString(reference)}}"
+          }
+        }
         """;
     }
 
@@ -136,6 +155,7 @@ internal static partial class NewProjectCommand
         bin/
         obj/
         Build/
+        .vecxy/Engine.props
         """;
 
     private static void ValidateName(string name)
@@ -155,6 +175,7 @@ internal static partial class NewProjectCommand
 
     private static string EscapeXml(string value) => System.Security.SecurityElement.Escape(value) ?? value;
     private static string YamlString(string value) => $"\"{value.Replace("\\", "\\\\").Replace("\"", "\\\"")}\"";
+    private static string JsonString(string value) => value.Replace("\\", "\\\\").Replace("\"", "\\\"");
     private static void Write(string path, string contents) => File.WriteAllText(path, contents.Replace("\r\n", "\n") + (contents.EndsWith('\n') ? "" : "\n"), new UTF8Encoding(false));
 
     [GeneratedRegex("^[\\p{L}_][\\p{L}\\p{N}_.-]*$", RegexOptions.CultureInvariant)]

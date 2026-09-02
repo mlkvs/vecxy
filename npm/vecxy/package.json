@@ -1,6 +1,6 @@
 {
   "name": "vecxy",
-  "version": "0.1.0",
+  "version": "0.1.2",
   "description": "Vecxy game engine command-line tools",
   "license": "UNLICENSED",
   "type": "module",
