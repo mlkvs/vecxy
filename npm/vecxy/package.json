@@ -1,0 +1,28 @@
+{
+  "name": "vecxy",
+  "version": "0.1.0",
+  "description": "Vecxy game engine command-line tools",
+  "license": "UNLICENSED",
+  "type": "module",
+  "bin": {
+    "vecxy": "bin/vecxy.js"
+  },
+  "files": [
+    "bin",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mlkvs/vecxy.git"
+  },
+  "keywords": [
+    "vecxy",
+    "game-engine",
+    "dotnet",
+    "android",
+    "assets"
+  ]
+}

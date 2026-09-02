@@ -46,14 +46,14 @@ public sealed class NetworkRuntime : INetworking, IDisposable
 
     public async Task StartServerAsync(int port, CancellationToken cancellationToken = default)
     {
-        var transport = await TcpNetworkTransport.StartServerAsync(port, cancellationToken);
+        var transport = await UdpNetworkTransport.StartServerAsync(port, cancellationToken);
         ReplaceTransport(transport);
         Configure(NetworkRole.Server);
     }
 
     public async Task ConnectAsync(string host, int port, CancellationToken cancellationToken = default)
     {
-        var transport = await TcpNetworkTransport.ConnectAsync(host, port, cancellationToken);
+        var transport = await UdpNetworkTransport.ConnectAsync(host, port, cancellationToken);
         ReplaceTransport(transport);
         Configure(NetworkRole.Client, transport.LocalConnection, transport.ServerConnection);
     }

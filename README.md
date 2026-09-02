@@ -20,6 +20,7 @@ It is designed for building real playable scenes early, then growing into more a
 ## Documentation
 
 - [Asset Pipeline (Russian)](../../Docs/AssetPipeline.md)
+- [CLI installation, setup, assets and builds (Russian)](docs/cli.md)
 
 ## Why Vecxy
 

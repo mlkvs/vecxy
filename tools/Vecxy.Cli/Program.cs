@@ -6,8 +6,35 @@ var arguments = args.ToList();
 
 try
 {
-    var project = ResolveProject(GetOption(arguments, "--project"));
+    var projectOption = GetOption(arguments, "--project");
     var platformOption = GetOption(arguments, "--platform");
+    var outputOption = GetOption(arguments, "--output");
+    var engineOption = GetOption(arguments, "--engine");
+    var runtimeOption = GetOption(arguments, "--runtime");
+    var formatOption = GetOption(arguments, "--format");
+    var keystoreOption = GetOption(arguments, "--keystore");
+    var aliasOption = GetOption(arguments, "--alias");
+    var versionOption = GetOption(arguments, "--version");
+    var versionCodeOption = GetOption(arguments, "--version-code");
+    if (arguments is ["new", var name])
+    {
+        if (projectOption is not null) throw new ArgumentException("Use --output with 'new'; --project selects an existing project.");
+        var created = NewProjectCommand.Create(name, outputOption, engineOption);
+        Console.WriteLine($"Created Vecxy project '{name}' in {created}");
+        Console.WriteLine($"\nNext steps:\n  cd \"{created}\"\n  dotnet run");
+        return 0;
+    }
+    if (engineOption is not null) throw new ArgumentException("--engine can only be used with 'new'.");
+    var project = ResolveProject(projectOption);
+    if (arguments is ["build"] or ["build", "dev"] or ["build", "release"])
+    {
+        var mode = arguments.Count == 2 ? arguments[1] : "release";
+        return await BuildCommand.RunAsync(project, mode, platformOption, runtimeOption, outputOption, formatOption,
+            keystoreOption, aliasOption, versionOption, versionCodeOption);
+    }
+    if (outputOption is not null || runtimeOption is not null || formatOption is not null || keystoreOption is not null ||
+        aliasOption is not null || versionOption is not null || versionCodeOption is not null)
+        throw new ArgumentException("One or more build-only options were used with a different command.");
     if (arguments is ["assets", "scan"])
     {
         var manifest = Pipeline.Scan(project);
@@ -46,7 +73,7 @@ try
     }
     if (arguments is ["assets", "prepare"])
         return Prepare(project);
-    if (arguments is ["build"] or ["assets", "build"])
+    if (arguments is ["assets", "build"])
     {
         if (Prepare(project) != 0) return 1;
         var platform = ParsePlatform(platformOption ?? "windows");
@@ -144,4 +171,4 @@ static string ResolveProject(string? value)
         throw new InvalidOperationException($"No .csproj found in '{path}'. Select a game: --project HardCore.Cultivation");
     throw new InvalidOperationException($"More than one .csproj found in '{path}'. Select one with --project <path>.");
 }
-static void PrintUsage() => Console.WriteLine("Usage: vecxy --project <game-directory|csproj> assets <scan|generate|analyze|validate|packages|pack|prepare|build> [--platform <windows|linux|android>]\n       vecxy --project <game-directory|csproj> packages manifest --platform <windows|linux|android>\n       vecxy --project <game-directory|csproj> build --platform <windows|linux|android>\n\n--project may be omitted when the current directory contains exactly one .csproj.");
+static void PrintUsage() => Console.WriteLine("Usage: vecxy new <name> [--output <directory>] [--engine <path-to-Engine/Vecxy>]\n       vecxy --project <game-directory|csproj> assets <scan|generate|analyze|validate|packages|pack|prepare|build> [--platform <windows|linux|android>]\n       vecxy --project <game-directory|csproj> packages manifest --platform <windows|linux|android>\n       vecxy --project <game-directory|csproj> build [dev|release] --platform <linux|windows|android> [--runtime <rid>] [--output <path>]\n       vecxy --project <game-directory|csproj> build [dev|release] --platform android [--format <apk|aab|both>] [--version <name>] [--version-code <number>]\n\nAndroid signing: --keystore <path> --alias <name>, with passwords in VECXY_ANDROID_STORE_PASSWORD and optional VECXY_ANDROID_KEY_PASSWORD.\n--project may be omitted when the current directory contains exactly one .csproj.\n'new' creates a project in ./<name> unless --output is specified.");
