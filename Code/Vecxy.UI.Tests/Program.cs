@@ -21,7 +21,93 @@ WrappedTextKeepsWordsIntact();
 KeyedCollectionRetainsAndOrdersNodes();
 DetachedSubtreeCanBeMountedAgain();
 ShortTouchIsNotCollapsedIntoOneFrame();
+TextEditingCoreSupportsInsertReplaceAndDelete();
+TextEditingCoreSupportsNavigationAndSelection();
+TextEditingCoreRespectsUnicodeAndMaxLength();
+InputFieldSupportsClipboardAndPasswordSafety();
 Console.WriteLine("All Vecxy.UI checks passed.");
+
+static void TextEditingCoreSupportsInsertReplaceAndDelete()
+{
+    var edit = new TextEditingState();
+    edit.SetText("Helo", true);
+    edit.Move(2);
+    Check(edit.Insert("l") && edit.Text == "Hello" && edit.CaretIndex == 3, "Insert operation failed.");
+    edit.SetText("Hello world", true);
+    edit.Select(6, 5);
+    Check(edit.Insert("Vecxy") && edit.Text == "Hello Vecxy" && edit.CaretIndex == 11, "Selection replacement failed.");
+    Check(edit.Backspace() && edit.Text == "Hello Vecx" && edit.CaretIndex == 10, "Backspace failed.");
+    edit.SetText("Hello", true);
+    edit.Move(4);
+    Check(edit.Delete() && edit.Text == "Hell" && edit.CaretIndex == 4, "Forward delete failed.");
+    edit.SetText("Hello world", true);
+    edit.SelectAll();
+    edit.Insert("Test");
+    Check(edit.Text == "Test" && edit.SelectionAnchor == 4 && edit.SelectionCaret == 4, "Select-all replacement failed.");
+}
+
+static void TextEditingCoreSupportsNavigationAndSelection()
+{
+    var edit = new TextEditingState();
+    edit.SetText("Hello beautiful world", true);
+    edit.MoveLeft(word: true);
+    Check(edit.CaretIndex == 16, "Word-left navigation failed.");
+    edit.MoveLeft(extend: true, word: true);
+    Check(edit.SelectionStart == 6 && edit.SelectionLength == 10 && edit.SelectionAnchor == 16 && edit.SelectionCaret == 6,
+        "Directional word selection failed.");
+    edit.MoveRight();
+    Check(!edit.HasSelection && edit.CaretIndex == 16, "Right arrow did not collapse selection to its right edge.");
+    edit.Select(2, 5);
+    edit.MoveLeft();
+    Check(edit.CaretIndex == 2 && !edit.HasSelection, "Left arrow did not collapse selection to its left edge.");
+    edit.Move(0);
+    edit.MoveRight(word: true);
+    Check(edit.CaretIndex == 6, "Word-right navigation did not reach the next word.");
+}
+
+static void TextEditingCoreRespectsUnicodeAndMaxLength()
+{
+    var edit = new TextEditingState { MaxLength = 5 };
+    edit.Insert("Hello World");
+    Check(edit.Text == "Hello", "MaxLength was not applied to paste/insert.");
+    edit.MaxLength = 0;
+    edit.SetText("A😀e\u0301", true);
+    edit.Select(4, 0);
+    Check(edit.CaretIndex == 3, "Selection was not clamped to a grapheme boundary.");
+    edit.Collapse(edit.Text.Length);
+    edit.Backspace();
+    Check(edit.Text == "A😀" && edit.CaretIndex == 3, "Combining sequence was split by backspace.");
+    edit.Backspace();
+    Check(edit.Text == "A" && edit.CaretIndex == 1, "Surrogate pair was split by backspace.");
+    edit.Text = string.Empty;
+    Check(edit.CaretIndex == 0 && edit.SelectionAnchor == 0, "Programmatic shortening did not clamp selection.");
+}
+
+static void InputFieldSupportsClipboardAndPasswordSafety()
+{
+    var field = new UiInputField(NewConfig(), new Dictionary<string, string>());
+    var clipboard = new TestClipboard { Text = "world" };
+    var changed = string.Empty;
+    field.TextChanged += value => changed = value;
+    field.Text = "Hello ";
+    Check(changed == "Hello ", "Programmatic Text did not raise TextChanged.");
+    field.MoveCaretToEnd();
+    field.HandleKey(Vecxy.Assets.EKeyboardKey.V, false, true, clipboard);
+    Check(field.Text == "Hello world", "Paste failed.");
+    field.Select(6, 5);
+    field.HandleKey(Vecxy.Assets.EKeyboardKey.X, false, true, clipboard);
+    Check(field.Text == "Hello " && clipboard.Text == "world", "Cut failed.");
+    field.Text = "secret";
+    field.InputType = TextInputType.Password;
+    field.SelectAll();
+    clipboard.Text = "unchanged";
+    field.HandleKey(Vecxy.Assets.EKeyboardKey.C, false, true, clipboard);
+    Check(clipboard.Text == "unchanged" && field.Text == "secret", "Password copy was not blocked.");
+    field.ReadOnly = true;
+    field.HandleTextInput("x");
+    Check(field.Text == "secret", "Read-only input accepted text.");
+    field.ReleaseLayout();
+}
 
 static void StyleInvalidationIsClassified()
 {
@@ -472,7 +558,14 @@ sealed class TestInputCaptureState : IInputCaptureState
     public bool SuppressMouse { get; set; }
 }
 
-sealed class TestWindow : IWindow
+sealed class TestClipboard : IClipboard
+{
+    public string? Text { get; set; }
+    public string? GetText() => Text;
+    public void SetText(string text) => Text = text;
+}
+
+sealed class TestWindow : IWindow, IClipboard, ITextInputSource
 {
     public int Width => 100;
     public int Height => 100;
@@ -483,6 +576,11 @@ sealed class TestWindow : IWindow
     public bool IsCursorCaptured => false;
     public event Action<int, int>? Resized;
     public event Action<IWindow.KeyEvent>? KeyChanged;
+    public event Action<TextInputEvent>? TextInput;
+    public event Action? CompositionStarted;
+    public event Action<TextCompositionEvent>? CompositionUpdated;
+    public event Action<TextInputEvent>? CompositionCommitted;
+    public event Action? CompositionEnded;
     public event Action<IWindow.MouseButtonEvent>? MouseButtonChanged;
     public event Action<IWindow.MouseMoveEvent>? MouseMoved;
     public event Action<IWindow.MouseWheelEvent>? MouseWheelChanged;
@@ -500,5 +598,7 @@ sealed class TestWindow : IWindow
     public System.Numerics.Vector2 ClientToFramebuffer(System.Numerics.Vector2 position) => position;
     public System.Numerics.Vector2 FramebufferToClient(System.Numerics.Vector2 position) => position;
     public nint GetProcAddress(string name) => 0;
+    public string? GetText() => null;
+    public void SetText(string text) { }
     public void Dispose() => IsRunning = false;
 }

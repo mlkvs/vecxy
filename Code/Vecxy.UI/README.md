@@ -1124,6 +1124,8 @@ indices, batches, shadows и статистика каждого докумен�
 | `UiPanel` | Типизированный контейнер `<panel>`. |
 | `UiText` | `<text>` с удобным свойством `Value`. |
 | `UiButton` | `<button>` с `Label` и общей системой click/focus. |
+| `UiInputField` | `<input-field>`: text editing, selection, caret, clipboard, password, focus и horizontal scrolling. |
+| `TextEditingState`, `TextNavigation` | Переиспользуемое Unicode-safe ядро редактирования и навигации по grapheme/word boundaries. |
 | `UiImage` | `<image>` со свойствами `Source`, `Sprite`, `Texture`. |
 | `UiProgress` | `<progress>`; значение хранится в унаследованном `Progress`. |
 | `UiRadialProgress` | `<radial-progress>`; значение хранится в унаследованном `Progress`. |
@@ -1166,7 +1168,7 @@ indices, batches, shadows и статистика каждого докумен�
 - sibling selectors;
 - named grid lines/areas, `auto-fit`, `auto-fill`;
 - отдельные border widths/radii для каждой стороны/угла;
-- browser form controls и ввод текста;
+- multiline text area и визуализация промежуточной IME composition (backend contract уже предусмотрен);
 - layout-анимации width/height/margin;
 - несколько одновременных CSS animations на одном элементе.
 
@@ -1186,3 +1188,35 @@ Rounded backgrounds, borders, clipping и `box-shadow` поддерживают�
 | После XML reload обработчик пропал | Подпишитесь на `UiDocument.Reloaded` и выполните bind заново. |
 | Grid выглядит неожиданно | Укажите число template columns, tracks и gap; absolute children Grid не размещает. |
 | Картинка искажена | Для `<image>` задайте `object-fit: contain/cover`; для background — `background-size`. |
+
+## Поле ввода
+
+```xml
+<input-field id="server-address" placeholder="127.0.0.1" max-length="128" />
+<input-field id="password" placeholder="Password" input-type="password" />
+```
+
+```css
+input-field {
+  width: 320ui; height: 44ui; padding: 0 12ui;
+  overflow: hidden; vertical-align: middle;
+  background-color: #20242b; border: 1ui solid #3a414d;
+  placeholder-color: #7d8796;
+  selection-background-color: #3875d7;
+  caret-color: white; caret-width: 2ui;
+}
+input-field:focus { border-color: #4a90e2; }
+input-field:disabled { opacity: .5; }
+```
+
+```csharp
+var address = document.GetElementById<UiInputField>("server-address");
+address.Text = "localhost:7777";
+address.TextChanged += value => Console.WriteLine(value);
+address.Submitted += value => Connect(value);
+address.Focus();
+```
+
+`MaxLength == 0` означает отсутствие ограничения. `ReadOnly` сохраняет focus,
+selection и copy, но запрещает изменения. Для password-полей copy/cut отключены.
+Tab/Shift+Tab используют общий focus order UI.

@@ -1,4 +1,5 @@
 using System.Numerics;
+using System.Text;
 using Vecxy.Assets;
 using Vecxy.Kernel;
 using Vecxy.Rendering;
@@ -31,11 +32,11 @@ internal static class UiBitmapFont
         var lines = 1;
         var previous = -1;
 
-        foreach (var character in text)
+        foreach (var rune in text.EnumerateRunes())
         {
-            if (character == '\r')
+            if (rune.Value == '\r')
                 continue;
-            if (character == '\n')
+            if (rune.Value == '\n')
             {
                 maxWidth = Math.Max(maxWidth, width);
                 width = 0.0f;
@@ -44,7 +45,7 @@ internal static class UiBitmapFont
                 continue;
             }
 
-            var codepoint = (int)character;
+            var codepoint = rune.Value;
             if (!font.Glyphs.TryGetValue(codepoint, out var glyph) &&
                 !font.Glyphs.TryGetValue('?', out glyph))
                 continue;
@@ -92,9 +93,9 @@ internal static class UiBitmapFont
             var x = AlignHorizontal(bounds, lineWidth, textAlign);
             var previous = -1;
 
-            foreach (var character in line)
+            foreach (var rune in line.EnumerateRunes())
             {
-                var codepoint = (int)character;
+                var codepoint = rune.Value;
                 if (!font.Glyphs.TryGetValue(codepoint, out var glyph) &&
                     !font.Glyphs.TryGetValue('?', out glyph))
                     continue;

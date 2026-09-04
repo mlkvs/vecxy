@@ -446,6 +446,9 @@ internal sealed class UiRenderer : IDisposable
             }
         }
 
+        if (element is UiInputField inputField)
+            PaintInputField(document, inputField, style, bounds, opacity, scale, clip);
+
         if (style.OverflowX is "scroll" or "auto" || style.OverflowY is "scroll" or "auto")
             _scrollState = new UiScrollState(previousScrollState, element, scale);
 
@@ -631,6 +634,73 @@ internal sealed class UiRenderer : IDisposable
             bounds.Y + top * scale,
             Math.Max(0.0f, bounds.Width - horizontal),
             Math.Max(0.0f, bounds.Height - vertical));
+    }
+
+    private void PaintInputField(
+        UiDocument document,
+        UiInputField input,
+        UiComputedStyle style,
+        Rect bounds,
+        float opacity,
+        float scale,
+        Rect clip)
+    {
+        var content = TextContentBounds(document, input, style, bounds, scale);
+        input.ContentBounds = new Rect(content.X / scale, content.Y / scale, content.Width / scale, content.Height / scale);
+        input.EnsureCaretVisible();
+        var text = input.DisplayText;
+        var placeholder = text.Length == 0 ? input.Placeholder : string.Empty;
+        var visibleText = text.Length > 0 ? text : placeholder;
+        var textWidth = input.Measure(visibleText) * scale;
+        var scroll = text.Length > 0 ? input.HorizontalScroll * scale : 0.0f;
+        var alignedOffset = scroll > 0 || textWidth >= content.Width
+            ? 0.0f
+            : style.TextAlign switch
+            {
+                "center" => (content.Width - textWidth) * 0.5f,
+                "right" or "end" => content.Width - textWidth,
+                _ => 0.0f
+            };
+        var originX = content.X + alignedOffset - scroll;
+        var textClip = Intersect(clip, content);
+        var lineHeight = input.Font is { } font
+            ? font.LineHeight * (style.FontSize / font.SourceSize) * scale
+            : Math.Max(1.0f, style.FontSize / 6.0f) * 7.0f * scale;
+        var lineY = style.VerticalAlign switch
+        {
+            "middle" or "center" => content.Y + (content.Height - lineHeight) * 0.5f,
+            "bottom" or "end" => content.Bottom - lineHeight,
+            _ => content.Y
+        };
+
+        if (input.HasSelection && text.Length > 0)
+        {
+            var selectionX = originX + input.Measure(input.DisplayPrefix(input.SelectionStart)) * scale;
+            var selectionWidth = (input.Measure(input.DisplayPrefix(input.SelectionStart + input.SelectionLength)) -
+                                  input.Measure(input.DisplayPrefix(input.SelectionStart))) * scale;
+            var selectionColor = style.SelectionBackgroundColor with { W = style.SelectionBackgroundColor.W * opacity };
+            AddSolid(new Rect(selectionX, lineY, Math.Max(1, selectionWidth), lineHeight), selectionColor, textClip);
+        }
+
+        if (visibleText.Length > 0)
+        {
+            var color = (text.Length == 0 ? style.PlaceholderColor : input.RenderColor) with
+            {
+                W = (text.Length == 0 ? style.PlaceholderColor.W : input.RenderColor.W) * opacity
+            };
+            var textBounds = new Rect(originX, content.Y, Math.Max(textWidth, 1), content.Height);
+            if (input.Font is { } bitmap && document.ResolveFontTexture(input) is { } texture)
+                UiBitmapFont.Paint(this, input, bitmap, texture, visibleText, textBounds, style.FontSize * scale, color, textClip, "left", style.VerticalAlign, false);
+            else
+                UiFallbackFont.Paint(this, input, visibleText, textBounds, style.FontSize * scale, color, textClip, "left", style.VerticalAlign, false);
+        }
+
+        if (input.CaretVisible)
+        {
+            var caretX = originX + input.Measure(input.DisplayPrefix(input.CaretIndex)) * scale;
+            var caretColor = style.CaretColor with { W = style.CaretColor.W * opacity };
+            AddSolid(new Rect(caretX, lineY, style.CaretWidth * scale, lineHeight), caretColor, textClip);
+        }
     }
 
     private static float ResolveEdge(

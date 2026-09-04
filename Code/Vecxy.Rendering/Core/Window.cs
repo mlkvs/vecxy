@@ -1,11 +1,12 @@
 using Silk.NET.Maths;
 using Silk.NET.Input;
 using Silk.NET.Windowing;
+using Vecxy.Kernel;
 using IWindow = Vecxy.Kernel.IWindow;
 
 namespace Vecxy.Rendering;
 
-public sealed class Window : IWindow
+public sealed class Window : IWindow, IClipboard, ITextInputSource
 {
     private int _suppressNextSwap;
 #if !ANDROID
@@ -26,6 +27,11 @@ public sealed class Window : IWindow
 
     public event Action<int, int>? Resized;
     public event Action<IWindow.KeyEvent>? KeyChanged;
+    public event Action<TextInputEvent>? TextInput;
+    public event Action? CompositionStarted;
+    public event Action<TextCompositionEvent>? CompositionUpdated;
+    public event Action<TextInputEvent>? CompositionCommitted;
+    public event Action? CompositionEnded;
     public event Action<IWindow.MouseButtonEvent>? MouseButtonChanged;
     public event Action<IWindow.MouseMoveEvent>? MouseMoved;
     public event Action<IWindow.MouseWheelEvent>? MouseWheelChanged;
@@ -46,6 +52,7 @@ public sealed class Window : IWindow
 
     private bool _initialized;
     private bool _isFullscreen;
+    private char? _pendingHighSurrogate;
 
     public Window(IWindow.Options options)
     {
@@ -123,6 +130,7 @@ public sealed class Window : IWindow
         {
             keyboard.KeyDown += OnKeyDown;
             keyboard.KeyUp += OnKeyUp;
+            keyboard.KeyChar += OnKeyChar;
         }
 
         foreach (var mouse in _input.Mice)
@@ -243,21 +251,68 @@ public sealed class Window : IWindow
         }
     }
 
-    private void OnKeyDown(IKeyboard _, Key key, int _2)
+    private void OnKeyDown(IKeyboard keyboard, Key key, int _2)
     {
         KeyChanged?.Invoke(
             new IWindow.KeyEvent(
                 (int)key,
-                true));
+                true,
+                Modifiers(keyboard)));
     }
 
-    private void OnKeyUp(IKeyboard _, Key key, int _2)
+    private void OnKeyUp(IKeyboard keyboard, Key key, int _2)
     {
         KeyChanged?.Invoke(
             new IWindow.KeyEvent(
                 (int)key,
-                false));
+                false,
+                Modifiers(keyboard)));
     }
+
+    private void OnKeyChar(IKeyboard _, char character)
+    {
+        if (_pendingHighSurrogate is { } high)
+        {
+            _pendingHighSurrogate = null;
+            if (char.IsLowSurrogate(character))
+            {
+                TextInput?.Invoke(new TextInputEvent(string.Concat(high, character)));
+                return;
+            }
+            TextInput?.Invoke(new TextInputEvent(high.ToString()));
+        }
+        if (char.IsHighSurrogate(character))
+        {
+            _pendingHighSurrogate = character;
+            return;
+        }
+        TextInput?.Invoke(new TextInputEvent(character.ToString()));
+    }
+
+    private static KeyModifiers Modifiers(IKeyboard keyboard)
+    {
+        var result = KeyModifiers.None;
+        if (keyboard.IsKeyPressed(Key.ShiftLeft) || keyboard.IsKeyPressed(Key.ShiftRight)) result |= KeyModifiers.Shift;
+        if (keyboard.IsKeyPressed(Key.ControlLeft) || keyboard.IsKeyPressed(Key.ControlRight)) result |= KeyModifiers.Control;
+        if (keyboard.IsKeyPressed(Key.AltLeft) || keyboard.IsKeyPressed(Key.AltRight)) result |= KeyModifiers.Alt;
+        if (keyboard.IsKeyPressed(Key.SuperLeft) || keyboard.IsKeyPressed(Key.SuperRight)) result |= KeyModifiers.Super;
+        return result;
+    }
+
+    public string? GetText() => _input?.Keyboards.FirstOrDefault()?.ClipboardText;
+
+    public void SetText(string text)
+    {
+        if (_input?.Keyboards.FirstOrDefault() is { } keyboard)
+            keyboard.ClipboardText = text ?? string.Empty;
+    }
+
+    // Silk.NET currently exposes committed characters but no portable composition
+    // callbacks. These events reserve the backend contract for native IME adapters.
+    internal void RaiseCompositionStarted() => CompositionStarted?.Invoke();
+    internal void RaiseCompositionUpdated(TextCompositionEvent value) => CompositionUpdated?.Invoke(value);
+    internal void RaiseCompositionCommitted(TextInputEvent value) => CompositionCommitted?.Invoke(value);
+    internal void RaiseCompositionEnded() => CompositionEnded?.Invoke();
 
     private void OnMouseDown(IMouse _, MouseButton button)
     {

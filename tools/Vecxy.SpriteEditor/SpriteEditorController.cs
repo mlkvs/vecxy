@@ -21,6 +21,8 @@ public sealed class SpriteEditorController(AtlasRepository repository, ProjectFo
     private UiPanel? _sliceList;
     private UiText? _status;
     private UiText? _projectLabel;
+    private UiInputField? _selectionName;
+    private bool _syncingSelectionName;
     private string? _selectedSlice;
     private string? _draggingSlice;
     private ResizeMode _resizeMode;
@@ -42,6 +44,8 @@ public sealed class SpriteEditorController(AtlasRepository repository, ProjectFo
         _stage = document.GetElementById<UiPanel>("image-stage");
         _status = document.GetElementById<UiText>("status-text");
         _projectLabel = document.GetElementById<UiText>("project-label");
+        _selectionName = document.GetElementById<UiInputField>("selection-name");
+        _selectionName.TextChanged += RenameSelectedSlice;
         Click("open-project", OpenProject);
         Click("new-atlas", NewAtlas);
         Click("save-atlas", SaveAtlas);
@@ -205,7 +209,10 @@ public sealed class SpriteEditorController(AtlasRepository repository, ProjectFo
             _overlay.Add(frame);
         }
         var selected = Selected();
-        _document!.GetElementById<UiText>("selection-name").Value = _selectedSlice ?? "No slice selected";
+        _syncingSelectionName = true;
+        _selectionName!.Text = _selectedSlice ?? string.Empty;
+        _selectionName.Disabled = selected is null;
+        _syncingSelectionName = false;
         _document.GetElementById<UiText>("rect-value").Value = selected is null ? "—" : $"{selected.X}, {selected.Y}  ·  {selected.Width} × {selected.Height}";
         _document.GetElementById<UiText>("pivot-value").Value = selected is null ? "—" : $"{selected.PivotX:0.##}, {selected.PivotY:0.##}";
     }
@@ -215,6 +222,18 @@ public sealed class SpriteEditorController(AtlasRepository repository, ProjectFo
         if (_atlas is null || _project is null) { SetStatus("Nothing to save", true); return; }
         var path = _atlas.FilePath ?? Path.Combine(_project.AssetsDirectory, "Textures", "Sprites.atlas");
         repository.Save(_atlas, path); RebuildAssets(); SetStatus($"Saved {_project.Relative(path)}");
+    }
+
+    private void RenameSelectedSlice(string replacement)
+    {
+        if (_syncingSelectionName || _atlas is null || _selectedSlice is null) return;
+        replacement = replacement.Trim();
+        if (replacement.Length == 0 || replacement == _selectedSlice || _atlas.Sprites.ContainsKey(replacement)) return;
+        var slice = _atlas.Sprites[_selectedSlice];
+        _atlas.Sprites.Remove(_selectedSlice);
+        _atlas.Sprites[replacement] = slice;
+        _selectedSlice = replacement;
+        RebuildSlices();
     }
 
     private void SetStatus(string value, bool error = false) { if (_status is null) return; _status.Value = value; _status.ToggleClass("error", error); }
@@ -294,7 +313,7 @@ public sealed class SpriteEditorController(AtlasRepository repository, ProjectFo
         if (pivot is not null) { pivot.Style.Set("left", $"{slice.PivotX * 100:0.##}%"); pivot.Style.Set("top", $"{(1 - slice.PivotY) * 100:0.##}%"); }
     }
 
-    public void Unbind() { _document = null; _preview = null; _overlay = null; _stage = null; _assetList = null; _sliceList = null; }
+    public void Unbind() { _document = null; _preview = null; _overlay = null; _stage = null; _assetList = null; _sliceList = null; _selectionName = null; }
 
     private enum ResizeMode { None, Move, Left, Right, Top, Bottom, TopLeft, TopRight, BottomLeft, BottomRight, Pivot }
 }

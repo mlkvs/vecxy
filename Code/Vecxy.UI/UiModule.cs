@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Numerics;
+using System.Collections.Concurrent;
 using Autofac;
 using Facebook.Yoga;
 using Vecxy.Assets;
@@ -43,6 +44,9 @@ public sealed class UiModule :
     private readonly IRenderer _renderer;
     private readonly IRenderOverlayStage _overlays;
     private readonly ITextureResolver _textures;
+    private readonly IWindow _window;
+    private readonly ITextInputSource _textInput;
+    private readonly IClipboard _clipboard;
     private readonly UiRenderer _uiRenderer;
     private readonly UiPerformanceStatistics _statistics = new();
     private readonly Config _yogaConfig = new();
@@ -72,6 +76,8 @@ public sealed class UiModule :
     private bool _wasTabPressed;
     private bool _initialized;
     private bool _disposed;
+    private readonly ConcurrentQueue<IWindow.KeyEvent> _keyEvents = new();
+    private readonly ConcurrentQueue<TextInputEvent> _textEvents = new();
 
     public IReadOnlyList<UiDocument> Documents => _documents;
     public UiPerformanceStatistics Statistics => _statistics;
@@ -84,7 +90,10 @@ public sealed class UiModule :
         IRenderer renderer,
         IRenderOverlayStage overlays,
         ITextureResolver textures,
-        IGraphicsDeviceProvider graphics)
+        IGraphicsDeviceProvider graphics,
+        IWindow window,
+        ITextInputSource textInput,
+        IClipboard clipboard)
     {
         _assets = assets;
         _configs = configs;
@@ -93,6 +102,9 @@ public sealed class UiModule :
         _renderer = renderer;
         _overlays = overlays;
         _textures = textures;
+        _window = window;
+        _textInput = textInput;
+        _clipboard = clipboard;
         _uiRenderer = new UiRenderer(graphics.GraphicsDevice, textures, _statistics);
         _yogaConfig.SetUseWebDefaults(false);
         _yogaConfig.SetPointScaleFactor(1.0f);
@@ -109,7 +121,8 @@ public sealed class UiModule :
                 _assets,
                 _textures,
                 _yogaConfig,
-                source);
+                source,
+                element => Focus(element));
             _documents.Add(document);
             return document;
         }
@@ -127,6 +140,8 @@ public sealed class UiModule :
         ArgumentNullException.ThrowIfNull(document);
         if (!_documents.Remove(document))
             return false;
+        if (_focusedElement is not null && document.Root.DescendantsAndSelf().Contains(_focusedElement))
+            Focus(null);
         document.Dispose();
         return true;
     }
@@ -169,6 +184,9 @@ public sealed class UiModule :
         _assets.RegisterImporter<UiSpriteAtlasAsset>(new UiSpriteAtlasAssetImporter());
         _settings = _configs.LoadConfig<UiConfig>("Configs/UI.yaml");
         _overlays.RegisterGameOverlay(RenderOverlay);
+        _window.KeyChanged += OnKeyChanged;
+        _textInput.TextInput += OnTextInput;
+        _textInput.CompositionCommitted += OnTextInput;
         _initialized = true;
     }
 
@@ -267,6 +285,7 @@ public sealed class UiModule :
         _hoveredElements.AddRange(_nextHoveredElements);
 
         HandleKeyboardFocus();
+        DispatchTextEditingInput();
         HandleScrolling(hit);
 
         var pointerPressed = _input.IsPrimaryPointerPressed;
@@ -284,12 +303,16 @@ public sealed class UiModule :
             _pressPosition = pointer;
             _lastPointerPosition = pointer;
             Focus(hit, false);
+            if (hit is UiInputField inputField)
+                inputField.BeginPointerSelection(hitDocument!.ToLayoutPoint(pointer));
             if (_pressedElement is not null)
                 _pressedElement.IsActive = true;
         }
         else if (pointerPressed && _wasPointerPressed && _pressedElement is { } pressed)
         {
             var pointerDelta = pointer - _lastPointerPosition;
+            if (_pressedElement is UiInputField selectingInput && _pressedDocument is not null)
+                selectingInput.UpdatePointerSelection(_pressedDocument.ToLayoutPoint(pointer));
             if (_scrollbarDragElement is not null)
                 DragScrollbar(pointer);
             var threshold = Settings.DragScrollThreshold * (_pressedDocument?.LayoutScale ?? 1.0f);
@@ -327,6 +350,8 @@ public sealed class UiModule :
             _pressedElement = null;
             if (releasedElement is not null)
             {
+                if (releasedElement is UiInputField inputField)
+                    inputField.EndPointerSelection();
                 releasedElement.IsActive = false;
                 if (_scrollingElement is not null)
                 {
@@ -353,7 +378,9 @@ public sealed class UiModule :
         _wasPointerPressed = pointerPressed;
         _inputCapture.SuppressMouse = hit is not null || _pressedElement is not null || _scrollingElement is not null;
         _inputCapture.SuppressKeyboard =
-            _focusedElement?.TagName is "input" or "textarea" or "select";
+            _focusedElement?.TagName is "input" or "input-field" or "textarea" or "select";
+        if (_focusedElement is UiInputField focusedInput)
+            focusedInput.UpdateInput(deltaTime);
         var inputMilliseconds = Stopwatch.GetElapsedTime(inputStarted).TotalMilliseconds;
         var totalAllocatedBytes = GC.GetAllocatedBytesForCurrentThread() - allocatedBeforeUpdate;
         _statistics.RecordUpdate(
@@ -677,6 +704,9 @@ public sealed class UiModule :
         if (!_initialized)
             return;
         _overlays.UnregisterGameOverlay(RenderOverlay);
+        _window.KeyChanged -= OnKeyChanged;
+        _textInput.TextInput -= OnTextInput;
+        _textInput.CompositionCommitted -= OnTextInput;
         foreach (var document in _documents)
             document.Dispose();
         _documents.Clear();
@@ -702,6 +732,33 @@ public sealed class UiModule :
         _inputCapture.SuppressMouse = false;
         _inputCapture.SuppressKeyboard = false;
         _initialized = false;
+    }
+
+    private void OnKeyChanged(IWindow.KeyEvent value)
+    {
+        if (value.IsPressed)
+            _keyEvents.Enqueue(value);
+    }
+
+    private void OnTextInput(TextInputEvent value) => _textEvents.Enqueue(value);
+
+    private void DispatchTextEditingInput()
+    {
+        if (_focusedElement is not UiInputField input)
+        {
+            while (_keyEvents.TryDequeue(out _)) { }
+            while (_textEvents.TryDequeue(out _)) { }
+            return;
+        }
+        while (_keyEvents.TryDequeue(out var keyEvent))
+        {
+            var key = Enum.IsDefined(typeof(EKeyboardKey), keyEvent.Key) ? (EKeyboardKey)keyEvent.Key : EKeyboardKey.Undefined;
+            if (key != EKeyboardKey.Tab)
+                input.HandleKey(key, (keyEvent.Modifiers & KeyModifiers.Shift) != 0, (keyEvent.Modifiers & KeyModifiers.Primary) != 0, _clipboard);
+        }
+        while (_textEvents.TryDequeue(out var textEvent))
+            if (textEvent.Text.All(character => !char.IsControl(character)))
+                input.HandleTextInput(textEvent.Text);
     }
 
     public void Dispose()

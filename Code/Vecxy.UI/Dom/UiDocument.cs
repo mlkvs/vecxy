@@ -13,6 +13,7 @@ public sealed class UiDocument : IDisposable
     private readonly ITextureResolver _textures;
     private readonly Config _yogaConfig;
     private readonly AssetRef<UiDocumentAsset> _source;
+    private readonly Action<UiElement?> _focus;
     private readonly List<AssetRef<UiStyleSheetAsset>> _styleAssets = [];
     private readonly Dictionary<string, AssetRef<UiDocumentAsset>> _componentAssets =
         new(StringComparer.Ordinal);
@@ -74,12 +75,14 @@ public sealed class UiDocument : IDisposable
         IAssetsManager assets,
         ITextureResolver textures,
         Config yogaConfig,
-        AssetRef<UiDocumentAsset> source)
+        AssetRef<UiDocumentAsset> source,
+        Action<UiElement?> focus)
     {
         _assets = assets;
         _textures = textures;
         _yogaConfig = yogaConfig;
         _source = source;
+        _focus = focus;
         ReloadDocument();
     }
 
@@ -207,6 +210,9 @@ public sealed class UiDocument : IDisposable
         };
         return (UiImage)CreateElement("image", values);
     }
+
+    public UiInputField CreateInputField(IReadOnlyDictionary<string, string>? attributes = null) =>
+        (UiInputField)CreateElement("input-field", attributes);
 
     internal void Refresh()
     {
@@ -591,16 +597,23 @@ public sealed class UiDocument : IDisposable
     private UiElement CreateTypedElement(
         string tagName,
         IReadOnlyDictionary<string, string> attributes,
-        string? text = null) => tagName.ToLowerInvariant() switch
+        string? text = null)
     {
-        "panel" => new UiPanel(_yogaConfig, attributes, text),
-        "text" => new UiText(_yogaConfig, attributes, text),
-        "button" => new UiButton(_yogaConfig, attributes, text),
-        "image" => new UiImage(_yogaConfig, attributes, text),
-        "progress" => new UiProgress(_yogaConfig, attributes, text),
-        "radial-progress" => new UiRadialProgress(_yogaConfig, attributes, text),
-        _ => new UiElement(_yogaConfig, tagName, attributes, text)
-    };
+        var element = tagName.ToLowerInvariant() switch
+        {
+            "panel" => new UiPanel(_yogaConfig, attributes, text),
+            "text" => new UiText(_yogaConfig, attributes, text),
+            "button" => new UiButton(_yogaConfig, attributes, text),
+            "image" => new UiImage(_yogaConfig, attributes, text),
+            "progress" => new UiProgress(_yogaConfig, attributes, text),
+            "radial-progress" => new UiRadialProgress(_yogaConfig, attributes, text),
+            "input-field" => new UiInputField(_yogaConfig, attributes, text),
+            _ => new UiElement(_yogaConfig, tagName, attributes, text)
+        };
+        if (element is UiInputField input)
+            input.AttachFocus(_focus);
+        return element;
+    }
 
     private static bool MatchesSimpleSelector(UiElement element, string selector)
     {

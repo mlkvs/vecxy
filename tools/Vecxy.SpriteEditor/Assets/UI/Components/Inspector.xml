@@ -1,6 +1,6 @@
 <panel class="sidebar inspector">
   <panel class="panel-header"><panel><text class="eyebrow">INSPECTOR</text><text class="panel-title">Slice</text></panel><button id="delete-slice" class="danger-button">Delete</button></panel>
-  <text id="selection-name" class="selection-name">No slice selected</text>
+  <input-field id="selection-name" class="selection-name" placeholder="Slice name" max-length="128" />
   <panel class="property-card"><text class="property-label">RECT · X / Y / W / H</text><text id="rect-value" class="property-value">—</text><panel class="step-grid"><button id="x-minus">X−</button><button id="x-plus">X+</button><button id="y-minus">Y−</button><button id="y-plus">Y+</button><button id="w-minus">W−</button><button id="w-plus">W+</button><button id="h-minus">H−</button><button id="h-plus">H+</button></panel></panel>
   <panel class="property-card"><text class="property-label">PIVOT</text><text id="pivot-value" class="property-value">—</text><panel class="pivot-actions"><button id="pivot-center">Center</button><button id="pivot-bottom">Bottom</button></panel></panel>
   <text class="section-label">SLICES</text><panel id="slice-list" class="slice-list" virtualize="true" />

@@ -142,6 +142,11 @@ public sealed class UiComputedStyle
     public Vector4 Color { get; set; } = Vector4.One;
     public Vector4 BackgroundColor { get; set; } = Vector4.Zero;
     public Vector4 BorderColor { get; set; } = Vector4.Zero;
+    public Vector4 PlaceholderColor { get; set; } = new(0.55f, 0.55f, 0.55f, 1.0f);
+    public Vector4 SelectionBackgroundColor { get; set; } = new(0.23f, 0.46f, 0.84f, 0.75f);
+    public Vector4 CaretColor { get; set; } = Vector4.One;
+    public float CaretWidth { get; set; } = 2.0f;
+    public UiLength CaretWidthLength { get; set; } = UiLength.Pixels(2.0f);
     public float BorderWidth { get; set; }
     public UiLength BorderWidthLength { get; set; } = UiLength.Pixels(0.0f);
     public float BorderRadius { get; set; }
@@ -194,7 +199,7 @@ public sealed class UiComputedStyle
         Gap == other.Gap && RowGap == other.RowGap && ColumnGap == other.ColumnGap &&
         FlexBasis == other.FlexBasis && FlexGrow.Equals(other.FlexGrow) &&
         FlexShrink.Equals(other.FlexShrink) && AspectRatio == other.AspectRatio &&
-        BorderWidthLength == other.BorderWidthLength && FontSizeLength == other.FontSizeLength &&
+        BorderWidthLength == other.BorderWidthLength && CaretWidthLength == other.CaretWidthLength && FontSizeLength == other.FontSizeLength &&
         MinFontSizeLength == other.MinFontSizeLength && FontFamily == other.FontFamily &&
         GridTemplateColumns == other.GridTemplateColumns && GridTemplateRows == other.GridTemplateRows &&
         GridAutoColumns == other.GridAutoColumns && GridAutoRows == other.GridAutoRows &&
@@ -206,6 +211,7 @@ public sealed class UiComputedStyle
         VerticalAlign == other.VerticalAlign && PointerEvents == other.PointerEvents &&
         Visibility == other.Visibility && Color == other.Color &&
         BackgroundColor == other.BackgroundColor && BorderColor == other.BorderColor &&
+        PlaceholderColor == other.PlaceholderColor && SelectionBackgroundColor == other.SelectionBackgroundColor && CaretColor == other.CaretColor &&
         BorderRadiusLength == other.BorderRadiusLength &&
         BoxShadowDefinitions.SequenceEqual(other.BoxShadowDefinitions) &&
         Opacity.Equals(other.Opacity) && ZIndex == other.ZIndex &&
@@ -223,6 +229,7 @@ public sealed class UiComputedStyle
         HasSameLayout(other) && TextAlign == other.TextAlign &&
         VerticalAlign == other.VerticalAlign && PointerEvents == other.PointerEvents &&
         Color == other.Color && BackgroundColor == other.BackgroundColor &&
+        PlaceholderColor == other.PlaceholderColor && SelectionBackgroundColor == other.SelectionBackgroundColor && CaretColor == other.CaretColor &&
         BorderColor == other.BorderColor && BorderRadiusLength == other.BorderRadiusLength &&
         BoxShadowDefinitions.SequenceEqual(other.BoxShadowDefinitions) &&
         ZIndex == other.ZIndex &&
@@ -1049,6 +1056,10 @@ internal static class UiStyleResolver
                 SetColor(value, result => style.BackgroundColor = result);
                 break;
             case "border-color": SetColor(value, result => style.BorderColor = result); break;
+            case "placeholder-color": SetColor(value, result => style.PlaceholderColor = result); break;
+            case "selection-background-color": SetColor(value, result => style.SelectionBackgroundColor = result); break;
+            case "caret-color": SetColor(value, result => style.CaretColor = result); break;
+            case "caret-width": SetLength(value, result => style.CaretWidthLength = result); break;
             case "border-width": SetLength(value, result => style.BorderWidthLength = result); break;
             case "border-radius": SetLength(value.Split(' ', StringSplitOptions.RemoveEmptyEntries)[0], result => style.BorderRadiusLength = result); break;
             case "border": ApplyBorder(style, value); break;

@@ -91,6 +91,7 @@ internal static class UiLayout
             1.0f,
             style.FontSize);
         style.BorderWidth = Math.Max(0.0f, ResolvePoints(style.BorderWidthLength, viewportWidth, viewportHeight));
+        style.CaretWidth = Math.Max(1.0f, ResolvePoints(style.CaretWidthLength, viewportWidth, viewportHeight));
         if (!enableShadows || style.BoxShadowDefinitions.Count == 0)
         {
             style.BoxShadows = Array.Empty<UiResolvedBoxShadow>();
@@ -162,12 +163,15 @@ internal static class UiLayout
         YGNodeStyleSetBorder(node, YGEdge.All, Math.Max(0.0f, style.BorderWidth));
         YGNodeStyleSetAspectRatio(node, style.AspectRatio ?? float.NaN);
 
-        if (element.Children.Count == 0 && element.TagName is "text" or "image")
+        if (element.Children.Count == 0 && element.TagName is "text" or "image" or "input-field")
             YGNodeSetMeasureFunc(
                 node,
-                element.TagName == "text"
-                    ? new YGMeasureFunc(MeasureText)
-                    : new YGMeasureFunc(MeasureImage));
+                element.TagName switch
+                {
+                    "text" => new YGMeasureFunc(MeasureText),
+                    "input-field" => new YGMeasureFunc(MeasureInputField),
+                    _ => new YGMeasureFunc(MeasureImage)
+                });
         else if (YGNodeHasMeasureFunc(node))
             YGNodeSetMeasureFunc(node, null);
 
@@ -211,6 +215,28 @@ internal static class UiLayout
         _textMeasureTicks += Stopwatch.GetTimestamp() - started;
         _textMeasureCount++;
         return new YGSize { Width = size.X, Height = size.Y };
+    }
+
+    private static YGSize MeasureInputField(
+        Node node,
+        float availableWidth,
+        MeasureMode widthMode,
+        float availableHeight,
+        MeasureMode heightMode)
+    {
+        var element = (UiInputField?)YGNodeGetContext(node);
+        if (element is null) return default;
+        var source = element.DisplayText.Length > 0 ? element.DisplayText : element.Placeholder;
+        var measured = element.Font is { } font
+            ? UiBitmapFont.Measure(element, font, source, element.ComputedStyle.FontSize)
+            : UiFallbackFont.Measure(element, source, element.ComputedStyle.FontSize);
+        measured.X = Math.Max(measured.X, element.ComputedStyle.FontSize * 10);
+        measured.Y = Math.Max(measured.Y, element.ComputedStyle.FontSize * 1.5f);
+        if (widthMode == MeasureMode.Exactly) measured.X = availableWidth;
+        else if (widthMode == MeasureMode.AtMost) measured.X = Math.Min(measured.X, availableWidth);
+        if (heightMode == MeasureMode.Exactly) measured.Y = availableHeight;
+        else if (heightMode == MeasureMode.AtMost) measured.Y = Math.Min(measured.Y, availableHeight);
+        return new YGSize { Width = measured.X, Height = measured.Y };
     }
 
     private static YGSize MeasureImage(

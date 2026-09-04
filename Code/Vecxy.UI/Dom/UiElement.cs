@@ -665,6 +665,7 @@ public class UiElement
             "color" or "background-color" or "background-image" or
             "background-size" or "background-position" or "background-slice" or "border-color" or
             "border-radius" or "box-shadow" or "object-fit" or "image-rendering" or
+            "placeholder-color" or "selection-background-color" or "caret-color" or "caret-width" or
             "scrollbar-color" or "scrollbar-track-color" or "z-index")
         {
             InvalidateVisual();
@@ -756,7 +757,7 @@ public class UiElement
     internal bool IsInteractive =>
         !IsDisabled &&
         IsVisible &&
-        (TagName is "button" or "input" or "select" or "slider" ||
+        (TagName is "button" or "input" or "input-field" or "select" or "slider" ||
          Clicked is not null ||
          TouchStarted is not null || TouchMoved is not null ||
          TouchEnded is not null || TouchCancelled is not null ||
@@ -767,7 +768,7 @@ public class UiElement
         !IsDisabled &&
         IsVisible &&
         (!Attributes.TryGetValue("tabindex", out var tabIndex) || tabIndex != "-1") &&
-        (TagName is "button" or "input" or "select" or "slider" ||
+        (TagName is "button" or "input" or "input-field" or "select" or "slider" ||
          Clicked is not null || Attributes.ContainsKey("action") || Attributes.ContainsKey("tabindex"));
 
     internal void RaiseClicked(Vector2 position)

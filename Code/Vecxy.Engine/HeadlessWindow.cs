@@ -3,7 +3,7 @@ using Vecxy.Kernel;
 
 namespace Vecxy.Engine;
 
-internal sealed class HeadlessWindow(IWindow.Options options) : IWindow
+internal sealed class HeadlessWindow(IWindow.Options options) : IWindow, IClipboard, ITextInputSource
 {
     public int Width { get; } = Math.Max(1, options.Width);
     public int Height { get; } = Math.Max(1, options.Height);
@@ -16,6 +16,11 @@ internal sealed class HeadlessWindow(IWindow.Options options) : IWindow
 
     public event Action<int, int>? Resized;
     public event Action<IWindow.KeyEvent>? KeyChanged;
+    public event Action<TextInputEvent>? TextInput;
+    public event Action? CompositionStarted;
+    public event Action<TextCompositionEvent>? CompositionUpdated;
+    public event Action<TextInputEvent>? CompositionCommitted;
+    public event Action? CompositionEnded;
     public event Action<IWindow.MouseButtonEvent>? MouseButtonChanged;
     public event Action<IWindow.MouseMoveEvent>? MouseMoved;
     public event Action<IWindow.MouseWheelEvent>? MouseWheelChanged;
@@ -63,6 +68,8 @@ internal sealed class HeadlessWindow(IWindow.Options options) : IWindow
     public Vector2 FramebufferToClient(Vector2 position) => position;
 
     public nint GetProcAddress(string name) => 0;
+    public string? GetText() => null;
+    public void SetText(string text) { }
 
     public void Dispose()
     {

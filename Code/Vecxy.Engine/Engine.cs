@@ -58,6 +58,8 @@ public sealed class Engine : IDisposable
 
         builder.RegisterInstance(_window)
             .As<IWindow>()
+            .As<IClipboard>()
+            .As<ITextInputSource>()
             .SingleInstance();
 
         builder.RegisterInstance(_options)

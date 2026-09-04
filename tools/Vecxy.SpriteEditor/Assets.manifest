@@ -66,7 +66,7 @@
       "path": "UI/Components/Inspector.xml",
       "type": "Asset",
       "name": "Inspector",
-      "hash": "86be3bf4c1a9f80a9ccc8bd880faf385b1c678c2115ab15c41eb32702b1e7ecb",
+      "hash": "d4834432c65336225071916025bd3aef720ede72c5985ad4696a3582a9d26f66",
       "dependencies": [],
       "package": "98cbb7d7-e042-d142-6ea7-cbd84cd256be"
     },
@@ -128,7 +128,7 @@
       "path": "UI/Styles/Inspector.css",
       "type": "Asset",
       "name": "Inspector",
-      "hash": "97e5b5e364113a22038d110d5080504ff4d96232df92116cb9bfe60f4c24059e",
+      "hash": "94bbdcb2805cbe9e53d928b049f8876861a57564b9419c7b9becc14802daf08b",
       "dependencies": [],
       "package": "98cbb7d7-e042-d142-6ea7-cbd84cd256be"
     },
