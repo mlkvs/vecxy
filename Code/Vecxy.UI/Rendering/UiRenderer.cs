@@ -356,7 +356,10 @@ internal sealed class UiRenderer : IDisposable
                         resolvedImage.Texture,
                         imageUv,
                         clip,
-                        style.BorderRadius * scale);
+                        style.BorderRadius * scale,
+                        style.ImageRendering == "pixelated"
+                            ? TextureSamplerState.PointClamp
+                            : TextureSamplerState.LinearClamp);
                 }
                 }
             }
@@ -912,14 +915,15 @@ internal sealed class UiRenderer : IDisposable
         RenderTexture texture,
         Vector4 uv,
         Rect clip,
-        float radius)
+        float radius,
+        TextureSamplerState sampler)
     {
         if (radius <= 0.01f)
         {
-            AddTextured(bounds, color, texture, uv, clip);
+            AddTextured(bounds, color, texture, uv, clip, sampler);
             return;
         }
-        AddRoundedGeometry(bounds, color, texture, uv, clip, radius, TextureSamplerState.LinearClamp);
+        AddRoundedGeometry(bounds, color, texture, uv, clip, radius, sampler);
     }
 
     private void AddBorder(Rect bounds, float width, float radius, Vector4 color, Rect clip)

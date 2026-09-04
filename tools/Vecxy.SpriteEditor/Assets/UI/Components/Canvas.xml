@@ -1,5 +1,5 @@
 <panel class="canvas-column">
-  <panel class="canvas-toolbar"><panel><text class="eyebrow">CANVAS</text><text id="canvas-title" class="canvas-title">Select an image</text></panel><panel class="canvas-actions"><button id="add-slice" class="icon-button">+ Slice</button><button id="auto-slice" class="icon-button">Trim alpha</button></panel></panel>
+  <panel class="canvas-toolbar"><text id="canvas-title" class="canvas-title">Select an image</text><panel class="canvas-actions"><button id="add-slice" class="icon-button">Add slice</button><button id="auto-slice" class="icon-button">Trim transparent</button></panel></panel>
   <panel class="canvas-viewport">
     <panel class="checkerboard">
       <panel id="image-stage" class="image-stage"><image id="sprite-preview" class="sprite-preview"/><panel id="slice-overlay" class="slice-overlay" /></panel>

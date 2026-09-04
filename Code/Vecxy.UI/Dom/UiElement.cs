@@ -664,7 +664,7 @@ public class UiElement
         if (propertyName is
             "color" or "background-color" or "background-image" or
             "background-size" or "background-position" or "background-slice" or "border-color" or
-            "border-radius" or "box-shadow" or "object-fit" or
+            "border-radius" or "box-shadow" or "object-fit" or "image-rendering" or
             "scrollbar-color" or "scrollbar-track-color" or "z-index")
         {
             InvalidateVisual();

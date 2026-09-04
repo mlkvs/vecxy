@@ -23,6 +23,7 @@ public sealed class SpriteEditorController(AtlasRepository repository, ProjectFo
     private UiText? _projectLabel;
     private string? _selectedSlice;
     private string? _draggingSlice;
+    private ResizeMode _resizeMode;
     private UiButton? _selectedFrame;
 
     public void Bind(UiDocument document)
@@ -34,7 +35,6 @@ public sealed class SpriteEditorController(AtlasRepository repository, ProjectFo
         Instantiate(document, content, "Components/AssetBrowser.xml");
         Instantiate(document, content, "Components/Canvas.xml");
         Instantiate(document, content, "Components/Inspector.xml");
-        Instantiate(document, workspace, "Components/StatusBar.xml");
         _assetList = document.GetElementById<UiPanel>("asset-list");
         _sliceList = document.GetElementById<UiPanel>("slice-list");
         _preview = document.GetElementById<UiImage>("sprite-preview");
@@ -73,7 +73,7 @@ public sealed class SpriteEditorController(AtlasRepository repository, ProjectFo
         try
         {
             _project = SpriteProject.Open(path);
-            _projectLabel!.Value = _project.Root;
+            _projectLabel!.Value = Path.GetFileName(_project.Root.TrimEnd(Path.DirectorySeparatorChar)) is { Length: > 0 } name ? name : "Project";
             RebuildAssets();
             SetStatus($"{_project.Images.Count} images · {_project.Atlases.Count} atlases");
         }
@@ -199,8 +199,9 @@ public sealed class SpriteEditorController(AtlasRepository repository, ProjectFo
             frame.Style.Width = $"{100f * slice.Width / Math.Max(1, _imageWidth):0.###}%";
             frame.Style.Height = $"{100f * slice.Height / Math.Max(1, _imageHeight):0.###}%";
             frame.Clicked += _ => { _selectedSlice = name; RebuildSlices(); };
-            frame.DragStarted += _ => { _selectedSlice = name; _draggingSlice = name; _selectedFrame = frame; };
-            frame.DragEnded += _ => { _draggingSlice = null; _selectedFrame = null; RebuildSlices(); };
+            frame.DragStarted += _ => StartDrag(name, frame, ResizeMode.Move);
+            frame.DragEnded += _ => EndDrag();
+            if (name == _selectedSlice) AddHandles(frame, name);
             _overlay.Add(frame);
         }
         var selected = Selected();
@@ -222,12 +223,78 @@ public sealed class SpriteEditorController(AtlasRepository repository, ProjectFo
         if (_draggingSlice is null || _stage is null || _selectedFrame is null || Selected() is not { } slice) return;
         var bounds = _stage.Bounds;
         if (bounds.Width <= 0 || bounds.Height <= 0) return;
-        slice.X = Math.Clamp(slice.X + (int)MathF.Round(input.PointerDelta.X * _imageWidth / bounds.Width), 0, Math.Max(0, _imageWidth - slice.Width));
-        slice.Y = Math.Clamp(slice.Y + (int)MathF.Round(input.PointerDelta.Y * _imageHeight / bounds.Height), 0, Math.Max(0, _imageHeight - slice.Height));
-        _selectedFrame.Style.Set("left", $"{100f * slice.X / Math.Max(1, _imageWidth):0.###}%");
-        _selectedFrame.Style.Set("top", $"{100f * slice.Y / Math.Max(1, _imageHeight):0.###}%");
+        var dx = (int)MathF.Round(input.PointerDelta.X * _imageWidth / bounds.Width);
+        var dy = (int)MathF.Round(input.PointerDelta.Y * _imageHeight / bounds.Height);
+        if (_resizeMode == ResizeMode.Pivot)
+        {
+            var frameBounds = _selectedFrame.Bounds;
+            slice.PivotX = Math.Clamp(slice.PivotX + input.PointerDelta.X / Math.Max(1, frameBounds.Width), 0, 1);
+            slice.PivotY = Math.Clamp(slice.PivotY - input.PointerDelta.Y / Math.Max(1, frameBounds.Height), 0, 1);
+        }
+        else
+        {
+            if (_resizeMode == ResizeMode.Move)
+            {
+                slice.X = Math.Clamp(slice.X + dx, 0, Math.Max(0, _imageWidth - slice.Width));
+                slice.Y = Math.Clamp(slice.Y + dy, 0, Math.Max(0, _imageHeight - slice.Height));
+            }
+            else
+            {
+                var left = slice.X;
+                var top = slice.Y;
+                var right = slice.X + slice.Width;
+                var bottom = slice.Y + slice.Height;
+                if (_resizeMode is ResizeMode.Left or ResizeMode.TopLeft or ResizeMode.BottomLeft) left = Math.Clamp(left + dx, 0, right - 1);
+                if (_resizeMode is ResizeMode.Right or ResizeMode.TopRight or ResizeMode.BottomRight) right = Math.Clamp(right + dx, left + 1, _imageWidth);
+                if (_resizeMode is ResizeMode.Top or ResizeMode.TopLeft or ResizeMode.TopRight) top = Math.Clamp(top + dy, 0, bottom - 1);
+                if (_resizeMode is ResizeMode.Bottom or ResizeMode.BottomLeft or ResizeMode.BottomRight) bottom = Math.Clamp(bottom + dy, top + 1, _imageHeight);
+                (slice.X, slice.Y, slice.Width, slice.Height) = (left, top, right - left, bottom - top);
+            }
+        }
+        UpdateFrame(_selectedFrame, slice);
         _document!.GetElementById<UiText>("rect-value").Value = $"{slice.X}, {slice.Y}  ·  {slice.Width} × {slice.Height}";
+        _document.GetElementById<UiText>("pivot-value").Value = $"{slice.PivotX:0.##}, {slice.PivotY:0.##}";
+    }
+
+    private void AddHandles(UiButton frame, string name)
+    {
+        foreach (var (css, mode) in new[]
+                 {
+                     ("nw", ResizeMode.TopLeft), ("n", ResizeMode.Top), ("ne", ResizeMode.TopRight),
+                     ("w", ResizeMode.Left), ("e", ResizeMode.Right),
+                     ("sw", ResizeMode.BottomLeft), ("s", ResizeMode.Bottom), ("se", ResizeMode.BottomRight)
+                 })
+        {
+            var handle = _document!.CreateButton("", new Dictionary<string, string> { ["class"] = $"resize-handle {css}", ["draggable"] = "true" });
+            handle.DragStarted += _ => StartDrag(name, frame, mode);
+            handle.DragEnded += _ => EndDrag();
+            frame.Add(handle);
+        }
+        var pivot = _document!.CreateButton("", new Dictionary<string, string> { ["class"] = "pivot-handle", ["draggable"] = "true" });
+        var slice = _atlas!.Sprites[name];
+        pivot.Style.Set("left", $"{slice.PivotX * 100:0.##}%");
+        pivot.Style.Set("top", $"{(1 - slice.PivotY) * 100:0.##}%");
+        pivot.DragStarted += _ => StartDrag(name, frame, ResizeMode.Pivot);
+        pivot.DragEnded += _ => EndDrag();
+        frame.Add(pivot);
+    }
+
+    private void StartDrag(string name, UiButton frame, ResizeMode mode) =>
+        (_selectedSlice, _draggingSlice, _selectedFrame, _resizeMode) = (name, name, frame, mode);
+
+    private void EndDrag() { _draggingSlice = null; _selectedFrame = null; _resizeMode = ResizeMode.None; RebuildSlices(); }
+
+    private void UpdateFrame(UiButton frame, SpriteSlice slice)
+    {
+        frame.Style.Set("left", $"{100f * slice.X / Math.Max(1, _imageWidth):0.###}%");
+        frame.Style.Set("top", $"{100f * slice.Y / Math.Max(1, _imageHeight):0.###}%");
+        frame.Style.Width = $"{100f * slice.Width / Math.Max(1, _imageWidth):0.###}%";
+        frame.Style.Height = $"{100f * slice.Height / Math.Max(1, _imageHeight):0.###}%";
+        var pivot = frame.Children.FirstOrDefault(child => child.Classes.Contains("pivot-handle"));
+        if (pivot is not null) { pivot.Style.Set("left", $"{slice.PivotX * 100:0.##}%"); pivot.Style.Set("top", $"{(1 - slice.PivotY) * 100:0.##}%"); }
     }
 
     public void Unbind() { _document = null; _preview = null; _overlay = null; _stage = null; _assetList = null; _sliceList = null; }
+
+    private enum ResizeMode { None, Move, Left, Right, Top, Bottom, TopLeft, TopRight, BottomLeft, BottomRight, Pivot }
 }

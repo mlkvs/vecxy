@@ -166,6 +166,7 @@ public sealed class UiComputedStyle
     internal IReadOnlyList<UiTransitionDefinition> Transitions { get; set; } = [];
     internal UiAnimationDefinition Animation { get; set; } = UiAnimationDefinition.None;
     public string ObjectFit { get; set; } = "fill";
+    public string ImageRendering { get; set; } = "auto";
     public UiLength ScrollbarWidth { get; set; } = UiLength.Ui(8.0f);
     public Vector4 ScrollbarColor { get; set; } = new(1.0f, 1.0f, 1.0f, 0.55f);
     public Vector4 ScrollbarTrackColor { get; set; } = new(0.0f, 0.0f, 0.0f, 0.22f);
@@ -213,7 +214,7 @@ public sealed class UiComputedStyle
         ImageTint == other.ImageTint &&
         TransformDefinition == other.TransformDefinition && TransformOrigin == other.TransformOrigin &&
         Transitions.SequenceEqual(other.Transitions) && Animation == other.Animation &&
-        ObjectFit == other.ObjectFit && ScrollbarWidth == other.ScrollbarWidth &&
+        ObjectFit == other.ObjectFit && ImageRendering == other.ImageRendering && ScrollbarWidth == other.ScrollbarWidth &&
         ScrollbarColor == other.ScrollbarColor && ScrollbarTrackColor == other.ScrollbarTrackColor &&
         Variables.Count == other.Variables.Count &&
         Variables.All(pair => other.Variables.TryGetValue(pair.Key, out var value) && value == pair.Value);
@@ -229,7 +230,7 @@ public sealed class UiComputedStyle
         BackgroundPosition == other.BackgroundPosition && BackgroundSlice == other.BackgroundSlice &&
         ImageTint == other.ImageTint &&
         Transitions.SequenceEqual(other.Transitions) && Animation == other.Animation &&
-        ObjectFit == other.ObjectFit && ScrollbarWidth == other.ScrollbarWidth &&
+        ObjectFit == other.ObjectFit && ImageRendering == other.ImageRendering && ScrollbarWidth == other.ScrollbarWidth &&
         ScrollbarColor == other.ScrollbarColor && ScrollbarTrackColor == other.ScrollbarTrackColor &&
         Variables.Count == other.Variables.Count &&
         Variables.All(pair => other.Variables.TryGetValue(pair.Key, out var value) && value == pair.Value);
@@ -1075,6 +1076,7 @@ internal static class UiStyleResolver
             case "transition": style.Transitions = UiAnimationParser.ParseTransitions(value); break;
             case "animation": style.Animation = UiAnimationParser.ParseAnimation(value); break;
             case "object-fit": style.ObjectFit = value.ToLowerInvariant(); break;
+            case "image-rendering": style.ImageRendering = value.ToLowerInvariant(); break;
             case "scrollbar-width": SetLength(value, result => style.ScrollbarWidth = result); break;
             case "scrollbar-color":
             {

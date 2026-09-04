@@ -1,4 +1,4 @@
-<ui class="app" styles="Styles/Global.css, Styles/Workspace.css, Styles/TopBar.css, Styles/AssetBrowser.css, Styles/Canvas.css, Styles/Inspector.css, Styles/StatusBar.css">
+<ui class="app" styles="Styles/Global.css, Styles/Workspace.css, Styles/TopBar.css, Styles/AssetBrowser.css, Styles/Canvas.css, Styles/Inspector.css">
   <panel id="workspace" class="workspace">
     <panel id="content" class="content" />
   </panel>

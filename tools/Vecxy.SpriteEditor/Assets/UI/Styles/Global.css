@@ -1,10 +1,10 @@
 @font-face { font-family: "Inter"; src: url("../../Fonts/Inter-Regular.ttf"); }
-:root { --bg: #090b10; --panel: #11141b; --panel-2: #171b24; --line: #252b38; --text: #edf2ff; --muted: #7e879a; --accent: #8b7cff; --cyan: #49d8ff; --green: #54d89b; font-family: "Inter"; color: var(--text); }
-button { height: 36ui; padding: 0 14ui; border: 1ui solid var(--line); border-radius: 8ui; background-color: #191e28; color: #cbd3e4; font-size: 13ui; transition: background-color 100ms ease-out, transform 100ms ease-out; }
-button:hover { background-color: #242b38; } button:active { transform: scale(.97); }
-.button.primary { background-color: var(--accent); border-color: #a69cff; color: white; } .button.success { background-color: #173d31; border-color: #286b52; color: #82edbd; }
-.eyebrow, .section-label { color: #697388; font-size: 10ui; letter-spacing: 1.4ui; }
-.panel-title { margin-top: 3ui; font-size: 18ui; font-weight: 700; }
-.panel-header { height: 70ui; padding: 14ui 16ui; flex-direction: row; justify-content: space-between; align-items: center; border-bottom: 1ui solid var(--line); }
-.sidebar { width: 278ui; height: 100%; background-color: var(--panel); border-right: 1ui solid var(--line); }
-.muted { color: var(--muted); font-size: 12ui; }
+:root { --bg: #161719; --panel: #202124; --panel-2: #282a2e; --line: #383a3f; --text: #f3f4f6; --muted: #a1a5ad; --accent: #3b82f6; --cyan: #60a5fa; --green: #4ade80; font-family: "Inter"; color: var(--text); }
+button { height: 42ui; padding: 0 16ui; border: 1ui solid var(--line); border-radius: 6ui; background-color: #2a2c30; color: #e5e7eb; font-size: 14ui; transition: background-color 80ms ease-out; }
+button:hover { background-color: #34373c; } button:active { background-color: #3b3e44; }
+.button.primary { background-color: var(--accent); border-color: #60a5fa; color: white; }
+.eyebrow, .section-label { color: var(--muted); font-size: 12ui; }
+.panel-title { font-size: 19ui; font-weight: 700; }
+.panel-header { height: 64ui; padding: 0 18ui; flex-direction: row; align-items: center; border-bottom: 1ui solid var(--line); }
+.sidebar { width: 310ui; height: 100%; background-color: var(--panel); border-right: 1ui solid var(--line); }
+.muted { color: var(--muted); font-size: 14ui; }
