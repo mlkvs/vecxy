@@ -384,16 +384,6 @@
       "hash": "7329544873bd6ddf000d93361d7084fbc76063ad92a667721d8c1c9bb732363b",
       "dependencies": [],
       "package": "79e6ac0f-5f3f-e20a-2227-c63732e7dd1e"
-    },
-    {
-      "id": "7887c22b-dc85-457b-a5c3-00fa4f4b676b",
-      "source": "Game",
-      "path": "Fonts/InterVariable.ttf",
-      "type": "Asset",
-      "name": "InterVariable",
-      "hash": "4989b125924991b90d05b2d16e0e388c48f7d5bb8b30539bbf9c755278d0ccaf",
-      "dependencies": [],
-      "package": "98cbb7d7-e042-d142-6ea7-cbd84cd256be"
     }
   ],
   "packages": [

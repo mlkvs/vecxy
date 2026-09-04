@@ -21,8 +21,6 @@ public static partial class Assets
         public static TextHandle InterLICENSE => new(new Guid("c4543cf3-00dc-4a9b-87ce-8ddd258e105d"));
         [AssetReference("3f89384e-7430-4f6e-a021-d6122664ca53")]
         public static AssetHandle InterRegular => new(new Guid("3f89384e-7430-4f6e-a021-d6122664ca53"));
-        [AssetReference("7887c22b-dc85-457b-a5c3-00fa4f4b676b")]
-        public static AssetHandle InterVariable => new(new Guid("7887c22b-dc85-457b-a5c3-00fa4f4b676b"));
     }
 
     public static class UI
