@@ -83,9 +83,20 @@ internal static partial class NewProjectCommand
           </PropertyGroup>
           <Import Project="$(VecxyEnginePath)/Code/Vecxy.Platforms/build/Vecxy.Platforms.props" />
           <ItemGroup>
-            <ProjectReference Include="$(VecxyEnginePath)/Code/Vecxy.Engine/Vecxy.Engine.csproj" />
             <ProjectReference Include="$(VecxyEnginePath)/Code/Vecxy.Assets/Vecxy.Assets.csproj" />
+            <ProjectReference Include="$(VecxyEnginePath)/Code/Vecxy.Audio/Vecxy.Audio.csproj" />
+            <ProjectReference Include="$(VecxyEnginePath)/Code/Vecxy.Diagnostics/Vecxy.Diagnostics.csproj" />
+            <ProjectReference Include="$(VecxyEnginePath)/Code/Vecxy.Engine/Vecxy.Engine.csproj" />
+            <ProjectReference Include="$(VecxyEnginePath)/Code/Vecxy.Input/Vecxy.Input.csproj" />
             <ProjectReference Include="$(VecxyEnginePath)/Code/Vecxy.Kernel/Vecxy.Kernel.csproj" />
+            <ProjectReference Include="$(VecxyEnginePath)/Code/Vecxy.Messaging/Vecxy.Messaging.csproj" />
+            <ProjectReference Include="$(VecxyEnginePath)/Code/Vecxy.Networking/Vecxy.Networking.csproj" />
+            <ProjectReference Include="$(VecxyEnginePath)/Code/Vecxy.Pathfinding/Vecxy.Pathfinding.csproj" />
+            <ProjectReference Include="$(VecxyEnginePath)/Code/Vecxy.Physics/Vecxy.Physics.csproj" />
+            <ProjectReference Include="$(VecxyEnginePath)/Code/Vecxy.Rendering/Vecxy.Rendering.csproj" />
+            <ProjectReference Include="$(VecxyEnginePath)/Code/Vecxy.Scene/Vecxy.Scene.csproj" />
+            <ProjectReference Include="$(VecxyEnginePath)/Code/Vecxy.Scripting/Vecxy.Scripting.csproj" />
+            <ProjectReference Include="$(VecxyEnginePath)/Code/Vecxy.UI/Vecxy.UI.csproj" />
           </ItemGroup>
         </Project>
         """;

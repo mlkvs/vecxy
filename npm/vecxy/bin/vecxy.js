@@ -8,7 +8,7 @@ import { homedir, platform } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const VERSION = '0.1.3';
+const VERSION = '0.1.4';
 const DOTNET_VERSION = '10.0.110';
 const ENGINE_REPOSITORY = 'https://github.com/mlkvs/vecxy.git';
 const home = process.env.VECXY_HOME || join(homedir(), '.vecxy');
@@ -354,7 +354,7 @@ function writeEngineProps(project, engine) {
   const slash = value => value.replaceAll('\\', '/');
   const escape = value => value.replaceAll('&', '&amp;').replaceAll('"', '&quot;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
   const root = escape(slash(engine));
-  writeIfChanged(join(project, '.vecxy', 'Engine.props'), `<Project>\n  <PropertyGroup>\n    <VecxyEnginePath>${root}</VecxyEnginePath>\n  </PropertyGroup>\n  <Import Project="$(VecxyEnginePath)/Code/Vecxy.Platforms/build/Vecxy.Platforms.props" />\n  <ItemGroup>\n    <ProjectReference Include="$(VecxyEnginePath)/Code/Vecxy.Engine/Vecxy.Engine.csproj" />\n    <ProjectReference Include="$(VecxyEnginePath)/Code/Vecxy.Assets/Vecxy.Assets.csproj" />\n    <ProjectReference Include="$(VecxyEnginePath)/Code/Vecxy.Kernel/Vecxy.Kernel.csproj" />\n  </ItemGroup>\n</Project>\n`);
+  writeIfChanged(join(project, '.vecxy', 'Engine.props'), `<Project>\n  <PropertyGroup>\n    <VecxyEnginePath>${root}</VecxyEnginePath>\n  </PropertyGroup>\n  <Import Project="$(VecxyEnginePath)/Code/Vecxy.Platforms/build/Vecxy.Platforms.props" />\n  <ItemGroup>\n    <ProjectReference Include="$(VecxyEnginePath)/Code/Vecxy.Assets/Vecxy.Assets.csproj" />\n    <ProjectReference Include="$(VecxyEnginePath)/Code/Vecxy.Audio/Vecxy.Audio.csproj" />\n    <ProjectReference Include="$(VecxyEnginePath)/Code/Vecxy.Diagnostics/Vecxy.Diagnostics.csproj" />\n    <ProjectReference Include="$(VecxyEnginePath)/Code/Vecxy.Engine/Vecxy.Engine.csproj" />\n    <ProjectReference Include="$(VecxyEnginePath)/Code/Vecxy.Input/Vecxy.Input.csproj" />\n    <ProjectReference Include="$(VecxyEnginePath)/Code/Vecxy.Kernel/Vecxy.Kernel.csproj" />\n    <ProjectReference Include="$(VecxyEnginePath)/Code/Vecxy.Messaging/Vecxy.Messaging.csproj" />\n    <ProjectReference Include="$(VecxyEnginePath)/Code/Vecxy.Networking/Vecxy.Networking.csproj" />\n    <ProjectReference Include="$(VecxyEnginePath)/Code/Vecxy.Pathfinding/Vecxy.Pathfinding.csproj" />\n    <ProjectReference Include="$(VecxyEnginePath)/Code/Vecxy.Physics/Vecxy.Physics.csproj" />\n    <ProjectReference Include="$(VecxyEnginePath)/Code/Vecxy.Rendering/Vecxy.Rendering.csproj" />\n    <ProjectReference Include="$(VecxyEnginePath)/Code/Vecxy.Scene/Vecxy.Scene.csproj" />\n    <ProjectReference Include="$(VecxyEnginePath)/Code/Vecxy.Scripting/Vecxy.Scripting.csproj" />\n    <ProjectReference Include="$(VecxyEnginePath)/Code/Vecxy.UI/Vecxy.UI.csproj" />\n  </ItemGroup>\n</Project>\n`);
 }
 
 function migrateProjectFile(file) {
