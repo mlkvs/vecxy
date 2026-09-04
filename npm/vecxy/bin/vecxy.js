@@ -8,7 +8,7 @@ import { homedir, platform } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const VERSION = '0.1.4';
+const VERSION = '0.1.5';
 const DOTNET_VERSION = '10.0.110';
 const ENGINE_REPOSITORY = 'https://github.com/mlkvs/vecxy.git';
 const home = process.env.VECXY_HOME || join(homedir(), '.vecxy');
@@ -443,7 +443,10 @@ function engineCommit(path) {
   return result.status === 0 ? result.stdout.trim() : 'unknown';
 }
 function resolveGitRef(path, ref) {
-  for (const candidate of [ref, `origin/${ref}`]) {
+  // A clone keeps its local branch at the commit where it was created. Prefer
+  // the freshly fetched remote-tracking branch so named branches really update.
+  // Tags and commit hashes naturally fall back to the literal ref.
+  for (const candidate of [`origin/${ref}`, ref]) {
     const result = spawnSync('git', ['-C', path, 'rev-parse', '--verify', `${candidate}^{commit}`], { encoding: 'utf8' });
     if (result.status === 0) return result.stdout.trim();
   }
