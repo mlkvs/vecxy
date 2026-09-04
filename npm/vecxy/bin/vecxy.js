@@ -2,20 +2,20 @@
 import { spawn, spawnSync } from 'node:child_process';
 import { createInterface } from 'node:readline/promises';
 import { stdin, stdout } from 'node:process';
-import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { homedir, platform } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const VERSION = '0.1.2';
+const VERSION = '0.1.3';
 const DOTNET_VERSION = '10.0.110';
 const ENGINE_REPOSITORY = 'https://github.com/mlkvs/vecxy.git';
 const home = process.env.VECXY_HOME || join(homedir(), '.vecxy');
 const defaultEngineRef = 'develop';
 const localDotnet = join(home, 'dotnet', platform() === 'win32' ? 'dotnet.exe' : 'dotnet');
 const androidSdk = resolve(process.env.ANDROID_SDK_ROOT || process.env.ANDROID_HOME || join(home, 'android-sdk'));
-const args = process.argv.slice(2);
+const args = expandShortOptions(process.argv.slice(2));
 
 if (args.includes('--version') || args[0] === 'version') {
   console.log(VERSION);
@@ -38,14 +38,14 @@ function printHelp() {
   console.log(`Vecxy CLI ${VERSION}
 
 Usage:
-  vecxy setup [--yes] [--no-android] [--dry-run] [--engine <ref>]
+  vecxy setup [-y|--yes] [--no-android] [--dry-run] [-e|--engine <ref>]
   vecxy doctor [--no-android]
-  vecxy new <name> [--output <directory>]
-  vecxy engine install <tag|branch|commit>
-  vecxy engine use <tag|branch|commit> [--project <directory>]
-  vecxy engine current [--project <directory>]
+  vecxy new <name> [-o|--output <directory>]
+  vecxy engine install [tag|branch|commit]
+  vecxy engine use <tag|branch|commit> [-p|--project <directory>]
+  vecxy engine current [-p|--project <directory>]
   vecxy engine list
-  vecxy build [dev|release] --project <path> --platform <linux|windows|android>
+  vecxy build [dev|release] [-p|--project <path>] -t|--platform <linux|windows|android>
   vecxy assets <scan|generate|analyze|validate|packages|pack|prepare>
 
 Environment:
@@ -121,6 +121,7 @@ async function setup(options) {
   await installDotnet();
   const installedEngine = await installEngine(engineRef);
   if (projectConfig) configureProject(project, engineRef, installedEngine);
+  else writeGlobalConfig(engineRef);
   if (android) await installAndroid(installedEngine);
   writeEnvironment();
   console.log('\nSetup complete. Restart the terminal or load the environment file shown above, then run: vecxy doctor');
@@ -161,9 +162,23 @@ async function installEngine(ref = defaultEngineRef) {
   if (validCheckout) {
     console.log(`Updating Vecxy Engine '${ref}' in ${engine}...`);
   } else {
-    if (existsSync(engine)) rmSync(engine, { recursive: true, force: true });
     mkdirSync(dirname(engine), { recursive: true });
-    run('git', [...gitOptions, 'clone', '--filter=blob:none', '--no-checkout', ENGINE_REPOSITORY, engine], { GIT_TERMINAL_PROMPT: '0' });
+    const temporary = `${engine}.install-${process.pid}-${Date.now()}`;
+    try {
+      run('git', [...gitOptions, 'clone', '--filter=blob:none', '--no-checkout', ENGINE_REPOSITORY, temporary], { GIT_TERMINAL_PROMPT: '0' });
+      run('git', [...gitOptions, '-C', temporary, 'fetch', '--prune', 'origin', '+refs/heads/*:refs/remotes/origin/*', '+refs/tags/*:refs/tags/*'], { GIT_TERMINAL_PROMPT: '0' });
+      const commit = resolveGitRef(temporary, ref);
+      if (!commit) throw new Error(`Vecxy Engine ref '${ref}' was not found.`);
+      run('git', [...gitOptions, '-C', temporary, 'checkout', '--detach', '--force', commit], { GIT_TERMINAL_PROMPT: '0' });
+      if (!isEngine(temporary)) throw new Error(`Git ref '${ref}' does not contain a valid Vecxy Engine.`);
+      writeFileSync(join(temporary, '.vecxy-ref'), `${ref}\n`);
+      if (existsSync(engine)) rmSync(engine, { recursive: true, force: true });
+      renameSync(temporary, engine);
+      console.log(`✓ Vecxy Engine ${ref}: ${engineCommit(engine)}`);
+      return engine;
+    } finally {
+      if (existsSync(temporary)) rmSync(temporary, { recursive: true, force: true });
+    }
   }
   run('git', [...gitOptions, '-C', engine, 'fetch', '--prune', 'origin', '+refs/heads/*:refs/remotes/origin/*', '+refs/tags/*:refs/tags/*'], { GIT_TERMINAL_PROMPT: '0' });
   const commit = resolveGitRef(engine, ref);
@@ -283,16 +298,21 @@ function fail(error) { console.error(`vecxy: ${error.message || error}`); proces
 
 async function engineCommand(values) {
   const projectOption = takeOption(values, '--project');
-  if (values.length === 2 && values[0] === 'install') {
-    await installEngine(values[1]);
+  if ((values.length === 1 || values.length === 2) && values[0] === 'install') {
+    await installEngine(values[1] || defaultEngineRef);
     return 0;
   }
   if (values.length === 2 && values[0] === 'use') {
     const ref = values[1];
     const installed = await installEngine(ref);
-    const project = findProjectRoot(projectOption || process.cwd());
-    configureProject(project, ref, installed);
-    console.log(`Project ${project}\nuses Vecxy ${ref} (${engineCommit(installed)})`);
+    if (projectOption) {
+      const project = findProjectRoot(projectOption);
+      configureProject(project, ref, installed);
+      console.log(`Project ${project}\nuses Vecxy ${ref} (${engineCommit(installed)})`);
+    } else {
+      writeGlobalConfig(ref);
+      console.log(`Default engine: Vecxy ${ref} (${engineCommit(installed)})\n${installed}`);
+    }
     return 0;
   }
   if (values.length === 1 && values[0] === 'current') {
@@ -305,12 +325,14 @@ async function engineCommand(values) {
   if (values.length === 1 && values[0] === 'list' && !projectOption) {
     const root = join(home, 'engines');
     if (!existsSync(root)) { console.log('No engine versions installed.'); return 0; }
-    for (const directory of readdirSync(root, { withFileTypes: true }).filter(x => x.isDirectory())) {
+    const activeRef = readGlobalConfig()?.engine?.ref || defaultEngineRef;
+    const directories = readdirSync(root, { withFileTypes: true }).filter(x => x.isDirectory()).sort((a, b) => a.name.localeCompare(b.name));
+    for (const directory of directories) {
       const path = join(root, directory.name);
       if (!isEngine(path)) continue;
       const refFile = join(path, '.vecxy-ref');
       const ref = existsSync(refFile) ? readFileSync(refFile, 'utf8').trim() : directory.name;
-      console.log(`${ref}\t${engineCommit(path)}\t${path}`);
+      console.log(`${ref === activeRef ? '*' : ' '} ${ref}\t${engineCommit(path)}\t${path}`);
     }
     return 0;
   }
@@ -320,19 +342,19 @@ async function engineCommand(values) {
 function configureProject(project, ref, engine) {
   const settings = join(project, '.vecxy');
   mkdirSync(settings, { recursive: true });
-  writeFileSync(join(settings, 'config.json'), `${JSON.stringify({ engine: { repository: ENGINE_REPOSITORY, ref } }, null, 2)}\n`);
+  writeIfChanged(join(settings, 'config.json'), `${JSON.stringify({ engine: { repository: ENGINE_REPOSITORY, ref } }, null, 2)}\n`);
   writeEngineProps(project, engine);
   for (const file of readdirSync(project).filter(x => x.endsWith('.csproj'))) migrateProjectFile(join(project, file));
   const ignoreFile = join(project, '.gitignore');
   const ignore = existsSync(ignoreFile) ? readFileSync(ignoreFile, 'utf8') : '';
-  if (!ignore.split(/\r?\n/).includes('.vecxy/Engine.props')) writeFileSync(ignoreFile, `${ignore}${ignore.endsWith('\n') || !ignore ? '' : '\n'}.vecxy/Engine.props\n`);
+  if (!ignore.split(/\r?\n/).includes('.vecxy/Engine.props')) writeIfChanged(ignoreFile, `${ignore}${ignore.endsWith('\n') || !ignore ? '' : '\n'}.vecxy/Engine.props\n`);
 }
 
 function writeEngineProps(project, engine) {
   const slash = value => value.replaceAll('\\', '/');
   const escape = value => value.replaceAll('&', '&amp;').replaceAll('"', '&quot;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
   const root = escape(slash(engine));
-  writeFileSync(join(project, '.vecxy', 'Engine.props'), `<Project>\n  <PropertyGroup>\n    <VecxyEnginePath>${root}</VecxyEnginePath>\n  </PropertyGroup>\n  <Import Project="$(VecxyEnginePath)/Code/Vecxy.Platforms/build/Vecxy.Platforms.props" />\n  <ItemGroup>\n    <ProjectReference Include="$(VecxyEnginePath)/Code/Vecxy.Engine/Vecxy.Engine.csproj" />\n    <ProjectReference Include="$(VecxyEnginePath)/Code/Vecxy.Assets/Vecxy.Assets.csproj" />\n    <ProjectReference Include="$(VecxyEnginePath)/Code/Vecxy.Kernel/Vecxy.Kernel.csproj" />\n  </ItemGroup>\n</Project>\n`);
+  writeIfChanged(join(project, '.vecxy', 'Engine.props'), `<Project>\n  <PropertyGroup>\n    <VecxyEnginePath>${root}</VecxyEnginePath>\n  </PropertyGroup>\n  <Import Project="$(VecxyEnginePath)/Code/Vecxy.Platforms/build/Vecxy.Platforms.props" />\n  <ItemGroup>\n    <ProjectReference Include="$(VecxyEnginePath)/Code/Vecxy.Engine/Vecxy.Engine.csproj" />\n    <ProjectReference Include="$(VecxyEnginePath)/Code/Vecxy.Assets/Vecxy.Assets.csproj" />\n    <ProjectReference Include="$(VecxyEnginePath)/Code/Vecxy.Kernel/Vecxy.Kernel.csproj" />\n  </ItemGroup>\n</Project>\n`);
 }
 
 function migrateProjectFile(file) {
@@ -341,22 +363,38 @@ function migrateProjectFile(file) {
   if (importPattern.test(xml)) xml = xml.replace(importPattern, '  <Import Project=".vecxy/Engine.props" />');
   else if (!xml.includes('.vecxy/Engine.props')) xml = xml.replace(/<\/Project>\s*$/, '  <Import Project=".vecxy/Engine.props" />\n</Project>\n');
   xml = xml.replace(/^[ \t]*<ProjectReference\s+Include="[^"]*Vecxy\.(?:Engine|Assets|Kernel)[\\/][^"]+\.csproj"\s*\/>[ \t]*\r?\n?/gm, '');
-  writeFileSync(file, xml);
+  writeIfChanged(file, xml);
 }
 
-function resolveEngine(project, syncProject = true) {
+function resolveEngine(project) {
   if (process.env.VECXY_ENGINE_PATH) return resolve(process.env.VECXY_ENGINE_PATH);
   const root = project ? findProjectRoot(project, false) : findProjectRoot(process.cwd(), false);
   const config = root && readProjectConfig(root);
   if (config) {
     const selected = engineDirectory(config.engine.ref);
     if (!isEngine(selected)) throw new Error(`Vecxy Engine '${config.engine.ref}' is not installed. Run: vecxy engine install ${config.engine.ref}`);
-    if (syncProject) writeEngineProps(root, selected);
     return selected;
   }
-  const versioned = engineDirectory(defaultEngineRef);
+  const globalConfig = readGlobalConfig();
+  const selectedRef = globalConfig?.engine?.ref || defaultEngineRef;
+  const versioned = engineDirectory(selectedRef);
   const legacy = join(home, 'engine');
+  if (globalConfig && !isEngine(versioned))
+    throw new Error(`Vecxy Engine '${selectedRef}' is not installed. Run: vecxy engine install ${selectedRef}`);
   return isEngine(versioned) ? versioned : legacy;
+}
+
+function readGlobalConfig() {
+  const file = join(home, 'config.json');
+  if (!existsSync(file)) return null;
+  const config = JSON.parse(readFileSync(file, 'utf8'));
+  if (!config?.engine?.ref || typeof config.engine.ref !== 'string') throw new Error(`Invalid Vecxy settings: ${file}`);
+  return config;
+}
+
+function writeGlobalConfig(ref) {
+  mkdirSync(home, { recursive: true });
+  writeIfChanged(join(home, 'config.json'), `${JSON.stringify({ engine: { repository: ENGINE_REPOSITORY, ref } }, null, 2)}\n`);
 }
 
 function readProjectConfig(project) {
@@ -422,4 +460,19 @@ function takeOption(values, name) {
   const value = values[index + 1];
   values.splice(index, 2);
   return value;
+}
+
+function writeIfChanged(file, contents) {
+  if (existsSync(file) && readFileSync(file, 'utf8') === contents) return false;
+  writeFileSync(file, contents);
+  return true;
+}
+
+function expandShortOptions(values) {
+  const aliases = new Map([
+    ['-p', '--project'], ['-o', '--output'], ['-e', '--engine'], ['-t', '--platform'],
+    ['-r', '--runtime'], ['-f', '--format'], ['-k', '--keystore'], ['-a', '--alias'],
+    ['-y', '--yes'], ['-h', '--help'], ['-V', '--version']
+  ]);
+  return values.map(value => aliases.get(value) || value);
 }

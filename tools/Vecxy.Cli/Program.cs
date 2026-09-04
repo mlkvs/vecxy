@@ -2,7 +2,7 @@ using System.Diagnostics;
 using Vecxy.AssetPipeline;
 using Pipeline = Vecxy.AssetPipeline.AssetPipeline;
 
-var arguments = args.ToList();
+var arguments = ExpandShortOptions(args).ToList();
 
 try
 {
@@ -159,6 +159,15 @@ static string? GetOption(List<string> values, string name)
     if (index + 1 >= values.Count) throw new ArgumentException($"Missing value for {name}");
     var result = values[index + 1]; values.RemoveRange(index, 2); return result;
 }
+static IEnumerable<string> ExpandShortOptions(IEnumerable<string> values)
+{
+    var aliases = new Dictionary<string, string>(StringComparer.Ordinal)
+    {
+        ["-p"] = "--project", ["-o"] = "--output", ["-e"] = "--engine", ["-t"] = "--platform",
+        ["-r"] = "--runtime", ["-f"] = "--format", ["-k"] = "--keystore", ["-a"] = "--alias"
+    };
+    return values.Select(value => aliases.GetValueOrDefault(value, value));
+}
 static string ResolveProject(string? value)
 {
     var path = Path.GetFullPath(value ?? Directory.GetCurrentDirectory());
@@ -171,4 +180,4 @@ static string ResolveProject(string? value)
         throw new InvalidOperationException($"No .csproj found in '{path}'. Select a game: --project HardCore.Cultivation");
     throw new InvalidOperationException($"More than one .csproj found in '{path}'. Select one with --project <path>.");
 }
-static void PrintUsage() => Console.WriteLine("Usage: vecxy new <name> [--output <directory>] [--engine <path-to-Engine/Vecxy>]\n       vecxy --project <game-directory|csproj> assets <scan|generate|analyze|validate|packages|pack|prepare|build> [--platform <windows|linux|android>]\n       vecxy --project <game-directory|csproj> packages manifest --platform <windows|linux|android>\n       vecxy --project <game-directory|csproj> build [dev|release] --platform <linux|windows|android> [--runtime <rid>] [--output <path>]\n       vecxy --project <game-directory|csproj> build [dev|release] --platform android [--format <apk|aab|both>] [--version <name>] [--version-code <number>]\n\nAndroid signing: --keystore <path> --alias <name>, with passwords in VECXY_ANDROID_STORE_PASSWORD and optional VECXY_ANDROID_KEY_PASSWORD.\n--project may be omitted when the current directory contains exactly one .csproj.\n'new' creates a project in ./<name> unless --output is specified.");
+static void PrintUsage() => Console.WriteLine("Usage: vecxy new <name> [-o|--output <directory>] [-e|--engine <path-to-Engine/Vecxy>]\n       vecxy [-p|--project <game-directory|csproj>] assets <scan|generate|analyze|validate|packages|pack|prepare|build> [-t|--platform <windows|linux|android>]\n       vecxy [-p|--project <game-directory|csproj>] packages manifest [-t|--platform <windows|linux|android>]\n       vecxy [-p|--project <game-directory|csproj>] build [dev|release] -t|--platform <linux|windows|android> [-r|--runtime <rid>] [-o|--output <path>]\n       vecxy [-p|--project <game-directory|csproj>] build [dev|release] -t|--platform android [-f|--format <apk|aab|both>] [--version <name>] [--version-code <number>]\n\nAndroid signing: -k|--keystore <path> -a|--alias <name>, with passwords in VECXY_ANDROID_STORE_PASSWORD and optional VECXY_ANDROID_KEY_PASSWORD.\n--project may be omitted when the current directory contains exactly one .csproj.\n'new' creates a project in ./<name> unless --output is specified.");
