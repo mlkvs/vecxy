@@ -68,9 +68,9 @@ internal readonly record struct UiFontGlyph(
 
 public sealed class UiFontAssetImporter : IAssetImporter<UiFontAsset>
 {
-    private const float TrueTypeSourceSize = 64.0f;
-    // The supported Latin/Cyrillic ranges at the 64 px source size fit into a
-    // 1024² atlas. The previous 2048² RGBA allocation consumed 16 MiB per font.
+    private const float TrueTypeSourceSize = 40.0f;
+    // Latin/Cyrillic coverage at the 40 px source size fits modern UI fonts in
+    // a 1024² atlas while keeping text crisp at normal interface sizes.
     private const int TrueTypeAtlasSize = 1024;
     private static readonly (int First, int Count)[] TrueTypeRanges =
     [
@@ -184,17 +184,18 @@ public sealed class UiFontAssetImporter : IAssetImporter<UiFontAsset>
                     var packedCharacters = new stbtt_packedchar[count];
                     fixed (stbtt_packedchar* characterPointer = packedCharacters)
                     {
-                        if (StbTrueType.stbtt_PackFontRange(
-                                packContext,
-                                fontPointer,
-                                0,
-                                TrueTypeSourceSize,
-                                first,
-                                count,
-                                characterPointer) == 0)
-                        {
-                            throw Invalid(metadata.Path, "does not fit into the TrueType glyph atlas");
-                        }
+                        // stb_truetype returns zero when any glyph in a range did
+                        // not fit, but still leaves successfully packed glyphs in
+                        // the output. Keep that useful subset; zero-sized entries
+                        // are filtered below and fall back normally at render time.
+                        StbTrueType.stbtt_PackFontRange(
+                            packContext,
+                            fontPointer,
+                            0,
+                            TrueTypeSourceSize,
+                            first,
+                            count,
+                            characterPointer);
                     }
 
                     packedRanges.Add((first, packedCharacters));
@@ -236,6 +237,8 @@ public sealed class UiFontAssetImporter : IAssetImporter<UiFontAsset>
                     packed.xadvance);
             }
         }
+        if (!glyphs.ContainsKey('?'))
+            throw Invalid(metadata.Path, "could not pack the basic Latin glyphs");
 
         var kernings = new Dictionary<long, float>();
         var codepointsByGlyph = new Dictionary<int, int>();

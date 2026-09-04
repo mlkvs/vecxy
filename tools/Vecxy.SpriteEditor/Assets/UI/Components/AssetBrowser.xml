@@ -1,0 +1,5 @@
+<panel class="sidebar asset-browser">
+  <panel class="panel-header"><panel><text class="eyebrow">LIBRARY</text><text class="panel-title">Assets</text></panel><text class="shortcut">⌘ P</text></panel>
+  <panel class="search-field"><text class="muted">Search images and atlases…</text></panel>
+  <panel id="asset-list" class="asset-list" virtualize="true" />
+</panel>

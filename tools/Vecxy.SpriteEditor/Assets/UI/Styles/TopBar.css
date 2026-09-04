@@ -1,0 +1,4 @@
+.topbar { height: 76ui; flex-direction: row; align-items: center; gap: 24ui; padding: 0 18ui; background-color: #0d1016; border-bottom: 1ui solid var(--line); }
+.brand { width: 260ui; flex-direction: row; align-items: center; gap: 11ui; }.brand-mark { width: 38ui; height: 38ui; padding-top: 10ui; text-align: center; border-radius: 10ui; background-color: var(--accent); font-weight: 800; }.brand-title { font-size: 17ui; font-weight: 700; }.brand-subtitle { color: #606a7d; font-size: 9ui; letter-spacing: 1.3ui; }
+.project-pill { flex-grow: 1; height: 48ui; padding: 7ui 13ui; border: 1ui solid #202633; border-radius: 9ui; background-color: #11151d; }.project-path { margin-top: 2ui; color: #b7c0d2; font-size: 12ui; white-space: nowrap; overflow: hidden; }
+.toolbar-actions { flex-direction: row; gap: 8ui; }

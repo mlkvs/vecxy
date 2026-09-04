@@ -1,0 +1,13 @@
+application:
+  title: Vecxy Sprite Editor
+window:
+  width: 1600
+  height: 960
+engine:
+  targetFrameRate: 60
+  showSplashScreen: false
+assets:
+  hotReload: true
+layers:
+  - engine
+  - sprite-editor

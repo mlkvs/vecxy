@@ -1,0 +1,5 @@
+<panel class="topbar">
+  <panel class="brand"><text class="brand-mark">VX</text><panel><text class="brand-title">Sprite Editor</text><text class="brand-subtitle">2D ASSET WORKSPACE</text></panel></panel>
+  <panel class="project-pill"><text class="eyebrow">PROJECT</text><text id="project-label" class="project-path">No project selected</text></panel>
+  <panel class="toolbar-actions"><button id="open-project" class="button primary">Open project</button><button id="new-atlas" class="button">New atlas</button><button id="save-atlas" class="button success">Save</button></panel>
+</panel>

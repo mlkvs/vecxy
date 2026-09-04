@@ -1,0 +1,7 @@
+referenceResolution: [1600, 960]
+scaleMode: fit
+scrollSpeed: 48
+dragScrollThreshold: 6
+scrollDeceleration: 2200
+enableShadows: true
+spriteAtlases: {}

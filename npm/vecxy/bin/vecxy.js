@@ -8,7 +8,7 @@ import { homedir, platform } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const VERSION = '0.1.6';
+const VERSION = '0.1.7';
 const DOTNET_VERSION = '10.0.110';
 const ENGINE_REPOSITORY = 'https://github.com/mlkvs/vecxy.git';
 const home = process.env.VECXY_HOME || join(homedir(), '.vecxy');
@@ -30,6 +30,8 @@ if (args[0] === 'engine') {
   engineCommand(args.slice(1)).then(code => process.exit(code), fail);
 } else if (args[0] === 'setup') {
   setup(args.slice(1)).then(code => process.exit(code), fail);
+} else if (args[0] === 'sprite-editor') {
+  launchSpriteEditor(args.slice(1));
 } else {
   forward(args);
 }
@@ -46,6 +48,7 @@ Usage:
   vecxy engine use <latest|tag|branch|commit> -g|--global
   vecxy engine current [-p|--project <directory>] [-g|--global]
   vecxy engine list
+  vecxy sprite-editor [-p|--project <directory>]
   vecxy build [dev|release] [-p|--project <path>] -t|--platform <linux|windows|android>
   vecxy assets <scan|generate|analyze|validate|packages|pack|prepare>
 
@@ -273,6 +276,24 @@ function forward(values) {
   if (values[0] === 'new' && !values.includes('--engine')) forwarded.push('--engine', engine);
   const child = spawn(dotnet, ['run', '--project', project, '--', ...forwarded], {
     stdio: 'inherit', env: { ...process.env, VecxyEnginePath: engine, VECXY_ENGINE_PATH: engine, VECXY_ENGINE_REF: installedRef(engine) }
+  });
+  child.on('exit', (code, signal) => process.exit(signal ? 1 : code ?? 1));
+  child.on('error', fail);
+}
+
+function launchSpriteEditor(values) {
+  const projectOption = takeOption(values, '--project');
+  if (values.length > 1) throw new Error('Usage: vecxy sprite-editor [-p|--project <directory>]');
+  const project = findProjectRoot(projectOption || values[0] || process.cwd());
+  const engine = resolveEngine(project);
+  const editor = join(engine, 'tools', 'Vecxy.SpriteEditor', 'Vecxy.SpriteEditor.csproj');
+  if (!existsSync(editor))
+    fail(new Error(`Sprite Editor is missing in Vecxy ${installedRef(engine)}. Update it with: vecxy engine use latest -p "${project}"`));
+  const dotnet = findDotnet();
+  if (!hasSdk(dotnet)) fail(new Error('The .NET 10 SDK is missing. Run: vecxy setup'));
+  const child = spawn(dotnet, ['run', '--project', editor, '--', project], {
+    stdio: 'inherit',
+    env: { ...process.env, VecxyEnginePath: engine, VECXY_ENGINE_PATH: engine, VECXY_ENGINE_REF: installedRef(engine) }
   });
   child.on('exit', (code, signal) => process.exit(signal ? 1 : code ?? 1));
   child.on('error', fail);

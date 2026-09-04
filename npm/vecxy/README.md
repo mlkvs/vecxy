@@ -9,6 +9,7 @@ vecxy doctor
 vecxy new MyGame
 cd MyGame
 vecxy engine use develop
+vecxy sprite-editor
 vecxy build -t linux
 ```
 
@@ -21,6 +22,7 @@ vecxy build -t linux
 - `vecxy engine use <ref> -g` changes the global default outside configured projects.
 - `vecxy engine current` shows the version selected by the current project.
 - `vecxy engine list` shows installed versions.
+- `vecxy sprite-editor [-p <path>]` opens the native sprite and atlas editor for a project.
 - `vecxy doctor [--no-android]` checks desktop and Android requirements.
 - `vecxy new <name> [--output <path>]` creates a minimal game project.
 - `vecxy assets scan|generate|analyze|validate|packages|pack|prepare` manages assets.
