@@ -1,8 +1,17 @@
 <panel class="canvas-column">
-  <panel class="canvas-toolbar"><text id="canvas-title" class="canvas-title">Select an image</text><panel class="canvas-actions"><button id="add-slice" class="icon-button">Add slice</button><button id="auto-slice" class="icon-button">Trim transparent</button></panel></panel>
-  <panel class="canvas-viewport">
-    <panel class="checkerboard">
-      <panel id="image-stage" class="image-stage"><image id="sprite-preview" class="sprite-preview"/><panel id="slice-overlay" class="slice-overlay" /></panel>
+  <panel class="canvas-toolbar">
+    <panel class="tool-group"><button id="select-tool" class="tool active">V Select</button><button id="slice-tool" class="tool">S Slice</button><button id="auto-slice" class="tool">Auto Slice</button></panel>
+    <panel class="tool-group"><button id="toggle-grid" class="tool">Grid</button><button id="toggle-snap" class="tool active">Snap</button></panel>
+    <panel class="zoom-group"><button id="zoom-out" class="zoom-button">−</button><text id="zoom-label">100%</text><button id="zoom-in" class="zoom-button">+</button><button id="zoom-100" class="tool">100%</button><button id="zoom-fit" class="tool">Fit</button></panel>
+    <text id="image-info" class="image-info">No texture</text>
+  </panel>
+  <panel id="canvas-viewport" class="canvas-viewport">
+    <panel id="canvas-content" class="canvas-content checkerboard">
+      <panel id="image-stage" class="image-stage"><image id="sprite-preview" class="sprite-preview"/><panel id="grid-layer" class="grid-layer"/><panel id="slice-overlay" class="slice-overlay"/><panel id="preview-overlay" class="preview-overlay"/></panel>
     </panel>
+  </panel>
+  <panel id="auto-panel" class="auto-panel" hidden="true">
+    <text class="auto-title">Auto Slice Preview</text><panel class="auto-settings"><text>Alpha</text><input-field id="alpha-threshold" value="1"/><text>Width / Cell W</text><input-field id="min-width" value="4"/><text>Height / Cell H</text><input-field id="min-height" value="4"/><text>Merge / Spacing X</text><input-field id="merge-distance" value="2"/><text>Padding / Spacing Y</text><input-field id="slice-padding" value="0"/><text>Base name</text><input-field id="base-name" placeholder="Base name"/></panel>
+    <panel class="auto-actions"><button id="cancel-auto">Cancel</button><button id="apply-auto" class="primary">Apply</button></panel>
   </panel>
 </panel>

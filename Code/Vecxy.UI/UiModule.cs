@@ -14,6 +14,7 @@ namespace Vecxy.UI;
 public interface IUiManager
 {
     IReadOnlyList<UiDocument> Documents { get; }
+    UiElement? FocusedElement { get; }
     UiDocument Load(string path);
     UiDocument Load(IAssetHandle handle);
     bool Unload(UiDocument document);
@@ -80,6 +81,7 @@ public sealed class UiModule :
     private readonly ConcurrentQueue<TextInputEvent> _textEvents = new();
 
     public IReadOnlyList<UiDocument> Documents => _documents;
+    public UiElement? FocusedElement => _focusedElement;
     public UiPerformanceStatistics Statistics => _statistics;
 
     public UiModule(
@@ -303,6 +305,7 @@ public sealed class UiModule :
             _pressPosition = pointer;
             _lastPointerPosition = pointer;
             Focus(hit, false);
+            hit?.RaisePointerPressed(new UiPointerEvent(hitDocument!.ToLayoutPoint(pointer), Vector2.Zero));
             if (hit is UiInputField inputField)
                 inputField.BeginPointerSelection(hitDocument!.ToLayoutPoint(pointer));
             if (_pressedElement is not null)
@@ -311,6 +314,8 @@ public sealed class UiModule :
         else if (pointerPressed && _wasPointerPressed && _pressedElement is { } pressed)
         {
             var pointerDelta = pointer - _lastPointerPosition;
+            if (_pressedDocument is not null)
+                pressed.RaisePointerMoved(new UiPointerEvent(_pressedDocument.ToLayoutPoint(pointer), pointerDelta / Math.Max(.0001f, _pressedDocument.LayoutScale)));
             if (_pressedElement is UiInputField selectingInput && _pressedDocument is not null)
                 selectingInput.UpdatePointerSelection(_pressedDocument.ToLayoutPoint(pointer));
             if (_scrollbarDragElement is not null)
@@ -350,6 +355,9 @@ public sealed class UiModule :
             _pressedElement = null;
             if (releasedElement is not null)
             {
+                releasedElement.RaisePointerReleased(new UiPointerEvent(
+                    _pressedDocument?.ToLayoutPoint(pointer) ?? pointer,
+                    Vector2.Zero));
                 if (releasedElement is UiInputField inputField)
                     inputField.EndPointerSelection();
                 releasedElement.IsActive = false;

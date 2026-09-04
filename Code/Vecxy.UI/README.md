@@ -563,6 +563,7 @@ Named lines, `auto-fit`, `auto-fill`, `grid-template-areas` и `grid-auto-flow` 
 |---|---|---|
 | `background`, `background-color` | color, transparent | `background` здесь является только shorthand цвета. Пример: `.panel { background: rgba(0,0,0,.8); }` |
 | `background-image` | `url(path)` или `sprite(atlas, name)` | Рисует текстуру в box. Пример: `background-image: url("Panel.png");` |
+| `background-pattern` | `none` или `checkerboard` | Рисует кэшируемый шахматный фон, ограниченный текущим clip. Полезно для просмотра прозрачности. |
 | `background-size` | `fill` default, `contain`, `cover` | Масштаб фоновой картинки. Пример: `background-size: cover;` |
 | `background-position` | `left/right/top/bottom/center` или `% %` | Alignment для contain/crop cover. Пример: `background-position: 25% top;` |
 | `background-slice` | length, `0` | Включает nine-slice с одинаковой границей со всех сторон. Пример: `background-slice: 12px;` |

@@ -108,6 +108,23 @@ public class UiElement
         }
     }
     /// <summary>
+    /// Optional document-space rectangle used for transient visual geometry.
+    /// Unlike CSS position and size, changing this rectangle does not run layout.
+    /// It is intended for interactive overlays such as selection rectangles and gizmos.
+    /// </summary>
+    public Rect? VisualBounds
+    {
+        get => _visualBounds;
+        set
+        {
+            if (_visualBounds == value)
+                return;
+            _visualBounds = value;
+            InvalidateVisual();
+            InvalidateHitTest();
+        }
+    }
+    /// <summary>
     /// Optional document-space rectangle used only for pointer hit testing.
     /// Updating it does not invalidate style, layout, or paint, so moving
     /// world-space interaction targets can follow a sprite every frame without
@@ -239,6 +256,9 @@ public class UiElement
     public event Action<UiElement, UiTouchEvent>? TouchMoved;
     public event Action<UiElement, UiTouchEvent>? TouchEnded;
     public event Action<UiElement, UiTouchEvent>? TouchCancelled;
+    public event Action<UiElement, UiPointerEvent>? PointerPressed;
+    public event Action<UiElement, UiPointerEvent>? PointerMoved;
+    public event Action<UiElement, UiPointerEvent>? PointerReleased;
     
     private readonly List<UiElement> _children = [];
     private readonly Dictionary<string, string> _attributes;
@@ -265,6 +285,7 @@ public class UiElement
     private int _scrollVersion;
     private int _hitTestVersion;
     private Rect _bounds;
+    private Rect? _visualBounds;
     private Rect? _hitTestBounds;
     private UiComputedStyle _computedStyle = new();
     private bool _isHovered;
@@ -662,7 +683,7 @@ public class UiElement
             return;
         }
         if (propertyName is
-            "color" or "background-color" or "background-image" or
+            "color" or "background-color" or "background-image" or "background-pattern" or
             "background-size" or "background-position" or "background-slice" or "border-color" or
             "border-radius" or "box-shadow" or "object-fit" or "image-rendering" or
             "placeholder-color" or "selection-background-color" or "caret-color" or "caret-width" or
@@ -702,7 +723,7 @@ public class UiElement
         Vector2 translation,
         Matrix3x2 parentTransform)
     {
-        var layoutBounds = HitTestBounds ?? Bounds;
+        var layoutBounds = HitTestBounds ?? VisualBounds ?? Bounds;
         var visualBounds = new Rect(
             layoutBounds.X + translation.X,
             layoutBounds.Y + translation.Y,
@@ -761,6 +782,7 @@ public class UiElement
          Clicked is not null ||
          TouchStarted is not null || TouchMoved is not null ||
          TouchEnded is not null || TouchCancelled is not null ||
+         PointerPressed is not null || PointerMoved is not null || PointerReleased is not null ||
          CanScrollHorizontally || CanScrollVertically ||
          Attributes.ContainsKey("action"));
 
@@ -838,6 +860,9 @@ public class UiElement
         TouchEnded?.Invoke(this, eventData);
     internal void RaiseTouchCancelled(UiTouchEvent eventData) =>
         TouchCancelled?.Invoke(this, eventData);
+    internal void RaisePointerPressed(UiPointerEvent eventData) => PointerPressed?.Invoke(this, eventData);
+    internal void RaisePointerMoved(UiPointerEvent eventData) => PointerMoved?.Invoke(this, eventData);
+    internal void RaisePointerReleased(UiPointerEvent eventData) => PointerReleased?.Invoke(this, eventData);
 
     private bool HasBooleanAttribute(string name) =>
         Attributes.TryGetValue(name, out var value) &&

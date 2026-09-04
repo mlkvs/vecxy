@@ -1,7 +1,11 @@
-<panel class="topbar">
-  <panel class="brand"><text class="brand-mark">V</text><text class="brand-title">Sprite Editor</text></panel>
-  <button id="open-project" class="project-menu"><text>Project</text><text id="project-label" class="project-name">Choose folder</text><text class="menu-chevron">⌄</text></button>
-  <button id="new-atlas" class="button">New atlas</button>
-  <button id="save-atlas" class="button primary">Save</button>
-  <text id="status-text" class="top-status">Open a project to begin</text>
+<panel class="top-area">
+  <panel class="menubar">
+    <panel class="menus"><button id="menu-file" class="menu-button">File</button><button id="menu-edit" class="menu-button">Edit</button><button id="menu-view" class="menu-button">View</button><button id="menu-slice" class="menu-button">Slice</button></panel>
+    <panel class="document-title"><text id="document-name">No document</text><text id="texture-name" class="document-subtitle">Open a PNG or atlas</text></panel>
+    <text id="status-text" class="top-status">Ready</text><button id="save-atlas" class="save-button">Save</button>
+    <panel id="file-menu" class="popup-menu" hidden="true"><button id="open-file">Open…   Ctrl+O</button><button id="open-project">Choose project…</button><text class="menu-section">Recent</text><panel id="recent-files" class="recent-files"/><button id="save-as">Save As…</button><button id="close-document">Close</button></panel>
+    <panel id="edit-menu" class="popup-menu edit-menu" hidden="true"><button id="undo">Undo   Ctrl+Z</button><button id="redo">Redo   Ctrl+Y</button><button id="duplicate-slice">Duplicate   Ctrl+D</button><button id="delete-slice-menu">Delete</button></panel>
+    <panel id="view-menu" class="popup-menu view-menu" hidden="true"><button id="zoom-100-menu">100%   Ctrl+0</button><button id="fit-menu">Fit   F</button><button id="toggle-grid-menu">Grid</button><button id="toggle-checker-menu">Checkerboard</button></panel>
+    <panel id="slice-menu" class="popup-menu slice-menu" hidden="true"><button id="auto-transparency-menu">Auto Slice: Transparency</button><button id="auto-grid-menu">Auto Slice: Grid</button><button id="trim-menu">Trim Transparent</button></panel>
+  </panel>
 </panel>

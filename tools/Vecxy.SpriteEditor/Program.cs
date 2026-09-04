@@ -20,6 +20,7 @@ public sealed class SpriteEditorLayer(IUiManager ui, SpriteEditorController cont
         {
             builder.RegisterType<AtlasRepository>().SingleInstance();
             builder.RegisterType<ProjectFolderDialog>().SingleInstance();
+            builder.RegisterType<RecentFiles>().SingleInstance();
             builder.RegisterType<SpriteEditorController>().SingleInstance();
         }
     }
@@ -28,6 +29,7 @@ public sealed class SpriteEditorLayer(IUiManager ui, SpriteEditorController cont
 
     public override void OnInitialize()
     {
+        controller.Start();
         _document = ui.Load("UI/Workspace.xml");
         _document.Reloaded += Bind;
         Bind(_document);
@@ -42,6 +44,7 @@ public sealed class SpriteEditorLayer(IUiManager ui, SpriteEditorController cont
         if (_document is null) return;
         _document.Reloaded -= Bind;
         controller.Unbind();
+        controller.Dispose();
         ui.Unload(_document);
         _document = null;
     }

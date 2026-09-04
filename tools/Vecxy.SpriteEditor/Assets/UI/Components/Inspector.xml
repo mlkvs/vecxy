@@ -1,7 +1,12 @@
 <panel class="sidebar inspector">
-  <panel class="panel-header"><panel><text class="eyebrow">INSPECTOR</text><text class="panel-title">Slice</text></panel><button id="delete-slice" class="danger-button">Delete</button></panel>
-  <input-field id="selection-name" class="selection-name" placeholder="Slice name" max-length="128" />
-  <panel class="property-card"><text class="property-label">RECT · X / Y / W / H</text><text id="rect-value" class="property-value">—</text><panel class="step-grid"><button id="x-minus">X−</button><button id="x-plus">X+</button><button id="y-minus">Y−</button><button id="y-plus">Y+</button><button id="w-minus">W−</button><button id="w-plus">W+</button><button id="h-minus">H−</button><button id="h-plus">H+</button></panel></panel>
-  <panel class="property-card"><text class="property-label">PIVOT</text><text id="pivot-value" class="property-value">—</text><panel class="pivot-actions"><button id="pivot-center">Center</button><button id="pivot-bottom">Bottom</button></panel></panel>
-  <text class="section-label">SLICES</text><panel id="slice-list" class="slice-list" virtualize="true" />
+  <panel class="panel-header"><text class="panel-title">Inspector</text></panel>
+  <panel class="inspector-body">
+    <text class="field-label">Name</text><input-field id="selection-name" class="field wide" placeholder="Slice name" max-length="128" />
+    <text class="section-label">Rect</text><panel class="numeric-grid"><panel><text>X</text><input-field id="rect-x" class="field numeric"/></panel><panel><text>Y</text><input-field id="rect-y" class="field numeric"/></panel><panel><text>W</text><input-field id="rect-w" class="field numeric"/></panel><panel><text>H</text><input-field id="rect-h" class="field numeric"/></panel></panel>
+    <text class="section-label">Pivot</text><panel class="numeric-grid"><panel><text>X</text><input-field id="pivot-x" class="field numeric"/></panel><panel><text>Y</text><input-field id="pivot-y" class="field numeric"/></panel></panel>
+    <panel class="pivot-presets"><button id="pivot-tl">↖</button><button id="pivot-t">↑</button><button id="pivot-tr">↗</button><button id="pivot-l">←</button><button id="pivot-center">•</button><button id="pivot-r">→</button><button id="pivot-bl">↙</button><button id="pivot-bottom">↓</button><button id="pivot-br">↘</button></panel>
+  </panel>
+  <panel class="slices-header"><text class="panel-title">Slices</text><text id="slice-count" class="count">0</text></panel>
+  <input-field id="slice-search" class="field search" placeholder="Search…"/>
+  <panel id="slice-list" class="slice-list" virtualize="true" />
 </panel>

@@ -46,7 +46,7 @@
       "path": "UI/Components/AssetBrowser.xml",
       "type": "Asset",
       "name": "AssetBrowser",
-      "hash": "ef5f839fc727d79e8932b4436aa58489da46920c8890f391a300e16c3893a152",
+      "hash": "8e25e5a07ef7876fae4471ab4ca2b351555813c08aa1d1642ca0fa69d329fc98",
       "dependencies": [],
       "package": "98cbb7d7-e042-d142-6ea7-cbd84cd256be"
     },
@@ -56,7 +56,7 @@
       "path": "UI/Components/Canvas.xml",
       "type": "Asset",
       "name": "Canvas",
-      "hash": "568b54c44965463049c85d5b2cd90d053fc7f32c6d477401bc7a40ecb2ed0b19",
+      "hash": "4fb18f6afdc6c74fd2f332a7f99a631d47e89e342a41a15c78fd70f581f0091c",
       "dependencies": [],
       "package": "98cbb7d7-e042-d142-6ea7-cbd84cd256be"
     },
@@ -66,7 +66,7 @@
       "path": "UI/Components/Inspector.xml",
       "type": "Asset",
       "name": "Inspector",
-      "hash": "d4834432c65336225071916025bd3aef720ede72c5985ad4696a3582a9d26f66",
+      "hash": "acd264bd3484f21a333af9b18bec08a75b4532da053bed066dc5c9a6a5341863",
       "dependencies": [],
       "package": "98cbb7d7-e042-d142-6ea7-cbd84cd256be"
     },
@@ -86,7 +86,7 @@
       "path": "UI/Components/TopBar.xml",
       "type": "Asset",
       "name": "TopBar",
-      "hash": "d81f472860e96b3457db5c94a820c50b265ae6683a97b467c7e22ee29305ca9a",
+      "hash": "251a424f4242e1dd7fa00f542bd1259cd9324accbcfd08cc588bb1da4d5771b9",
       "dependencies": [],
       "package": "98cbb7d7-e042-d142-6ea7-cbd84cd256be"
     },
@@ -96,7 +96,7 @@
       "path": "UI/Styles/AssetBrowser.css",
       "type": "Asset",
       "name": "AssetBrowser",
-      "hash": "11499e0cb3f23439685f665cd4144a45e1b370b0187fd8792db88b8138c7121a",
+      "hash": "e5f0d47351ecf0b9c3132e91dd941788ab26f2084c143529021e48a72d758950",
       "dependencies": [],
       "package": "98cbb7d7-e042-d142-6ea7-cbd84cd256be"
     },
@@ -106,7 +106,7 @@
       "path": "UI/Styles/Canvas.css",
       "type": "Asset",
       "name": "Canvas",
-      "hash": "123bff720f9b5b289d14b95191a27b2913f74ad73815deef1af7d4630ec9d37e",
+      "hash": "23b14bdb961e8afe33bf6cac8243a50583c535b1c94118f6076ef974aebc77ca",
       "dependencies": [],
       "package": "98cbb7d7-e042-d142-6ea7-cbd84cd256be"
     },
@@ -116,7 +116,7 @@
       "path": "UI/Styles/Global.css",
       "type": "Asset",
       "name": "Global",
-      "hash": "45a2939e9c8b90e790e8b81ab5e1c3f615072162bf02897ac78930af01bec090",
+      "hash": "c5f3d87f07f1896ceba2a26548095234cd9a544b3bfe97ea354c38fd0680a423",
       "dependencies": [
         "3f89384e-7430-4f6e-a021-d6122664ca53"
       ],
@@ -128,7 +128,7 @@
       "path": "UI/Styles/Inspector.css",
       "type": "Asset",
       "name": "Inspector",
-      "hash": "94bbdcb2805cbe9e53d928b049f8876861a57564b9419c7b9becc14802daf08b",
+      "hash": "1766ffaf26f1430a0595bb2bb82d7835fb64cd7bd9fc537391f38bf8920999d3",
       "dependencies": [],
       "package": "98cbb7d7-e042-d142-6ea7-cbd84cd256be"
     },
@@ -148,7 +148,7 @@
       "path": "UI/Styles/TopBar.css",
       "type": "Asset",
       "name": "TopBar",
-      "hash": "bc85516543b762612e3e05fcdcd841b3badc6bac333a489a988a7ced07c0d2f6",
+      "hash": "34d50f1b4f4da704fee60f73f3368fa0313a2748a73f44a99e831e18d5d26f06",
       "dependencies": [],
       "package": "98cbb7d7-e042-d142-6ea7-cbd84cd256be"
     },

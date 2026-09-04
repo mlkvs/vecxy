@@ -2,6 +2,8 @@ using Facebook.Yoga;
 
 namespace Vecxy.UI;
 
+public readonly record struct UiPointerEvent(System.Numerics.Vector2 Position, System.Numerics.Vector2 Delta);
+
 public sealed class UiPanel : UiElement
 {
     internal UiPanel(Config config, IReadOnlyDictionary<string, string> attributes, string? text = null)

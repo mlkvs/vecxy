@@ -1,4 +1,5 @@
 <panel class="sidebar asset-browser">
-  <panel class="panel-header"><text class="panel-title">Assets</text></panel>
+  <panel class="panel-header"><text class="panel-title">Assets</text><button id="collapse-assets" class="collapse">‹</button></panel>
+  <text id="project-label" class="project-label">No project</text>
   <panel id="asset-list" class="asset-list" virtualize="true" />
 </panel>

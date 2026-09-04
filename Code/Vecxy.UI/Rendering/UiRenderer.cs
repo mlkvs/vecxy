@@ -228,12 +228,13 @@ internal sealed class UiRenderer : IDisposable
         UiClipState? roundedClip)
     {
         var style = element.ComputedStyle;
+        var layoutBounds = element.VisualBounds ?? element.Bounds;
         var fullBounds = Scale(
             new Rect(
-                element.Bounds.X + translation.X,
-                element.Bounds.Y + translation.Y,
-                element.Bounds.Width,
-                element.Bounds.Height),
+                layoutBounds.X + translation.X,
+                layoutBounds.Y + translation.Y,
+                layoutBounds.Width,
+                layoutBounds.Height),
             scale);
         var bounds = fullBounds;
         var isProgress = element.TagName == "progress";
@@ -297,6 +298,8 @@ internal sealed class UiRenderer : IDisposable
                 var background = renderedBackground with { W = renderedBackground.W * opacity };
                 if (background.W > 0.001f)
                     AddRoundedQuad(bounds, background, null, clip, style.BorderRadius * scale);
+                if (style.BackgroundPattern == "checkerboard")
+                    PaintCheckerboard(bounds, background, clip, scale);
             }
 
             var renderedRadialImage = false;
@@ -1009,6 +1012,30 @@ internal sealed class UiRenderer : IDisposable
         AddSolid(new Rect(bounds.X, bounds.Bottom - width, bounds.Width, width), color, clip);
         AddSolid(new Rect(bounds.X, bounds.Y + width, width, Math.Max(0, bounds.Height - width * 2)), color, clip);
         AddSolid(new Rect(bounds.Right - width, bounds.Y + width, width, Math.Max(0, bounds.Height - width * 2)), color, clip);
+    }
+
+    private void PaintCheckerboard(Rect bounds, Vector4 background, Rect clip, float scale)
+    {
+        var tile = Math.Max(4, 12 * scale);
+        var left = Math.Max(bounds.Left, clip.Left);
+        var top = Math.Max(bounds.Top, clip.Top);
+        var right = Math.Min(bounds.Right, clip.Right);
+        var bottom = Math.Min(bounds.Bottom, clip.Bottom);
+        var firstX = (int)MathF.Floor((left - bounds.Left) / tile);
+        var firstY = (int)MathF.Floor((top - bounds.Top) / tile);
+        var lastX = (int)MathF.Ceiling((right - bounds.Left) / tile);
+        var lastY = (int)MathF.Ceiling((bottom - bounds.Top) / tile);
+        var light = new Vector4(
+            Math.Min(1, background.X + .055f),
+            Math.Min(1, background.Y + .055f),
+            Math.Min(1, background.Z + .055f),
+            Math.Max(background.W, .9f));
+        for (var y = firstY; y < lastY; y++)
+        for (var x = firstX; x < lastX; x++)
+        {
+            if (((x + y) & 1) != 0) continue;
+            AddRoundedQuad(new Rect(bounds.Left + x * tile, bounds.Top + y * tile, tile, tile), light, null, clip, 0);
+        }
     }
 
     private void AddRoundedQuad(

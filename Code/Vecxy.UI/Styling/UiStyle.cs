@@ -161,6 +161,7 @@ public sealed class UiComputedStyle
     public float Opacity { get; set; } = 1.0f;
     public int ZIndex { get; set; }
     public string? BackgroundImage { get; set; }
+    public string BackgroundPattern { get; set; } = "none";
     public string BackgroundSize { get; set; } = "fill";
     public string BackgroundPosition { get; set; } = "center";
     public UiLength BackgroundSlice { get; set; } = UiLength.Pixels(0.0f);
@@ -215,7 +216,7 @@ public sealed class UiComputedStyle
         BorderRadiusLength == other.BorderRadiusLength &&
         BoxShadowDefinitions.SequenceEqual(other.BoxShadowDefinitions) &&
         Opacity.Equals(other.Opacity) && ZIndex == other.ZIndex &&
-        BackgroundImage == other.BackgroundImage && BackgroundSize == other.BackgroundSize &&
+        BackgroundImage == other.BackgroundImage && BackgroundPattern == other.BackgroundPattern && BackgroundSize == other.BackgroundSize &&
         BackgroundPosition == other.BackgroundPosition && BackgroundSlice == other.BackgroundSlice &&
         ImageTint == other.ImageTint &&
         TransformDefinition == other.TransformDefinition && TransformOrigin == other.TransformOrigin &&
@@ -233,7 +234,7 @@ public sealed class UiComputedStyle
         BorderColor == other.BorderColor && BorderRadiusLength == other.BorderRadiusLength &&
         BoxShadowDefinitions.SequenceEqual(other.BoxShadowDefinitions) &&
         ZIndex == other.ZIndex &&
-        BackgroundImage == other.BackgroundImage && BackgroundSize == other.BackgroundSize &&
+        BackgroundImage == other.BackgroundImage && BackgroundPattern == other.BackgroundPattern && BackgroundSize == other.BackgroundSize &&
         BackgroundPosition == other.BackgroundPosition && BackgroundSlice == other.BackgroundSlice &&
         ImageTint == other.ImageTint &&
         Transitions.SequenceEqual(other.Transitions) && Animation == other.Animation &&
@@ -1075,6 +1076,7 @@ internal static class UiStyleResolver
                     style.ZIndex = zIndex;
                 break;
             case "background-image": style.BackgroundImage = value.Trim(); break;
+            case "background-pattern": style.BackgroundPattern = value.Trim().ToLowerInvariant(); break;
             case "background-size": style.BackgroundSize = value.ToLowerInvariant(); break;
             case "background-position": style.BackgroundPosition = value.ToLowerInvariant(); break;
             case "background-slice": SetLength(value, result => style.BackgroundSlice = result); break;
