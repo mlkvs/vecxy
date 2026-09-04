@@ -8,7 +8,7 @@ import { homedir, platform } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const VERSION = '0.1.5';
+const VERSION = '0.1.6';
 const DOTNET_VERSION = '10.0.110';
 const ENGINE_REPOSITORY = 'https://github.com/mlkvs/vecxy.git';
 const home = process.env.VECXY_HOME || join(homedir(), '.vecxy');
@@ -41,9 +41,10 @@ Usage:
   vecxy setup [-y|--yes] [--no-android] [--dry-run] [-e|--engine <ref>]
   vecxy doctor [--no-android]
   vecxy new <name> [-o|--output <directory>]
-  vecxy engine install [tag|branch|commit]
-  vecxy engine use <tag|branch|commit> [-p|--project <directory>]
-  vecxy engine current [-p|--project <directory>]
+  vecxy engine install [latest|tag|branch|commit]
+  vecxy engine use <latest|tag|branch|commit> [-p|--project <directory>]
+  vecxy engine use <latest|tag|branch|commit> -g|--global
+  vecxy engine current [-p|--project <directory>] [-g|--global]
   vecxy engine list
   vecxy build [dev|release] [-p|--project <path>] -t|--platform <linux|windows|android>
   vecxy assets <scan|generate|analyze|validate|packages|pack|prepare>
@@ -298,6 +299,8 @@ function fail(error) { console.error(`vecxy: ${error.message || error}`); proces
 
 async function engineCommand(values) {
   const projectOption = takeOption(values, '--project');
+  const global = takeFlag(values, '--global');
+  if (projectOption && global) throw new Error('Use either --project or --global, not both.');
   if ((values.length === 1 || values.length === 2) && values[0] === 'install') {
     await installEngine(values[1] || defaultEngineRef);
     return 0;
@@ -305,20 +308,20 @@ async function engineCommand(values) {
   if (values.length === 2 && values[0] === 'use') {
     const ref = values[1];
     const installed = await installEngine(ref);
-    if (projectOption) {
-      const project = findProjectRoot(projectOption);
-      configureProject(project, ref, installed);
-      console.log(`Project ${project}\nuses Vecxy ${ref} (${engineCommit(installed)})`);
-    } else {
+    if (global) {
       writeGlobalConfig(ref);
       console.log(`Default engine: Vecxy ${ref} (${engineCommit(installed)})\n${installed}`);
+    } else {
+      const project = findProjectRoot(projectOption || process.cwd());
+      configureProject(project, ref, installed);
+      console.log(`Project ${project}\nuses Vecxy ${ref} (${engineCommit(installed)})`);
     }
     return 0;
   }
   if (values.length === 1 && values[0] === 'current') {
-    const project = findProjectRoot(projectOption || process.cwd(), false);
-    const config = project && readProjectConfig(project);
-    const selected = resolveEngine(project || undefined, false);
+    const project = global ? null : findProjectRoot(projectOption || process.cwd(), false);
+    const config = global ? readGlobalConfig() : project && readProjectConfig(project);
+    const selected = global ? resolveGlobalEngine() : resolveEngine(project || undefined);
     console.log(config ? `${config.engine.ref}\n${selected}\n${engineCommit(selected)}` : `default (${defaultEngineRef})\n${selected}\n${engineCommit(selected)}`);
     return 0;
   }
@@ -336,7 +339,7 @@ async function engineCommand(values) {
     }
     return 0;
   }
-  throw new Error('Usage: vecxy engine <install|use|current|list> [ref] [--project <directory>]');
+  throw new Error('Usage: vecxy engine <install|use|current|list> [ref] [--project <directory>|--global]');
 }
 
 function configureProject(project, ref, engine) {
@@ -375,6 +378,10 @@ function resolveEngine(project) {
     if (!isEngine(selected)) throw new Error(`Vecxy Engine '${config.engine.ref}' is not installed. Run: vecxy engine install ${config.engine.ref}`);
     return selected;
   }
+  return resolveGlobalEngine();
+}
+
+function resolveGlobalEngine() {
   const globalConfig = readGlobalConfig();
   const selectedRef = globalConfig?.engine?.ref || defaultEngineRef;
   const versioned = engineDirectory(selectedRef);
@@ -446,7 +453,8 @@ function resolveGitRef(path, ref) {
   // A clone keeps its local branch at the commit where it was created. Prefer
   // the freshly fetched remote-tracking branch so named branches really update.
   // Tags and commit hashes naturally fall back to the literal ref.
-  for (const candidate of [`origin/${ref}`, ref]) {
+  const candidates = ref === 'latest' ? ['origin/develop'] : [`origin/${ref}`, ref];
+  for (const candidate of candidates) {
     const result = spawnSync('git', ['-C', path, 'rev-parse', '--verify', `${candidate}^{commit}`], { encoding: 'utf8' });
     if (result.status === 0) return result.stdout.trim();
   }
@@ -465,6 +473,13 @@ function takeOption(values, name) {
   return value;
 }
 
+function takeFlag(values, name) {
+  const index = values.indexOf(name);
+  if (index < 0) return false;
+  values.splice(index, 1);
+  return true;
+}
+
 function writeIfChanged(file, contents) {
   if (existsSync(file) && readFileSync(file, 'utf8') === contents) return false;
   writeFileSync(file, contents);
@@ -475,7 +490,7 @@ function expandShortOptions(values) {
   const aliases = new Map([
     ['-p', '--project'], ['-o', '--output'], ['-e', '--engine'], ['-t', '--platform'],
     ['-r', '--runtime'], ['-f', '--format'], ['-k', '--keystore'], ['-a', '--alias'],
-    ['-y', '--yes'], ['-h', '--help'], ['-V', '--version']
+    ['-y', '--yes'], ['-g', '--global'], ['-h', '--help'], ['-V', '--version']
   ]);
   return values.map(value => aliases.get(value) || value);
 }
