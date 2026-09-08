@@ -17,6 +17,7 @@
     <ProjectReference Include="..\Vecxy.Input\Vecxy.Input.csproj" />
     <ProjectReference Include="..\Vecxy.Kernel\Vecxy.Kernel.csproj" />
     <ProjectReference Include="..\Vecxy.Rendering\Vecxy.Rendering.csproj" />
+    <ProjectReference Include="..\Vecxy.Prototypes\Vecxy.Prototypes.csproj" />
   </ItemGroup>
 
   <ItemGroup Condition="'$(TargetPlatformIdentifier)' == 'android'">

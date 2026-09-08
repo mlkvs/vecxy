@@ -26,23 +26,22 @@ public interface ISceneManager
     void UnloadActiveScene();
 }
 
-public sealed class ScenesModule(
+public sealed class ScenesModule
+(
     IEnumerable<ISceneSystem> systems,
     IConfigProvider config,
     IAssetsManager assets,
-    ILifetimeScope scope,
-    IComponentInstantiator instantiator) :
+    ILifetimeScope scope
+) :
     IModule,
     IModule.IUpdatable,
-    ISceneManager, 
-    IComponentInstantiator
+    ISceneManager
 {
     public sealed class Definition : AModuleDefinition<ScenesModule>
     {
         protected override IReadOnlyList<Type> Exports =>
         [
-            typeof(ISceneManager),
-            typeof(IComponentInstantiator)
+            typeof(ISceneManager)
         ];
 
         protected override void RegisterModule(ContainerBuilder builder)
@@ -51,18 +50,7 @@ public sealed class ScenesModule(
                 .RegisterType<ScenesModule>()
                 .AsSelf()
                 .SingleInstance();
-            
-            builder
-                .RegisterAssemblyTypes(AppDomain.CurrentDomain.GetAssemblies())
-                .Where(type => typeof(AComponent.IPrototype).IsAssignableFrom(type))
-                .Where(type => !type.IsAbstract)
-                .As<AComponent.IPrototype>()
-                .InstancePerDependency();
 
-            builder
-                .RegisterType<ComponentInstantiator>()
-                .As<IComponentInstantiator>()
-                .SingleInstance();
         }
     }
 
@@ -302,20 +290,5 @@ public sealed class ScenesModule(
         OnShutdown();
 
         _disposed = true;
-    }
-
-    public TComponent Instantiate<TComponent>(SceneInstance? scene = null) where TComponent : AComponent
-    {
-        return instantiator.Instantiate<TComponent>(scene);
-    }
-
-    public TComponent Instantiate<TComponent>(InstantiateContext ctx) where TComponent : AComponent
-    {
-        return instantiator.Instantiate<TComponent>(ctx);
-    }
-
-    public TComponent Instantiate<TComponent>(InstantiateContext ctx, AComponent.IPrototype.IOptions options) where TComponent : AComponent
-    {
-        return instantiator.Instantiate<TComponent>(ctx, options);
     }
 }

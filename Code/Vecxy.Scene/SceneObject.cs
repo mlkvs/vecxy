@@ -1,6 +1,6 @@
 namespace Vecxy.Scene;
 
-public sealed class SceneObject
+public sealed partial class SceneObject
 {
     private static int Count { get; set; } = 0;
     
@@ -49,10 +49,11 @@ public sealed class SceneObject
         }
     }
 
-    internal SceneObject(SceneInstance sceneInstance, string name, bool isStatic = false)
+    internal SceneObject(SceneInstance sceneInstance, string name, bool isStatic = false, bool enabled = true)
     {
         Id = Count++;
         IsStatic = isStatic;
+        _enabled = enabled;
         
         SceneInstance = sceneInstance;
         Name = name;

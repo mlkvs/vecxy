@@ -2,6 +2,9 @@
   <ItemGroup>
     <ProjectReference Include="..\Vecxy.Assets\Vecxy.Assets.csproj" />
     <ProjectReference Include="..\Vecxy.Kernel\Vecxy.Kernel.csproj" />
-    <ProjectReference Include="..\Vecxy.Prototypes\Vecxy.Prototypes.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="YamlDotNet" Version="16.3.0" />
   </ItemGroup>
 </Project>

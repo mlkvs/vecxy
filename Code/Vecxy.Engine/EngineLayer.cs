@@ -8,6 +8,7 @@ using Vecxy.Messaging;
 using Vecxy.Networking;
 using Vecxy.Pathfinding;
 using Vecxy.Physics;
+using Vecxy.Prototypes;
 using Vecxy.Rendering;
 using Vecxy.Scene;
 using Vecxy.Scripting;
@@ -34,6 +35,7 @@ public sealed class EngineLayer(
             Children =
             [
                 new AssetsModule.Definition(assets),
+                new PrototypesModule.Definition(),
                 new ScriptingModule.Definition(),
                 new RenderingModule.Definition(),
                 new InputModule.Definition(),

@@ -4,7 +4,7 @@ namespace Vecxy.UI;
 
 public readonly record struct UiPointerEvent(System.Numerics.Vector2 Position, System.Numerics.Vector2 Delta);
 
-public sealed class UiPanel : UiElement
+public sealed partial class UiPanel : UiElement
 {
     internal UiPanel(Config config, IReadOnlyDictionary<string, string> attributes, string? text = null)
         : base(config, "panel", attributes, text)
@@ -12,7 +12,7 @@ public sealed class UiPanel : UiElement
     }
 }
 
-public sealed class UiText : UiElement
+public sealed partial class UiText : UiElement
 {
     internal UiText(Config config, IReadOnlyDictionary<string, string> attributes, string? text = null)
         : base(config, "text", attributes, text)
@@ -26,7 +26,7 @@ public sealed class UiText : UiElement
     }
 }
 
-public sealed class UiButton : UiElement
+public sealed partial class UiButton : UiElement
 {
     internal UiButton(Config config, IReadOnlyDictionary<string, string> attributes, string? text = null)
         : base(config, "button", attributes, text)
@@ -40,7 +40,7 @@ public sealed class UiButton : UiElement
     }
 }
 
-public sealed class UiImage : UiElement
+public sealed partial class UiImage : UiElement
 {
     private Vecxy.Rendering.Texture? _texture;
 
@@ -75,7 +75,7 @@ public sealed class UiImage : UiElement
     }
 }
 
-public sealed class UiProgress : UiElement
+public sealed partial class UiProgress : UiElement
 {
     internal UiProgress(Config config, IReadOnlyDictionary<string, string> attributes, string? text = null)
         : base(config, "progress", attributes, text)
@@ -83,7 +83,7 @@ public sealed class UiProgress : UiElement
     }
 }
 
-public sealed class UiRadialProgress : UiElement
+public sealed partial class UiRadialProgress : UiElement
 {
     internal UiRadialProgress(Config config, IReadOnlyDictionary<string, string> attributes, string? text = null)
         : base(config, "radial-progress", attributes, text)

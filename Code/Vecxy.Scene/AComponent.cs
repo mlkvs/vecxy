@@ -176,27 +176,4 @@ public abstract class AComponent
 
         return _active && _enabled && !_destroyed;
     }
-    
-    public interface IPrototype
-    {
-        public interface IOptions;
-        
-        Type ComponentType { get; }
-
-        public void Configure(AComponent component, IOptions options);
-        public AComponent Instantiate(InstantiateContext ctx);
-    }
-    
-    public abstract class APrototype<TComponent, TOptions> : IPrototype
-        where TComponent : AComponent
-        where TOptions : IPrototype.IOptions
-     {
-        public Type ComponentType => typeof(TComponent);
-
-        void IPrototype.Configure(AComponent component, IPrototype.IOptions options) => Configure((TComponent)component, (TOptions)options);
-        AComponent IPrototype.Instantiate(InstantiateContext ctx) => Instantiate(ctx);
-
-        protected abstract TComponent Instantiate(InstantiateContext ctx);
-        protected abstract void Configure(TComponent component, TOptions options);
-    }
 }

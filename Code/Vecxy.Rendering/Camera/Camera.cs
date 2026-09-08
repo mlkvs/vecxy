@@ -1,4 +1,5 @@
 using System.Numerics;
+using Vecxy.Prototypes;
 using Vecxy.Scene;
 
 namespace Vecxy.Rendering;
@@ -7,7 +8,7 @@ public sealed class Camera : AComponent
 {
     public class Prototype : APrototype<Camera, Prototype.Options>
     {
-        public class Options : IPrototype.IOptions
+        public class Options
         {
             public ECameraProjection Projection { get; set; } = ECameraProjection.Perspective;
             public Vector4 ClearColor { get; set; } = new(0.02f, 0.03f, 0.05f, 1.0f);
@@ -18,15 +19,16 @@ public sealed class Camera : AComponent
             public float OrthographicSize { get; set; } = 10.0f;
         }
 
-        protected override Camera Instantiate(InstantiateContext ctx)
+        protected override Camera Instantiate(IPrototypeContext context)
         {
-            if (ctx.Scene == null)
+            var ctx = RequireContext<ScenePrototypeContext>(context);
+            var cameraObject = ctx.Object ?? ctx.CreateObject("Camera");
+            if (ctx.Object is null)
             {
-                throw new NotImplementedException();
+                cameraObject.Transform.Position = ctx.Position;
+                cameraObject.Transform.Rotation = ctx.Rotation;
+                cameraObject.Transform.Scale = ctx.Scale;
             }
-            
-            var cameraObject = ctx.Scene.CreateObject("Camera");
-            cameraObject.Transform.Position = ctx.Position;
             
             return cameraObject.AddComponent<Camera>();
         }

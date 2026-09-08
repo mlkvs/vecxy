@@ -1,7 +1,12 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+  </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\Vecxy.Assets\Vecxy.Assets.csproj" />
     <ProjectReference Include="..\Vecxy.Kernel\Vecxy.Kernel.csproj" />
     <ProjectReference Include="..\Vecxy.Prototypes\Vecxy.Prototypes.csproj" />
+    <ProjectReference Include="..\Vecxy.Rendering\Vecxy.Rendering.csproj" />
+    <ProjectReference Include="..\Vecxy.Scene\Vecxy.Scene.csproj" />
   </ItemGroup>
 </Project>

@@ -20,6 +20,7 @@ public static partial class AssetPipeline
         [".yaml"] = ("Config", "Configs"), [".yml"] = ("Config", "Configs"),
         [".glsl"] = ("Shader", "Shaders"), [".vert"] = ("Text", "Shaders"),
         [".frag"] = ("Text", "Shaders"), [".input"] = ("Input", "Inputs"),
+        [".prototype"] = ("Prototype", "Prototypes"),
         [".txt"] = ("Text", "Texts"), [".postfx"] = ("Text", "PostProcessing"),
         [".xml"] = ("Asset", "UI"), [".css"] = ("Asset", "UI"),
         [".luau"] = ("Script", "Scripts"),
@@ -249,7 +250,7 @@ public static partial class AssetPipeline
                 }
                 continue;
             }
-            if (extension is not (".material" or ".atlas" or ".xml" or ".css")) continue;
+            if (extension is not (".material" or ".atlas" or ".xml" or ".css" or ".prototype")) continue;
             var source = File.ReadAllText(fullPath);
             foreach (var dependency in entries)
                 if (dependency.Id != owner.Id && source.Contains(dependency.Path, StringComparison.OrdinalIgnoreCase)) owner.Dependencies.Add(dependency.Id);
@@ -357,7 +358,7 @@ public static partial class AssetPipeline
     {
         "Texture2D" => "TextureHandle", "Model" => "ModelHandle", "Sound" => "SoundHandle",
         "Material" => "MaterialHandle", "Config" => "ConfigHandle", "Text" => "TextHandle",
-        "Shader" => "ShaderHandle", "Input" => "InputHandle", _ => "AssetHandle"
+        "Shader" => "ShaderHandle", "Input" => "InputHandle", "Prototype" => "PrototypeHandle", _ => "AssetHandle"
     };
     private static Dictionary<string, Guid> BuildSymbols(AssetManifest manifest)
     {

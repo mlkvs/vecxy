@@ -54,6 +54,16 @@ try
     Assert(missing.Count == 1, "missing asset detected");
     Assert(missing[0].References.Single().Line == 1, "missing asset reference retained");
 
+    Directory.CreateDirectory(Path.Combine(root, "Assets", "Prototypes"));
+    File.WriteAllText(Path.Combine(root, "Assets", "Prototypes", "player.prototype"),
+        "format: 1\ntype: Game.Player\ndata:\n  config: Configs/game-balance.yaml\n");
+    var withPrototype = AssetPipeline.Scan(root);
+    var prototype = withPrototype.Assets.Single(x => x.Path == "Prototypes/player.prototype");
+    Assert(prototype.Type == "Prototype", "prototype asset classification");
+    Assert(prototype.Dependencies.Contains(config.Id), "prototype asset dependency tracking");
+    Assert(AssetPipeline.GenerateSource(withPrototype).Contains("PrototypeHandle Player", StringComparison.Ordinal),
+        "prototype handle generation");
+
     var engineProject = Path.Combine(root, "Engine", "Vecxy.Engine");
     Directory.CreateDirectory(Path.Combine(engineProject, "Assets", "Shaders"));
     Directory.CreateDirectory(Path.Combine(engineProject, "Assets", "SkyBox", "cubemap"));

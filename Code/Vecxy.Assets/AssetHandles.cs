@@ -10,6 +10,7 @@ public readonly record struct ConfigHandle(AssetId Id) : IAssetHandle { public C
 public readonly record struct TextHandle(AssetId Id) : IAssetHandle { public TextHandle(Guid id) : this(new AssetId(id)) { } }
 public readonly record struct ShaderHandle(AssetId Id) : IAssetHandle { public ShaderHandle(Guid id) : this(new AssetId(id)) { } }
 public readonly record struct InputHandle(AssetId Id) : IAssetHandle { public InputHandle(Guid id) : this(new AssetId(id)) { } }
+public readonly record struct PrototypeHandle(AssetId Id) : IAssetHandle { public PrototypeHandle(Guid id) : this(new AssetId(id)) { } }
 
 public readonly record struct TextureHandle(AssetId Id) : IAssetHandle
 {

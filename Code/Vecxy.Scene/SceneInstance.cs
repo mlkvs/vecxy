@@ -108,12 +108,13 @@ public sealed class SceneInstance
 
     public SceneObject CreateObject(
         string name = "SceneObject",
-        bool isStatic = false)
+        bool isStatic = false,
+        bool enabled = true)
     {
         if (_systemsDetached)
             throw new ObjectDisposedException(nameof(SceneInstance));
 
-        var sceneObject = new SceneObject(this, name, isStatic);
+        var sceneObject = new SceneObject(this, name, isStatic, enabled);
 
         _objects.Add(sceneObject);
 

@@ -24,6 +24,8 @@
   <Project Path="Code/Vecxy.Platforms/Vecxy.Platforms.csproj" />
   <Project Path="Code/Vecxy.Platforms.Android/Vecxy.Platforms.Android.csproj" />
   <Project Path="Code/Vecxy.Physics/Vecxy.Physics.csproj" />
+  <Project Path="Code/Vecxy.Prototypes/Vecxy.Prototypes.csproj" />
+  <Project Path="Code/Vecxy.Prototypes.Tests/Vecxy.Prototypes.Tests.csproj" />
   <Project Path="Code/Vecxy.Rendering/Vecxy.Rendering.csproj" />
   <Project Path="Code/Vecxy.Scene/Vecxy.Scene.csproj" />
   <Project Path="Code/Vecxy.Scripting/Vecxy.Scripting.csproj" />

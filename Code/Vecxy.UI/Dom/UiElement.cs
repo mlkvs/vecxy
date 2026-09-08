@@ -400,6 +400,18 @@ public class UiElement
         return true;
     }
 
+    internal void DestroyPrototypeTree()
+    {
+        if (Parent is not null)
+        {
+            RemoveFromParent();
+            return;
+        }
+
+        YGNodeFreeRecursive(YogaNode);
+        _children.Clear();
+    }
+
     /// <summary>
     /// Unmounts this subtree without destroying its retained Yoga nodes. The same
     /// element can later be mounted again with <see cref="Add"/> or <see cref="Insert"/>.
