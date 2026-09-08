@@ -7,12 +7,26 @@
     <Project Path="tools/Vecxy.SpriteEditor/Vecxy.SpriteEditor.csproj" />
     <Project Path="tools/Vecxy.SpriteEditor.Tests/Vecxy.SpriteEditor.Tests.csproj" />
   </Folder>
+  <Project Path="Code/Vecxy.AssetCompiler/Vecxy.AssetCompiler.csproj" />
   <Project Path="Code/Vecxy.Assets/Vecxy.Assets.csproj" />
+  <Project Path="Code/Vecxy.Audio/Vecxy.Audio.csproj" />
+  <Project Path="Code/Vecxy.CLI/Vecxy.CLI.csproj" />
   <Project Path="Code/Vecxy.Diagnostics/Vecxy.Diagnostics.csproj" />
+  <Project Path="Code/Vecxy.Editor/Vecxy.Editor.csproj" />
   <Project Path="Code/Vecxy.Engine/Vecxy.Engine.csproj" />
+  <Project Path="Code/Vecxy.Input/Vecxy.Input.csproj" />
   <Project Path="Code/Vecxy.Kernel/Vecxy.Kernel.csproj" />
+  <Project Path="Code/Vecxy.Messaging/Vecxy.Messaging.csproj" />
+  <Project Path="Code/Vecxy.Networking/Vecxy.Networking.csproj" />
+  <Project Path="Code/Vecxy.Networking.Generator/Vecxy.Networking.Generator.csproj" />
+  <Project Path="Code/Vecxy.Networking.Weaver/Vecxy.Networking.Weaver.csproj" />
+  <Project Path="Code/Vecxy.Pathfinding/Vecxy.Pathfinding.csproj" />
   <Project Path="Code/Vecxy.Platforms/Vecxy.Platforms.csproj" />
   <Project Path="Code/Vecxy.Platforms.Android/Vecxy.Platforms.Android.csproj" />
+  <Project Path="Code/Vecxy.Physics/Vecxy.Physics.csproj" />
   <Project Path="Code/Vecxy.Rendering/Vecxy.Rendering.csproj" />
+  <Project Path="Code/Vecxy.Scene/Vecxy.Scene.csproj" />
+  <Project Path="Code/Vecxy.Scripting/Vecxy.Scripting.csproj" />
   <Project Path="Code/Vecxy.UI/Vecxy.UI.csproj" />
+  <Project Path="Code/Vecxy.UI.Tests/Vecxy.UI.Tests.csproj" />
 </Solution>
