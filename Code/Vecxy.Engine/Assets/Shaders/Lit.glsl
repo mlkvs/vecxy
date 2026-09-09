@@ -5,9 +5,13 @@
 layout(location = 0) in vec3 aPosition;
 layout(location = 1) in vec3 aNormal;
 layout(location = 2) in vec2 aTexCoord;
+layout(location = 3) in vec4 aJoints;
+layout(location = 4) in vec4 aWeights;
 
 uniform mat4 uModel;
 uniform mat4 uTransform;
+uniform int uSkinningEnabled;
+uniform mat4 uBones[64];
 
 out vec3 vNormal;
 out vec3 vWorldPosition;
@@ -15,13 +19,26 @@ out vec2 vTexCoord;
 
 void main()
 {
+    mat4 skin = mat4(1.0);
+    if (uSkinningEnabled != 0)
+    {
+        skin =
+            uBones[int(aJoints.x)] * aWeights.x +
+            uBones[int(aJoints.y)] * aWeights.y +
+            uBones[int(aJoints.z)] * aWeights.z +
+            uBones[int(aJoints.w)] * aWeights.w;
+    }
+    vec4 localPosition = skin * vec4(aPosition, 1.0);
+    vec3 localNormal = uSkinningEnabled != 0
+        ? transpose(inverse(mat3(skin))) * aNormal
+        : aNormal;
     mat3 normalMatrix = transpose(inverse(mat3(uModel)));
 
-    vNormal = normalMatrix * aNormal;
-    vWorldPosition = (uModel * vec4(aPosition, 1.0)).xyz;
+    vNormal = normalMatrix * localNormal;
+    vWorldPosition = (uModel * localPosition).xyz;
     vTexCoord = aTexCoord;
 
-    gl_Position = uTransform * vec4(aPosition, 1.0);
+    gl_Position = uTransform * localPosition;
 }
 
 #type fragment
