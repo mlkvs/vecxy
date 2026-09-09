@@ -1,5 +1,6 @@
 using JetBrains.Annotations;
 using Vecxy.Assets;
+using Vecxy.Animations;
 using Vecxy.Audio;
 using Vecxy.Input;
 using Vecxy.Interaction;
@@ -38,6 +39,7 @@ public sealed class EngineLayer(
                 new PrototypesModule.Definition(),
                 new ScriptingModule.Definition(),
                 new RenderingModule.Definition(),
+                new AnimationsModule.Definition(),
                 new InputModule.Definition(),
                 new ScenesModule.Definition(),
                 new NetworkingModule.Definition(),
