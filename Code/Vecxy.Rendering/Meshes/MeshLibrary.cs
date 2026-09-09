@@ -101,13 +101,15 @@ public sealed class MeshLibrary : IDisposable
                         _device,
                         vertices,
                         indices,
-                        8,
+                        16,
                         boundsMin,
                         boundsMax,
                         $"{path} / Mesh {meshIndex} / Primitive {primitiveIndex}",
                         new VertexAttribute(0, 3, 0),
                         new VertexAttribute(1, 3, 3),
-                        new VertexAttribute(2, 2, 6));
+                        new VertexAttribute(2, 2, 6),
+                        new VertexAttribute(3, 4, 8),
+                        new VertexAttribute(4, 4, 12));
 
                     primitives[primitiveIndex] = mesh;
                     created.Add(mesh);
@@ -130,12 +132,12 @@ public sealed class MeshLibrary : IDisposable
     private static float[] PackVertices(
         IReadOnlyList<ModelVertex> vertices)
     {
-        var result = new float[checked(vertices.Count * 8)];
+        var result = new float[checked(vertices.Count * 16)];
 
         for (var index = 0; index < vertices.Count; index++)
         {
             var vertex = vertices[index];
-            var offset = index * 8;
+            var offset = index * 16;
 
             result[offset] = vertex.Position.X;
             result[offset + 1] = vertex.Position.Y;
@@ -145,6 +147,14 @@ public sealed class MeshLibrary : IDisposable
             result[offset + 5] = vertex.Normal.Z;
             result[offset + 6] = vertex.TexCoord.X;
             result[offset + 7] = vertex.TexCoord.Y;
+            result[offset + 8] = vertex.Joints.X;
+            result[offset + 9] = vertex.Joints.Y;
+            result[offset + 10] = vertex.Joints.Z;
+            result[offset + 11] = vertex.Joints.W;
+            result[offset + 12] = vertex.Weights.X;
+            result[offset + 13] = vertex.Weights.Y;
+            result[offset + 14] = vertex.Weights.Z;
+            result[offset + 15] = vertex.Weights.W;
         }
 
         return result;
