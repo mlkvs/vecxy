@@ -601,10 +601,13 @@ public sealed class RenderingModule(
 
         try
         {
+            var nodeObjects = new SceneObject?[model.Nodes.Count];
             BuildModelHierarchy(
                 root,
                 model,
-                fallbackMaterial);
+                fallbackMaterial,
+                nodeObjects);
+            root.AddComponent(new ModelInstance(model, nodeObjects));
             return root;
         }
         catch
@@ -623,7 +626,8 @@ public sealed class RenderingModule(
     internal void BuildModelHierarchy(
         SceneObject root,
         Model model,
-        Material? fallbackMaterial)
+        Material? fallbackMaterial,
+        SceneObject?[] nodeObjects)
     {
         ArgumentNullException.ThrowIfNull(root);
         ArgumentNullException.ThrowIfNull(model);
@@ -635,7 +639,8 @@ public sealed class RenderingModule(
                 root,
                 model,
                 fallbackMaterial,
-                rootNode);
+                rootNode,
+                nodeObjects);
         }
     }
 
@@ -644,10 +649,12 @@ public sealed class RenderingModule(
         SceneObject parent,
         Model model,
         Material? fallbackMaterial,
-        int nodeIndex)
+        int nodeIndex,
+        SceneObject?[] nodeObjects)
     {
         var node = model.Nodes[nodeIndex];
         var sceneObject = sceneInstance.CreateObject(node.Name);
+        nodeObjects[nodeIndex] = sceneObject;
         sceneObject.SetParent(
             parent,
             worldPositionStays: false);
@@ -656,13 +663,13 @@ public sealed class RenderingModule(
 
         if (node.MeshIndex is { } meshIndex)
         {
+            ValidateSkinBinding(model, node, meshIndex);
             var primitiveMeshes =
                 meshes.Get(model, meshIndex);
 
             if (primitiveMeshes.Count == 1)
             {
-                var renderer =
-                    sceneObject.AddComponent<MeshRenderer>();
+                var renderer = CreateMeshRenderer(sceneObject, model, node, nodeIndex);
                 renderer.SetMesh(
                     primitiveMeshes[0],
                     ResolveMaterial(
@@ -684,8 +691,7 @@ public sealed class RenderingModule(
                         sceneObject,
                         worldPositionStays: false);
 
-                    var renderer =
-                        primitiveObject.AddComponent<MeshRenderer>();
+                    var renderer = CreateMeshRenderer(primitiveObject, model, node, nodeIndex);
                     renderer.SetMesh(
                         primitiveMeshes[primitiveIndex],
                         ResolveMaterial(
@@ -743,7 +749,42 @@ public sealed class RenderingModule(
                 sceneObject,
                 model,
                 fallbackMaterial,
-                childIndex);
+                childIndex,
+                nodeObjects);
+        }
+    }
+
+    private static MeshRenderer CreateMeshRenderer(
+        SceneObject sceneObject,
+        Model model,
+        ModelNode node,
+        int nodeIndex)
+    {
+        if (node.SkinIndex is not { } skinIndex)
+            return sceneObject.AddComponent<MeshRenderer>();
+
+        var renderer = sceneObject.AddComponent<SkinnedMeshRenderer>();
+        renderer.ConfigureSkin(nodeIndex, skinIndex, model.Skins[skinIndex].Joints.Count);
+        return renderer;
+    }
+
+    private static void ValidateSkinBinding(Model model, ModelNode node, int meshIndex)
+    {
+        if (node.SkinIndex is not { } skinIndex)
+            return;
+        var jointCount = model.Skins[skinIndex].Joints.Count;
+        foreach (var primitive in model.Meshes[meshIndex].Primitives)
+        {
+            if (!primitive.IsSkinned)
+                throw new InvalidDataException($"Skinned node '{node.Name}' uses a primitive without JOINTS_0/WEIGHTS_0.");
+            foreach (var vertex in primitive.Vertices)
+            {
+                if (vertex.Joints.X >= jointCount || vertex.Joints.Y >= jointCount ||
+                    vertex.Joints.Z >= jointCount || vertex.Joints.W >= jointCount)
+                {
+                    throw new InvalidDataException($"Skinned node '{node.Name}' contains a joint index outside skin {skinIndex}.");
+                }
+            }
         }
     }
 
@@ -1323,6 +1364,15 @@ public sealed class RenderingModule(
                 materials.Bind(renderer.Material);
 
             ApplyLighting(shader, camera, lighting);
+            if (renderer is SkinnedMeshRenderer skinnedRenderer)
+            {
+                shader.Set("uSkinningEnabled", 1);
+                shader.Set("uBones[0]", skinnedRenderer.BoneMatrixSpan);
+            }
+            else
+            {
+                shader.Set("uSkinningEnabled", 0);
+            }
             shader.Set("uModel", modelTransform);
             shader.Set(
                 "uTransform",
