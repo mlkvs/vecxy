@@ -8,6 +8,8 @@
     <Project Path="tools/Vecxy.SpriteEditor.Tests/Vecxy.SpriteEditor.Tests.csproj" />
   </Folder>
   <Project Path="Code/Vecxy.AssetCompiler/Vecxy.AssetCompiler.csproj" />
+  <Project Path="Code/Vecxy.Animations/Vecxy.Animations.csproj" />
+  <Project Path="Code/Vecxy.Animations.Tests/Vecxy.Animations.Tests.csproj" />
   <Project Path="Code/Vecxy.Assets/Vecxy.Assets.csproj" />
   <Project Path="Code/Vecxy.Audio/Vecxy.Audio.csproj" />
   <Project Path="Code/Vecxy.CLI/Vecxy.CLI.csproj" />
