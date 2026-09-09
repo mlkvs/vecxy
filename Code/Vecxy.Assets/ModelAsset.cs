@@ -10,22 +10,36 @@ namespace Vecxy.Assets;
 public readonly record struct ModelVertex(
     Vector3 Position,
     Vector3 Normal,
-    Vector2 TexCoord);
+    Vector2 TexCoord,
+    Vector4 Joints,
+    Vector4 Weights)
+{
+    public ModelVertex(
+        Vector3 position,
+        Vector3 normal,
+        Vector2 texCoord)
+        : this(position, normal, texCoord, Vector4.Zero, Vector4.Zero)
+    {
+    }
+}
 
 public sealed class ModelPrimitive
 {
     public IReadOnlyList<ModelVertex> Vertices { get; }
     public IReadOnlyList<uint> Indices { get; }
     public int? MaterialIndex { get; }
+    public bool IsSkinned { get; }
 
     internal ModelPrimitive(
         ModelVertex[] vertices,
         uint[] indices,
-        int? materialIndex)
+        int? materialIndex,
+        bool isSkinned)
     {
         Vertices = Array.AsReadOnly(vertices);
         Indices = Array.AsReadOnly(indices);
         MaterialIndex = materialIndex;
+        IsSkinned = isSkinned;
     }
 }
 
@@ -49,6 +63,7 @@ public sealed class ModelNode
     public Matrix4x4 LocalTransform { get; }
     public int? MeshIndex { get; }
     public int? LightIndex { get; }
+    public int? SkinIndex { get; }
     public IReadOnlyList<int> Children { get; }
 
     internal ModelNode(
@@ -56,13 +71,95 @@ public sealed class ModelNode
         Matrix4x4 localTransform,
         int? meshIndex,
         int? lightIndex,
+        int? skinIndex,
         int[] children)
     {
         Name = name;
         LocalTransform = localTransform;
         MeshIndex = meshIndex;
         LightIndex = lightIndex;
+        SkinIndex = skinIndex;
         Children = Array.AsReadOnly(children);
+    }
+}
+
+public sealed class ModelSkin
+{
+    public string Name { get; }
+    public IReadOnlyList<int> Joints { get; }
+    public IReadOnlyList<Matrix4x4> InverseBindMatrices { get; }
+    public int? SkeletonRootNode { get; }
+
+    internal ModelSkin(
+        string name,
+        int[] joints,
+        Matrix4x4[] inverseBindMatrices,
+        int? skeletonRootNode)
+    {
+        Name = name;
+        Joints = Array.AsReadOnly(joints);
+        InverseBindMatrices = Array.AsReadOnly(inverseBindMatrices);
+        SkeletonRootNode = skeletonRootNode;
+    }
+}
+
+public enum EModelAnimationPath : byte
+{
+    Translation,
+    Rotation,
+    Scale
+}
+
+public enum EModelAnimationInterpolation : byte
+{
+    Step,
+    Linear,
+    CubicSpline
+}
+
+public sealed class ModelAnimationChannel
+{
+    public int NodeIndex { get; }
+    public EModelAnimationPath Path { get; }
+    public EModelAnimationInterpolation Interpolation { get; }
+    public IReadOnlyList<float> Times { get; }
+    public IReadOnlyList<Vector4> Values { get; }
+    public IReadOnlyList<Vector4>? InTangents { get; }
+    public IReadOnlyList<Vector4>? OutTangents { get; }
+
+    internal ModelAnimationChannel(
+        int nodeIndex,
+        EModelAnimationPath path,
+        EModelAnimationInterpolation interpolation,
+        float[] times,
+        Vector4[] values,
+        Vector4[]? inTangents = null,
+        Vector4[]? outTangents = null)
+    {
+        NodeIndex = nodeIndex;
+        Path = path;
+        Interpolation = interpolation;
+        Times = Array.AsReadOnly(times);
+        Values = Array.AsReadOnly(values);
+        InTangents = inTangents is null ? null : Array.AsReadOnly(inTangents);
+        OutTangents = outTangents is null ? null : Array.AsReadOnly(outTangents);
+    }
+}
+
+public sealed class ModelAnimation
+{
+    public string Name { get; }
+    public float Duration { get; }
+    public IReadOnlyList<ModelAnimationChannel> Channels { get; }
+
+    internal ModelAnimation(
+        string name,
+        float duration,
+        ModelAnimationChannel[] channels)
+    {
+        Name = name;
+        Duration = duration;
+        Channels = Array.AsReadOnly(channels);
     }
 }
 
@@ -108,6 +205,8 @@ public sealed class ModelAsset
     public IReadOnlyList<ModelMesh> Meshes { get; }
     public IReadOnlyList<ModelMaterial> Materials { get; }
     public IReadOnlyList<ModelLight> Lights { get; }
+    public IReadOnlyList<ModelSkin> Skins { get; }
+    public IReadOnlyList<ModelAnimation> Animations { get; }
     public IReadOnlyList<int> RootNodes { get; }
 
     internal ModelAsset(
@@ -115,12 +214,16 @@ public sealed class ModelAsset
         ModelMesh[] meshes,
         ModelMaterial[] materials,
         ModelLight[] lights,
+        ModelSkin[] skins,
+        ModelAnimation[] animations,
         int[] rootNodes)
     {
         Nodes = Array.AsReadOnly(nodes);
         Meshes = Array.AsReadOnly(meshes);
         Materials = Array.AsReadOnly(materials);
         Lights = Array.AsReadOnly(lights);
+        Skins = Array.AsReadOnly(skins);
+        Animations = Array.AsReadOnly(animations);
         RootNodes = Array.AsReadOnly(rootNodes);
     }
 }
@@ -171,6 +274,8 @@ public sealed class ModelAssetImporter : IAssetImporter<ModelAsset>
     private const string PositionAttribute = "POSITION";
     private const string NormalAttribute = "NORMAL";
     private const string TexCoordAttribute = "TEXCOORD_0";
+    private const string JointsAttribute = "JOINTS_0";
+    private const string WeightsAttribute = "WEIGHTS_0";
 
     public IReadOnlyCollection<string> Extensions { get; } =
         [".glb"];
@@ -197,6 +302,9 @@ public sealed class ModelAssetImporter : IAssetImporter<ModelAsset>
             gltf.Materials?.Length ?? 0,
             metadata.Path);
         var materials = ImportMaterials(gltf, images, emissiveStrengths);
+        var skins = ImportSkins(gltf, binaryBuffer, source, metadata.Path);
+        var animations = ImportAnimations(gltf, binaryBuffer, source, metadata.Path);
+        var nodeSkins = ParseNodeSkins(source, gltf.Nodes?.Length ?? 0, skins.Length, metadata.Path);
 
         var meshes = (gltf.Meshes ?? [])
             .Select((mesh, index) =>
@@ -218,7 +326,8 @@ public sealed class ModelAssetImporter : IAssetImporter<ModelAsset>
                     lightImport.Lights.Length,
                     gltf.Nodes?.Length ?? 0,
                     metadata.Path,
-                    lightImport.NodeLights))
+                    lightImport.NodeLights,
+                    nodeSkins))
             .ToArray();
 
         var roots = GetRootNodes(gltf, nodes, metadata.Path);
@@ -229,6 +338,8 @@ public sealed class ModelAssetImporter : IAssetImporter<ModelAsset>
             meshes,
             materials,
             lightImport.Lights,
+            skins,
+            animations,
             roots);
     }
 
@@ -364,6 +475,25 @@ public sealed class ModelAssetImporter : IAssetImporter<ModelAsset>
                 path)
             : null;
 
+        var hasJoints = primitive.Attributes.TryGetValue(
+            JointsAttribute,
+            out var jointsAccessor);
+        var hasWeights = primitive.Attributes.TryGetValue(
+            WeightsAttribute,
+            out var weightsAccessor);
+        if (hasJoints != hasWeights)
+        {
+            throw new InvalidDataException(
+                $"Mesh {meshIndex}, primitive {primitiveIndex} in '{path}' must provide both JOINTS_0 and WEIGHTS_0.");
+        }
+
+        var joints = hasJoints
+            ? ReadJointVectors(gltf, buffer, jointsAccessor, path)
+            : null;
+        var weights = hasWeights
+            ? ReadWeightVectors(gltf, buffer, weightsAccessor, path)
+            : null;
+
         if (normals is not null && normals.Length != positions.Length)
         {
             throw new InvalidDataException(
@@ -374,6 +504,13 @@ public sealed class ModelAssetImporter : IAssetImporter<ModelAsset>
         {
             throw new InvalidDataException(
                 $"{texCoordAttribute} count does not match POSITION count in mesh {meshIndex}, primitive {primitiveIndex} of '{path}'.");
+        }
+
+        if (joints is not null && joints.Length != positions.Length ||
+            weights is not null && weights.Length != positions.Length)
+        {
+            throw new InvalidDataException(
+                $"Skin attribute count does not match POSITION count in mesh {meshIndex}, primitive {primitiveIndex} of '{path}'.");
         }
 
         var indices = primitive.Indices is { } indexAccessor
@@ -402,13 +539,16 @@ public sealed class ModelAssetImporter : IAssetImporter<ModelAsset>
             vertices[index] = new ModelVertex(
                 positions[index],
                 normals[index],
-                texCoords?[index] ?? Vector2.Zero);
+                texCoords?[index] ?? Vector2.Zero,
+                joints?[index] ?? Vector4.Zero,
+                weights is null ? Vector4.Zero : NormalizeWeights(weights[index]));
         }
 
         return new ModelPrimitive(
             vertices,
             indices,
-            primitive.Material);
+            primitive.Material,
+            hasJoints);
     }
 
     private static TextureAsset?[] ImportImages(
@@ -551,6 +691,265 @@ public sealed class ModelAssetImporter : IAssetImporter<ModelAsset>
         return result;
     }
 
+    private static ModelSkin[] ImportSkins(
+        Gltf gltf,
+        byte[] buffer,
+        byte[] source,
+        string path)
+    {
+        using var document = ReadGlbJsonDocument(source, path);
+        if (!document.RootElement.TryGetProperty("skins", out var skinsElement))
+            return [];
+
+        var result = new List<ModelSkin>();
+        var skinIndex = 0;
+        foreach (var skinElement in skinsElement.EnumerateArray())
+        {
+            if (!skinElement.TryGetProperty("joints", out var jointsElement))
+                throw new InvalidDataException($"Skin {skinIndex} in '{path}' has no joints.");
+
+            var joints = jointsElement.EnumerateArray()
+                .Select(value => value.GetInt32())
+                .ToArray();
+            if (joints.Length == 0 ||
+                joints.Any(joint => joint < 0 || joint >= (gltf.Nodes?.Length ?? 0)) ||
+                joints.Distinct().Count() != joints.Length)
+            {
+                throw new InvalidDataException($"Skin {skinIndex} in '{path}' contains invalid joints.");
+            }
+
+            Matrix4x4[] inverseBindMatrices;
+            if (skinElement.TryGetProperty("inverseBindMatrices", out var inverseBindAccessor))
+            {
+                inverseBindMatrices = ReadMatrices4(
+                    gltf,
+                    buffer,
+                    inverseBindAccessor.GetInt32(),
+                    "inverse bind matrix",
+                    path);
+                if (inverseBindMatrices.Length != joints.Length)
+                {
+                    throw new InvalidDataException(
+                        $"Skin {skinIndex} in '{path}' has {joints.Length} joints but {inverseBindMatrices.Length} inverse bind matrices.");
+                }
+            }
+            else
+            {
+                inverseBindMatrices = Enumerable.Repeat(Matrix4x4.Identity, joints.Length).ToArray();
+            }
+
+            int? skeletonRoot = skinElement.TryGetProperty("skeleton", out var skeletonElement)
+                ? skeletonElement.GetInt32()
+                : null;
+            if (skeletonRoot is { } root && (root < 0 || root >= (gltf.Nodes?.Length ?? 0)))
+                throw new InvalidDataException($"Skin {skinIndex} in '{path}' has an invalid skeleton root.");
+
+            var name = skinElement.TryGetProperty("name", out var nameElement)
+                ? nameElement.GetString()
+                : null;
+            result.Add(new ModelSkin(
+                string.IsNullOrWhiteSpace(name) ? $"Skin {skinIndex}" : name,
+                joints,
+                inverseBindMatrices,
+                skeletonRoot));
+            skinIndex++;
+        }
+
+        return result.ToArray();
+    }
+
+    private static ModelAnimation[] ImportAnimations(
+        Gltf gltf,
+        byte[] buffer,
+        byte[] source,
+        string path)
+    {
+        using var document = ReadGlbJsonDocument(source, path);
+        if (!document.RootElement.TryGetProperty("animations", out var animationsElement))
+            return [];
+
+        var animations = new List<ModelAnimation>();
+        var animationIndex = 0;
+        foreach (var animationElement in animationsElement.EnumerateArray())
+        {
+            if (!animationElement.TryGetProperty("samplers", out var samplersElement) ||
+                !animationElement.TryGetProperty("channels", out var channelsElement))
+            {
+                throw new InvalidDataException($"Animation {animationIndex} in '{path}' is incomplete.");
+            }
+
+            var samplers = samplersElement.EnumerateArray().ToArray();
+            var channels = new List<ModelAnimationChannel>();
+            foreach (var channelElement in channelsElement.EnumerateArray())
+            {
+                var samplerIndex = channelElement.GetProperty("sampler").GetInt32();
+                if (samplerIndex < 0 || samplerIndex >= samplers.Length)
+                    throw new InvalidDataException($"Animation {animationIndex} in '{path}' references an invalid sampler.");
+
+                var target = channelElement.GetProperty("target");
+                if (!target.TryGetProperty("node", out var nodeElement))
+                    throw new NotSupportedException($"Animation {animationIndex} in '{path}' contains a channel without a node target.");
+                var nodeIndex = nodeElement.GetInt32();
+                if (nodeIndex < 0 || nodeIndex >= (gltf.Nodes?.Length ?? 0))
+                    throw new InvalidDataException($"Animation {animationIndex} in '{path}' targets an invalid node.");
+
+                var targetPath = target.GetProperty("path").GetString();
+                var animationPath = targetPath switch
+                {
+                    "translation" => EModelAnimationPath.Translation,
+                    "rotation" => EModelAnimationPath.Rotation,
+                    "scale" => EModelAnimationPath.Scale,
+                    "weights" => throw new NotSupportedException(
+                        $"Animation {animationIndex} in '{path}' uses morph target weights."),
+                    _ => throw new InvalidDataException(
+                        $"Animation {animationIndex} in '{path}' uses unknown target path '{targetPath}'.")
+                };
+
+                var sampler = samplers[samplerIndex];
+                var interpolationName = sampler.TryGetProperty("interpolation", out var interpolationElement)
+                    ? interpolationElement.GetString()
+                    : "LINEAR";
+                var interpolation = interpolationName switch
+                {
+                    "STEP" => EModelAnimationInterpolation.Step,
+                    "LINEAR" => EModelAnimationInterpolation.Linear,
+                    "CUBICSPLINE" => EModelAnimationInterpolation.CubicSpline,
+                    _ => throw new NotSupportedException(
+                        $"Animation {animationIndex} in '{path}' uses interpolation '{interpolationName}'.")
+                };
+
+                var times = ReadFloatScalars(
+                    gltf,
+                    buffer,
+                    sampler.GetProperty("input").GetInt32(),
+                    "animation input",
+                    path);
+                ValidateAnimationTimes(times, animationIndex, path);
+
+                var outputAccessor = sampler.GetProperty("output").GetInt32();
+                var rawValues = animationPath == EModelAnimationPath.Rotation
+                    ? ReadVectors4(gltf, buffer, outputAccessor, "animation rotation", path)
+                    : ReadVectors3(gltf, buffer, outputAccessor, "animation vector", path)
+                        .Select(value => new Vector4(value, 0.0f))
+                        .ToArray();
+                if (rawValues.Any(value =>
+                        !float.IsFinite(value.X) || !float.IsFinite(value.Y) ||
+                        !float.IsFinite(value.Z) || !float.IsFinite(value.W)))
+                {
+                    throw new InvalidDataException(
+                        $"Animation {animationIndex} in '{path}' contains a non-finite output value.");
+                }
+
+                Vector4[] values;
+                Vector4[]? inTangents = null;
+                Vector4[]? outTangents = null;
+                if (interpolation == EModelAnimationInterpolation.CubicSpline)
+                {
+                    if (rawValues.Length != checked(times.Length * 3))
+                        throw new InvalidDataException($"Cubic animation channel in '{path}' has an invalid output count.");
+                    values = new Vector4[times.Length];
+                    inTangents = new Vector4[times.Length];
+                    outTangents = new Vector4[times.Length];
+                    for (var index = 0; index < times.Length; index++)
+                    {
+                        inTangents[index] = rawValues[index * 3];
+                        values[index] = rawValues[index * 3 + 1];
+                        outTangents[index] = rawValues[index * 3 + 2];
+                    }
+                }
+                else
+                {
+                    if (rawValues.Length != times.Length)
+                        throw new InvalidDataException($"Animation channel in '{path}' has an invalid output count.");
+                    values = rawValues;
+                }
+
+                if (animationPath == EModelAnimationPath.Rotation)
+                {
+                    for (var index = 0; index < values.Length; index++)
+                    {
+                        var rotation = new Quaternion(values[index].X, values[index].Y, values[index].Z, values[index].W);
+                        if (rotation.LengthSquared() <= float.Epsilon)
+                            throw new InvalidDataException($"Animation {animationIndex} in '{path}' contains a zero quaternion.");
+                        rotation = Quaternion.Normalize(rotation);
+                        values[index] = new Vector4(rotation.X, rotation.Y, rotation.Z, rotation.W);
+                    }
+                }
+
+                channels.Add(new ModelAnimationChannel(
+                    nodeIndex,
+                    animationPath,
+                    interpolation,
+                    times,
+                    values,
+                    inTangents,
+                    outTangents));
+            }
+
+            var name = animationElement.TryGetProperty("name", out var nameElement)
+                ? nameElement.GetString()
+                : null;
+            var duration = channels.Count == 0
+                ? 0.0f
+                : channels.Max(channel => channel.Times[^1]);
+            animations.Add(new ModelAnimation(
+                string.IsNullOrWhiteSpace(name) ? $"Animation {animationIndex}" : name,
+                duration,
+                channels.ToArray()));
+            animationIndex++;
+        }
+
+        var duplicate = animations.GroupBy(animation => animation.Name, StringComparer.Ordinal)
+            .FirstOrDefault(group => group.Count() > 1);
+        if (duplicate is not null)
+            throw new InvalidDataException($"Model '{path}' contains duplicate animation name '{duplicate.Key}'.");
+
+        return animations.ToArray();
+    }
+
+    private static IReadOnlyDictionary<int, int> ParseNodeSkins(
+        byte[] source,
+        int nodeCount,
+        int skinCount,
+        string path)
+    {
+        using var document = ReadGlbJsonDocument(source, path);
+        if (!document.RootElement.TryGetProperty("nodes", out var nodesElement))
+            return new Dictionary<int, int>();
+
+        var result = new Dictionary<int, int>();
+        var nodeIndex = 0;
+        foreach (var nodeElement in nodesElement.EnumerateArray())
+        {
+            if (nodeElement.TryGetProperty("skin", out var skinElement))
+            {
+                var skinIndex = skinElement.GetInt32();
+                if (skinIndex < 0 || skinIndex >= skinCount)
+                    throw new InvalidDataException($"Node {nodeIndex} in '{path}' references invalid skin {skinIndex}.");
+                result.Add(nodeIndex, skinIndex);
+            }
+            nodeIndex++;
+        }
+
+        if (nodeIndex != nodeCount)
+            throw new InvalidDataException($"Model '{path}' contains an inconsistent node list.");
+        return result;
+    }
+
+    private static void ValidateAnimationTimes(float[] times, int animationIndex, string path)
+    {
+        if (times.Length == 0)
+            throw new InvalidDataException($"Animation {animationIndex} in '{path}' has no keyframes.");
+        for (var index = 0; index < times.Length; index++)
+        {
+            if (!float.IsFinite(times[index]) || times[index] < 0.0f ||
+                index > 0 && times[index] <= times[index - 1])
+            {
+                throw new InvalidDataException($"Animation {animationIndex} in '{path}' has invalid keyframe times.");
+            }
+        }
+    }
+
     private static Vector3[] ReadVectors3(
         Gltf gltf,
         byte[] buffer,
@@ -639,6 +1038,162 @@ public sealed class ModelAssetImporter : IAssetImporter<ModelAsset>
                         accessor.ComponentType));
             });
 
+        return result;
+    }
+
+    private static Vector4[] ReadVectors4(
+        Gltf gltf,
+        byte[] buffer,
+        int accessorIndex,
+        string attribute,
+        string path)
+    {
+        var accessor = GetAccessor(
+            gltf,
+            accessorIndex,
+            Accessor.TypeEnum.VEC4,
+            Accessor.ComponentTypeEnum.FLOAT,
+            attribute,
+            path);
+        var result = new Vector4[accessor.Count];
+        ForEachElement(
+            gltf,
+            accessor,
+            sizeof(float) * 4,
+            buffer.Length,
+            path,
+            offset => result[offset.Index] = new Vector4(
+                ReadSingle(buffer, offset.ByteOffset),
+                ReadSingle(buffer, offset.ByteOffset + sizeof(float)),
+                ReadSingle(buffer, offset.ByteOffset + sizeof(float) * 2),
+                ReadSingle(buffer, offset.ByteOffset + sizeof(float) * 3)));
+        return result;
+    }
+
+    private static float[] ReadFloatScalars(
+        Gltf gltf,
+        byte[] buffer,
+        int accessorIndex,
+        string attribute,
+        string path)
+    {
+        var accessor = GetAccessor(
+            gltf,
+            accessorIndex,
+            Accessor.TypeEnum.SCALAR,
+            Accessor.ComponentTypeEnum.FLOAT,
+            attribute,
+            path);
+        var result = new float[accessor.Count];
+        ForEachElement(
+            gltf,
+            accessor,
+            sizeof(float),
+            buffer.Length,
+            path,
+            offset => result[offset.Index] = ReadSingle(buffer, offset.ByteOffset));
+        return result;
+    }
+
+    private static Matrix4x4[] ReadMatrices4(
+        Gltf gltf,
+        byte[] buffer,
+        int accessorIndex,
+        string attribute,
+        string path)
+    {
+        var accessor = GetAccessor(
+            gltf,
+            accessorIndex,
+            Accessor.TypeEnum.MAT4,
+            Accessor.ComponentTypeEnum.FLOAT,
+            attribute,
+            path);
+        var result = new Matrix4x4[accessor.Count];
+        ForEachElement(
+            gltf,
+            accessor,
+            sizeof(float) * 16,
+            buffer.Length,
+            path,
+            offset =>
+            {
+                Span<float> values = stackalloc float[16];
+                for (var component = 0; component < values.Length; component++)
+                    values[component] = ReadSingle(buffer, offset.ByteOffset + component * sizeof(float));
+                result[offset.Index] = new Matrix4x4(
+                    values[0], values[1], values[2], values[3],
+                    values[4], values[5], values[6], values[7],
+                    values[8], values[9], values[10], values[11],
+                    values[12], values[13], values[14], values[15]);
+            });
+        return result;
+    }
+
+    private static Vector4[] ReadJointVectors(
+        Gltf gltf,
+        byte[] buffer,
+        int accessorIndex,
+        string path)
+    {
+        if (gltf.Accessors is null || accessorIndex < 0 || accessorIndex >= gltf.Accessors.Length)
+            throw new InvalidDataException($"Model '{path}' references invalid JOINTS_0 accessor {accessorIndex}.");
+        var accessor = gltf.Accessors[accessorIndex];
+        if (accessor.Type != Accessor.TypeEnum.VEC4 ||
+            accessor.ComponentType is not (Accessor.ComponentTypeEnum.UNSIGNED_BYTE or Accessor.ComponentTypeEnum.UNSIGNED_SHORT))
+        {
+            throw new NotSupportedException($"JOINTS_0 accessor {accessorIndex} in '{path}' must use VEC4/UNSIGNED_BYTE or UNSIGNED_SHORT.");
+        }
+
+        var componentSize = accessor.ComponentType == Accessor.ComponentTypeEnum.UNSIGNED_BYTE
+            ? sizeof(byte)
+            : sizeof(ushort);
+        var result = new Vector4[accessor.Count];
+        ForEachElement(
+            gltf,
+            accessor,
+            componentSize * 4,
+            buffer.Length,
+            path,
+            offset => result[offset.Index] = new Vector4(
+                ReadUnsignedComponent(buffer, offset.ByteOffset, accessor.ComponentType),
+                ReadUnsignedComponent(buffer, offset.ByteOffset + componentSize, accessor.ComponentType),
+                ReadUnsignedComponent(buffer, offset.ByteOffset + componentSize * 2, accessor.ComponentType),
+                ReadUnsignedComponent(buffer, offset.ByteOffset + componentSize * 3, accessor.ComponentType)));
+        return result;
+    }
+
+    private static Vector4[] ReadWeightVectors(
+        Gltf gltf,
+        byte[] buffer,
+        int accessorIndex,
+        string path)
+    {
+        if (gltf.Accessors is null || accessorIndex < 0 || accessorIndex >= gltf.Accessors.Length)
+            throw new InvalidDataException($"Model '{path}' references invalid WEIGHTS_0 accessor {accessorIndex}.");
+        var accessor = gltf.Accessors[accessorIndex];
+        if (accessor.Type != Accessor.TypeEnum.VEC4)
+            throw new NotSupportedException($"WEIGHTS_0 accessor {accessorIndex} in '{path}' must use VEC4.");
+
+        var componentSize = accessor.ComponentType switch
+        {
+            Accessor.ComponentTypeEnum.FLOAT => sizeof(float),
+            Accessor.ComponentTypeEnum.UNSIGNED_BYTE when accessor.Normalized => sizeof(byte),
+            Accessor.ComponentTypeEnum.UNSIGNED_SHORT when accessor.Normalized => sizeof(ushort),
+            _ => throw new NotSupportedException($"WEIGHTS_0 accessor {accessorIndex} in '{path}' uses an unsupported component type.")
+        };
+        var result = new Vector4[accessor.Count];
+        ForEachElement(
+            gltf,
+            accessor,
+            componentSize * 4,
+            buffer.Length,
+            path,
+            offset => result[offset.Index] = new Vector4(
+                ReadWeightComponent(buffer, offset.ByteOffset, accessor.ComponentType),
+                ReadWeightComponent(buffer, offset.ByteOffset + componentSize, accessor.ComponentType),
+                ReadWeightComponent(buffer, offset.ByteOffset + componentSize * 2, accessor.ComponentType),
+                ReadWeightComponent(buffer, offset.ByteOffset + componentSize * 3, accessor.ComponentType)));
         return result;
     }
 
@@ -783,7 +1338,8 @@ public sealed class ModelAssetImporter : IAssetImporter<ModelAsset>
         int lightCount,
         int nodeCount,
         string path,
-        IReadOnlyDictionary<int, int> nodeLights)
+        IReadOnlyDictionary<int, int> nodeLights,
+        IReadOnlyDictionary<int, int> nodeSkins)
     {
         if (node.Mesh is { } meshIndex &&
             (meshIndex < 0 || meshIndex >= meshCount))
@@ -803,6 +1359,11 @@ public sealed class ModelAssetImporter : IAssetImporter<ModelAsset>
 
             lightIndex = currentLightIndex;
         }
+
+
+        int? skinIndex = null;
+        if (nodeSkins.TryGetValue(nodeIndex, out var currentSkinIndex))
+            skinIndex = currentSkinIndex;
 
         var children = node.Children ?? [];
         if (children.Any(child => child < 0 || child >= nodeCount))
@@ -828,6 +1389,7 @@ public sealed class ModelAssetImporter : IAssetImporter<ModelAsset>
             localTransform,
             node.Mesh,
             lightIndex,
+            skinIndex,
             children.ToArray());
     }
 
@@ -1205,6 +1767,49 @@ public sealed class ModelAssetImporter : IAssetImporter<ModelAsset>
             _ => throw new InvalidOperationException(
                 "Unexpected texture coordinate component type.")
         };
+    }
+
+    private static float ReadUnsignedComponent(
+        byte[] data,
+        int offset,
+        Accessor.ComponentTypeEnum componentType)
+    {
+        return componentType switch
+        {
+            Accessor.ComponentTypeEnum.UNSIGNED_BYTE => data[offset],
+            Accessor.ComponentTypeEnum.UNSIGNED_SHORT =>
+                BinaryPrimitives.ReadUInt16LittleEndian(data.AsSpan(offset, sizeof(ushort))),
+            _ => throw new InvalidOperationException("Unexpected joint component type.")
+        };
+    }
+
+    private static float ReadWeightComponent(
+        byte[] data,
+        int offset,
+        Accessor.ComponentTypeEnum componentType)
+    {
+        return componentType switch
+        {
+            Accessor.ComponentTypeEnum.FLOAT => ReadSingle(data, offset),
+            Accessor.ComponentTypeEnum.UNSIGNED_BYTE => data[offset] / (float)byte.MaxValue,
+            Accessor.ComponentTypeEnum.UNSIGNED_SHORT =>
+                BinaryPrimitives.ReadUInt16LittleEndian(data.AsSpan(offset, sizeof(ushort))) / (float)ushort.MaxValue,
+            _ => throw new InvalidOperationException("Unexpected weight component type.")
+        };
+    }
+
+    private static Vector4 NormalizeWeights(Vector4 weights)
+    {
+        if (!float.IsFinite(weights.X) || !float.IsFinite(weights.Y) ||
+            !float.IsFinite(weights.Z) || !float.IsFinite(weights.W) ||
+            weights.X < 0.0f || weights.Y < 0.0f || weights.Z < 0.0f || weights.W < 0.0f)
+        {
+            throw new InvalidDataException("A skinned vertex has invalid bone weights.");
+        }
+        var sum = weights.X + weights.Y + weights.Z + weights.W;
+        if (sum <= float.Epsilon)
+            throw new InvalidDataException("A skinned vertex has no positive bone weights.");
+        return weights / sum;
     }
 
     private readonly record struct ElementOffset(
