@@ -85,6 +85,25 @@ public sealed class Shader : IDisposable
         }
     }
 
+    public unsafe void Set(string name, ReadOnlySpan<Matrix4x4> values)
+    {
+        if (values.Length == 0)
+            return;
+
+        var location = GetUniformLocation(name);
+        if (location < 0)
+            return;
+
+        fixed (Matrix4x4* data = values)
+        {
+            _device.GL.UniformMatrix4(
+                location,
+                checked((uint)values.Length),
+                false,
+                (float*)data);
+        }
+    }
+
     private int GetUniformLocation(string name)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
