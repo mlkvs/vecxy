@@ -1,0 +1,16 @@
+<panel class="iso-viewport-column">
+  <panel class="iso-viewport-toolbar">
+    <button id="level-down" class="small">Level -</button><text id="level-label">Level 0</text><button id="level-up" class="small">Level +</button>
+    <panel class="iso-toolbar-separator" />
+    <button id="rotate-left" class="small">Rotate left</button><button id="rotate-right" class="small">Rotate right (R)</button>
+    <button id="toggle-grid" class="small active">Grid</button>
+    <text id="cursor-label">X 0  Y 0</text>
+  </panel>
+  <panel id="world-viewport" class="iso-viewport">
+    <panel id="world-canvas" class="iso-world-canvas">
+      <panel id="grid-layer" class="iso-layer grid" />
+      <panel id="placement-layer" class="iso-layer placements" />
+      <panel id="preview-layer" class="iso-layer preview" />
+    </panel>
+  </panel>
+</panel>

@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <OutputType>Exe</OutputType>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+    <VecxyGenerateEntryPoint>true</VecxyGenerateEntryPoint>
+    <VecxyApplicationId>tools.vecxy.isometriceditor</VecxyApplicationId>
+    <VecxyApplicationTitle>Vecxy Isometric Editor</VecxyApplicationTitle>
+  </PropertyGroup>
+  <Import Project="..\Vecxy.Platforms\build\Vecxy.Platforms.props" />
+  <ItemGroup>
+    <ProjectReference Include="..\Vecxy.Assets\Vecxy.Assets.csproj" />
+    <ProjectReference Include="..\Vecxy.Editor\Vecxy.Editor.csproj" />
+    <ProjectReference Include="..\Vecxy.Isometric\Vecxy.Isometric.csproj" />
+    <ProjectReference Include="..\Vecxy.Input\Vecxy.Input.csproj" />
+    <ProjectReference Include="..\Vecxy.Platforms\Vecxy.Platforms.csproj" />
+    <ProjectReference Include="..\Vecxy.Prototypes\Vecxy.Prototypes.csproj" />
+    <ProjectReference Include="..\Vecxy.Rendering\Vecxy.Rendering.csproj" />
+    <ProjectReference Include="..\Vecxy.UI\Vecxy.UI.csproj" />
+    <PackageReference Include="StbImageSharp" Version="2.30.15" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Update="TASK.md" CopyToOutputDirectory="Never" />
+  </ItemGroup>
+</Project>

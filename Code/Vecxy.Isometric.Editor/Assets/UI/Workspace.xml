@@ -1,0 +1,7 @@
+<ui class="iso-editor" styles="Styles/Foundation.css, Styles/TopBar.css, Styles/AssetBrowser.css, Styles/Viewport.css, Styles/Inspector.css, Styles/StatusBar.css">
+  <panel id="workspace" class="iso-editor-workspace">
+    <panel id="top-slot" />
+    <panel id="main-content" class="iso-editor-content" />
+    <panel id="status-slot" />
+  </panel>
+</ui>

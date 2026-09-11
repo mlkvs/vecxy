@@ -1,0 +1,19 @@
+.iso-editor .iso-inspector { width: 300ui; flex-shrink: 0; height: 100%; border-left: 1ui solid var(--line); background-color: var(--panel); }
+.iso-editor .iso-inspector-body { padding: 10ui; gap: 5ui; overflow-y: scroll; }
+.iso-editor .iso-selection-type { min-height: 30ui; padding: 6ui; color: #b9d8f4; background-color: #1f3549; }
+.iso-editor .iso-field-label, .iso-editor .iso-number-row text { margin-top: 3ui; color: var(--muted); font-size: 10ui; }
+.iso-editor .iso-section-label { margin-top: 10ui; padding-top: 8ui; border-top: 1ui solid var(--line); font-weight: 700; }
+.iso-editor .iso-texture-row { height: 68ui; flex-direction: row; gap: 7ui; }
+.iso-editor .iso-texture-preview { position: relative; width: 68ui; height: 68ui; flex-shrink: 0; overflow: hidden; border: 1ui solid var(--line); background-color: #18181a; }
+.iso-editor .iso-texture-preview image { position: absolute; width: 100%; height: 100%; object-fit: contain; image-rendering: pixelated; }
+.iso-editor .iso-texture-controls { flex-grow: 1; gap: 5ui; }
+.iso-editor .iso-texture-controls button { margin-top: 0; }
+.iso-editor .iso-number-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5ui; }
+.iso-editor .iso-number-row panel { gap: 2ui; }
+.iso-editor .iso-attach-row { flex-direction: row; gap: 5ui; }
+.iso-editor .iso-attach-row button { flex-grow: 1; }
+.iso-editor .iso-check-row { gap: 5ui; }
+.iso-editor .iso-check-row panel { height: 24ui; flex-direction: row; align-items: center; gap: 7ui; }
+.iso-editor .iso-check-row input { width: 16ui; height: 16ui; border: 1ui solid var(--line); background-color: #18181a; }
+.iso-editor .iso-check-row input:checked { border-color: #70a7d8; background-color: var(--accent); }
+.iso-editor .iso-inspector button { width: 100%; margin-top: 5ui; }

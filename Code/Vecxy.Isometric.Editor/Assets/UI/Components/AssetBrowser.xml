@@ -1,0 +1,13 @@
+<panel class="iso-asset-browser">
+  <panel class="iso-panel-header"><text>Project</text><button id="refresh-assets" class="small">Refresh</button></panel>
+  <panel id="world-list" class="iso-world-list" />
+  <panel class="iso-panel-header"><text>Definitions</text></panel>
+  <input-field id="asset-search" class="iso-input iso-search" placeholder="Search by name or category" />
+  <panel class="iso-create-row">
+    <button id="create-surface">+ Floor</button><button id="create-wall">+ Wall</button><button id="create-object">+ Object</button>
+  </panel>
+  <panel class="iso-create-row">
+    <button id="create-opening">+ Opening</button><button id="create-connection">+ Stairs</button>
+  </panel>
+  <panel id="asset-list" class="iso-asset-list" virtualize="true" />
+</panel>

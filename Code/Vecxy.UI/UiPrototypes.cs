@@ -61,6 +61,33 @@ public sealed partial class UiButton
     }
 }
 
+public sealed partial class UiInputField
+{
+    public sealed class Prototype : APrototype<UiInputField, Prototype.Options>
+    {
+        public sealed class Options : UiElementPrototypeOptions
+        {
+            public string Placeholder { get; set; } = string.Empty;
+            public bool ReadOnly { get; set; }
+            public int MaxLength { get; set; }
+            public TextInputType InputType { get; set; }
+        }
+
+        protected override UiInputField Instantiate(IPrototypeContext context) =>
+            RequireContext<UiPrototypeContext>(context).Document.CreateInputField();
+
+        protected override void Configure(UiInputField target, Options options)
+        {
+            UiPrototypeConfiguration.Apply(target, options);
+            target.Text = options.Text;
+            target.Placeholder = options.Placeholder;
+            target.ReadOnly = options.ReadOnly;
+            target.MaxLength = options.MaxLength;
+            target.InputType = options.InputType;
+        }
+    }
+}
+
 public sealed partial class UiImage
 {
     public sealed class Prototype : APrototype<UiImage, Prototype.Options>

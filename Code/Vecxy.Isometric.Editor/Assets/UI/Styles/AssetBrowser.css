@@ -1,0 +1,14 @@
+.iso-editor .iso-asset-browser { width: 280ui; flex-shrink: 0; height: 100%; border-right: 1ui solid var(--line); background-color: var(--panel); }
+.iso-editor .iso-world-list { max-height: 126ui; padding: 5ui; overflow-y: scroll; gap: 2ui; border-bottom: 1ui solid var(--line); }
+.iso-editor .iso-world-list button { width: 100%; justify-content: flex-start; border-color: transparent; background-color: transparent; }
+.iso-editor .iso-search { margin: 7ui; width: auto; }
+.iso-editor .iso-create-row { padding: 0 7ui 5ui; flex-direction: row; gap: 4ui; }
+.iso-editor .iso-create-row button { flex-grow: 1; padding: 0 4ui; font-size: 10ui; }
+.iso-editor .iso-asset-list { flex-grow: 1; min-height: 0; padding: 6ui; overflow-y: scroll; gap: 3ui; }
+.iso-editor .iso-asset-card { width: 100%; min-height: 42ui; padding: 4ui 6ui; flex-direction: row; align-items: center; justify-content: flex-start; border-color: transparent; background-color: transparent; }
+.iso-editor .iso-asset-card.selected { background-color: #264f78; border-color: #5794cf; }
+.iso-editor .iso-asset-icon { position: relative; width: 28ui; height: 28ui; margin-right: 7ui; overflow: hidden; border: 1ui solid #555; background-color: #6b7280; }
+.iso-editor .iso-asset-icon image { position: absolute; width: 100%; height: 100%; object-fit: contain; image-rendering: pixelated; pointer-events: none; }
+.iso-editor .iso-asset-copy { align-items: flex-start; }
+.iso-editor .iso-asset-name { font-size: 12ui; }
+.iso-editor .iso-asset-meta { color: var(--muted); font-size: 9ui; }

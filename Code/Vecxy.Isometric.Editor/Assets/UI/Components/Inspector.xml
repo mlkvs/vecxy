@@ -1,0 +1,21 @@
+<panel class="iso-inspector">
+  <panel class="iso-panel-header"><text>Inspector</text></panel>
+  <panel class="iso-inspector-body">
+    <text id="selection-type" class="iso-selection-type">Nothing selected</text>
+    <text class="iso-field-label">Name</text><input-field id="property-name" class="iso-input" />
+    <text class="iso-field-label">Category</text><input-field id="property-category" class="iso-input" />
+    <text class="iso-field-label">Texture</text>
+    <panel class="iso-texture-row"><panel id="texture-preview" class="iso-texture-preview" /><panel class="iso-texture-controls"><input-field id="property-texture" class="iso-input" placeholder="Textures/item.png" /><button id="choose-texture" class="small">Choose...</button></panel></panel>
+    <text class="iso-field-label">Color</text><input-field id="property-color" class="iso-input" placeholder="#6b7280" />
+    <text class="iso-field-label">Slots (id:capacity)</text><input-field id="property-slots" class="iso-input" placeholder="surface:8, inside:16" />
+    <panel class="iso-check-row"><panel><input id="property-blocking" type="checkbox" /><text>Blocking</text></panel><panel><input id="property-hidden-contents" type="checkbox" /><text>Hide container contents</text></panel></panel>
+    <panel class="iso-number-row"><panel><text>Width</text><input-field id="property-width" class="iso-input" /></panel><panel><text>Height</text><input-field id="property-height" class="iso-input" /></panel><panel><text>Length</text><input-field id="property-length" class="iso-input" /></panel></panel>
+    <text class="iso-section-label">Instance</text>
+    <panel class="iso-number-row"><panel><text>X</text><input-field id="instance-x" class="iso-input" /></panel><panel><text>Y</text><input-field id="instance-y" class="iso-input" /></panel><panel><text>Level</text><input-field id="instance-level" class="iso-input" /></panel></panel>
+    <text class="iso-field-label">Parent instance ID</text><input-field id="instance-parent" class="iso-input" placeholder="Optional attachment parent" />
+    <text class="iso-field-label">Slot ID</text><input-field id="instance-slot" class="iso-input" placeholder="surface / inside / wall" />
+    <panel class="iso-attach-row"><button id="remember-parent" class="small">Use selected as parent</button><button id="clear-parent" class="small">Clear parent</button></panel>
+    <button id="apply-properties" class="primary">Apply</button>
+    <button id="delete-selection" class="danger">Delete selection</button>
+  </panel>
+</panel>

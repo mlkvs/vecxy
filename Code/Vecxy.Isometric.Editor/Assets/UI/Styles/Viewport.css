@@ -1,0 +1,19 @@
+.iso-editor .iso-viewport-column { position: relative; flex-grow: 1; min-width: 0; height: 100%; background-color: #18181a; }
+.iso-editor .iso-viewport-toolbar { height: 38ui; flex-shrink: 0; padding: 5ui 8ui; flex-direction: row; align-items: center; gap: 5ui; border-bottom: 1ui solid var(--line); background-color: var(--panel); }
+.iso-editor .iso-viewport-toolbar #level-label { width: 62ui; text-align: center; }
+.iso-editor .iso-viewport-toolbar #cursor-label { margin-left: auto; color: var(--muted); }
+.iso-editor .iso-viewport { flex-grow: 1; min-height: 0; overflow: scroll; }
+.iso-editor .iso-world-canvas { position: relative; width: 1800ui; height: 1400ui; flex-shrink: 0; background-color: #202124; }
+.iso-editor .iso-layer { position: absolute; left: 0; top: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
+.iso-editor .iso-layer.grid { pointer-events: auto; }
+.iso-editor .iso-grid-cell { position: absolute; width: 62ui; height: 30ui; padding: 0; border: 1ui solid #3a3c40; border-radius: 0; background-color: rgba(50,52,56,.30); color: transparent; transform: rotate(0deg); }
+.iso-editor .iso-grid-cell:hover { border-color: #8ab4df; background-color: rgba(77,124,168,.28); }
+.iso-editor .iso-placement { position: absolute; min-width: 62ui; height: 30ui; padding: 0 5ui; border-radius: 1ui; border-color: #111; color: white; background-color: #52606d; pointer-events: auto; font-size: 10ui; overflow: hidden; }
+.iso-editor .iso-placement image { position: absolute; left: 0; top: 0; width: 100%; height: 100%; object-fit: cover; image-rendering: pixelated; pointer-events: none; }
+.iso-editor .iso-placement.wall { height: 7ui; min-height: 7ui; background-color: #a97b50; }
+.iso-editor .iso-placement.surface { background-color: #526f4f; opacity: .78; }
+.iso-editor .iso-placement.opening { background-color: #477c91; }
+.iso-editor .iso-placement.connection { background-color: #846b9d; }
+.iso-editor .iso-placement.selected { border: 2ui solid #f4d35e; }
+.iso-editor .iso-preview-cell { position: absolute; width: 62ui; height: 30ui; border: 2ui solid #67c587; background-color: rgba(76,175,110,.25); pointer-events: none; }
+.iso-editor .iso-preview-cell.invalid { border-color: #e16f6f; background-color: rgba(190,70,70,.25); }

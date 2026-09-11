@@ -9,7 +9,7 @@ namespace Vecxy.UI;
 
 public enum TextInputType : byte { Text, Password }
 
-public sealed class UiInputField : UiElement
+public sealed partial class UiInputField : UiElement
 {
     private readonly TextEditingState _editing = new();
     private Action<UiElement?>? _focus;

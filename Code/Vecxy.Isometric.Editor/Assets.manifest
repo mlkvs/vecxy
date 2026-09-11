@@ -1,0 +1,399 @@
+{
+  "assets": [
+    {
+      "id": "ca4db2bb-f54f-4f52-a704-e7e0f69b1d11",
+      "source": "Game",
+      "path": "Configs/Application.yaml",
+      "type": "Config",
+      "name": "Application",
+      "hash": "2c55b217b56db9f45fe6ed0c8036c038e7474551635c9ea7af58e5c136ce0821",
+      "dependencies": [],
+      "package": "98cbb7d7-e042-d142-6ea7-cbd84cd256be"
+    },
+    {
+      "id": "10bf5e75-da1b-4cc0-9223-1e9626c1b1ef",
+      "source": "Game",
+      "path": "Configs/UI.yaml",
+      "type": "Config",
+      "name": "UI",
+      "hash": "1a05c3f12a752b24856119f0d6a72b09bf2946ed335160429b1be2c09d8dada8",
+      "dependencies": [],
+      "package": "98cbb7d7-e042-d142-6ea7-cbd84cd256be"
+    },
+    {
+      "id": "82a9a197-7111-45c6-97fb-cf17749fbf0f",
+      "source": "Game",
+      "path": "Fonts/Inter-LICENSE.txt",
+      "type": "Text",
+      "name": "Inter-LICENSE",
+      "hash": "b3195af0fb14368d1b3b10fb9d3fe503b7163ea083859d2ee553bc74da07c320",
+      "dependencies": [],
+      "package": "98cbb7d7-e042-d142-6ea7-cbd84cd256be"
+    },
+    {
+      "id": "7d850fe3-c8a5-4c6b-b587-928fdfb57aff",
+      "source": "Game",
+      "path": "Fonts/Inter-Regular.ttf",
+      "type": "Asset",
+      "name": "Inter-Regular",
+      "hash": "40d692fce188e4471e2b3cba937be967878f631ad3ebbbdcd587687c7ebe0c82",
+      "dependencies": [],
+      "package": "98cbb7d7-e042-d142-6ea7-cbd84cd256be"
+    },
+    {
+      "id": "6dbfec38-aad7-4e64-b16d-2de3d6224dfe",
+      "source": "Game",
+      "path": "UI/Components/AssetBrowser.xml",
+      "type": "Asset",
+      "name": "AssetBrowser",
+      "hash": "e625afe3a504cac5110ca5841feddf85844004abfe74428b79a5f9b653797429",
+      "dependencies": [],
+      "package": "98cbb7d7-e042-d142-6ea7-cbd84cd256be"
+    },
+    {
+      "id": "7936c7f9-264d-4e20-af99-5ca287d6a400",
+      "source": "Game",
+      "path": "UI/Components/Inspector.xml",
+      "type": "Asset",
+      "name": "Inspector",
+      "hash": "bab222c5b87aeaa860f81cab84dd8a5c09dc1e6d3368280ffd1eee47d545983a",
+      "dependencies": [],
+      "package": "98cbb7d7-e042-d142-6ea7-cbd84cd256be"
+    },
+    {
+      "id": "36683b1d-e8dd-4f80-b0a6-0a195a66dd88",
+      "source": "Game",
+      "path": "UI/Components/StatusBar.xml",
+      "type": "Asset",
+      "name": "StatusBar",
+      "hash": "446834f8d0c5ebe87b7dcccf6891e384d491b9eaf449369af43b0c9328f7b08b",
+      "dependencies": [],
+      "package": "98cbb7d7-e042-d142-6ea7-cbd84cd256be"
+    },
+    {
+      "id": "0e5375b2-b6a7-4c22-986d-1eb187f57929",
+      "source": "Game",
+      "path": "UI/Components/TopBar.xml",
+      "type": "Asset",
+      "name": "TopBar",
+      "hash": "321bfb05168b3dcb0c3b6a681e8928607c33b1d096665efd9fb7620ffa7f7737",
+      "dependencies": [],
+      "package": "98cbb7d7-e042-d142-6ea7-cbd84cd256be"
+    },
+    {
+      "id": "3b563cc5-71fb-4f80-957f-9b2b5a3304e6",
+      "source": "Game",
+      "path": "UI/Components/Viewport.xml",
+      "type": "Asset",
+      "name": "Viewport",
+      "hash": "4381716b496d57b243d49630f1d7642d3470c8cdb3fb22693094f6a15b6db906",
+      "dependencies": [],
+      "package": "98cbb7d7-e042-d142-6ea7-cbd84cd256be"
+    },
+    {
+      "id": "d9994b70-fac7-4357-bbac-761f74affbea",
+      "source": "Game",
+      "path": "UI/Styles/AssetBrowser.css",
+      "type": "Asset",
+      "name": "AssetBrowser",
+      "hash": "22a01b0f5e15d84c83159dfa6f5a31bbefc632ea72e525363d82492137e5b6f7",
+      "dependencies": [],
+      "package": "98cbb7d7-e042-d142-6ea7-cbd84cd256be"
+    },
+    {
+      "id": "1b107b5d-7190-44bc-9368-e46652f1383f",
+      "source": "Game",
+      "path": "UI/Styles/Foundation.css",
+      "type": "Asset",
+      "name": "Foundation",
+      "hash": "b3fdc8576f4509ea38dac81beb55b51339cfc39bf55ab6a6468dc9be4ebe8c20",
+      "dependencies": [
+        "7d850fe3-c8a5-4c6b-b587-928fdfb57aff"
+      ],
+      "package": "98cbb7d7-e042-d142-6ea7-cbd84cd256be"
+    },
+    {
+      "id": "5bb3fda1-27b3-4f0d-912b-6ae9a3b67fd0",
+      "source": "Game",
+      "path": "UI/Styles/Inspector.css",
+      "type": "Asset",
+      "name": "Inspector",
+      "hash": "0c33e20a0a6d35412c9b945dc704ff48506e536ba5be4061246e9ca773c1a806",
+      "dependencies": [],
+      "package": "98cbb7d7-e042-d142-6ea7-cbd84cd256be"
+    },
+    {
+      "id": "37680651-568f-4a43-8d80-96a3412b4d3a",
+      "source": "Game",
+      "path": "UI/Styles/StatusBar.css",
+      "type": "Asset",
+      "name": "StatusBar",
+      "hash": "fbf862700278f225166e0b9d322ef7fba3d061bb0d0706b87aa3c364738c7b2a",
+      "dependencies": [],
+      "package": "98cbb7d7-e042-d142-6ea7-cbd84cd256be"
+    },
+    {
+      "id": "d5444462-8f9f-46ad-b18d-40da07b07374",
+      "source": "Game",
+      "path": "UI/Styles/TopBar.css",
+      "type": "Asset",
+      "name": "TopBar",
+      "hash": "2a67eb7eb1dac7bb0ea75c4035f8c2eb88ac5a67bbb938055d639b67a30e27e5",
+      "dependencies": [],
+      "package": "98cbb7d7-e042-d142-6ea7-cbd84cd256be"
+    },
+    {
+      "id": "4e1f9b7f-0c73-472a-a58e-7684fbce4ae3",
+      "source": "Game",
+      "path": "UI/Styles/Viewport.css",
+      "type": "Asset",
+      "name": "Viewport",
+      "hash": "cf3a5e46d9fa6062093cebfdde5ff0ff1e2bf7faceed03bc4c312fde0318d98e",
+      "dependencies": [],
+      "package": "98cbb7d7-e042-d142-6ea7-cbd84cd256be"
+    },
+    {
+      "id": "bcd4a8a4-4ee1-4ab6-ade9-1182cc4917a0",
+      "source": "Game",
+      "path": "UI/Workspace.xml",
+      "type": "Asset",
+      "name": "Workspace",
+      "hash": "856d1bf82cc9cf2085b0d9391353b81b8c6f5f68664ed9aee0ae313f3326b9cf",
+      "dependencies": [],
+      "package": "98cbb7d7-e042-d142-6ea7-cbd84cd256be"
+    },
+    {
+      "id": "51ef15b8-6274-424f-806e-de3b326a90b5",
+      "source": "Engine",
+      "path": "Configs/EditorLayout.yaml",
+      "type": "Config",
+      "name": "EditorLayout",
+      "hash": "6937b26f4fe36a4cee3ce84cf9f29f0b9c67995b88ac4de3415f32d608bc58b1",
+      "dependencies": [],
+      "package": "79e6ac0f-5f3f-e20a-2227-c63732e7dd1e"
+    },
+    {
+      "id": "0ed9716f-fbe9-4c3e-bf36-4ba4a566f2a9",
+      "source": "Engine",
+      "path": "Configs/Physics.yaml",
+      "type": "Config",
+      "name": "Physics",
+      "hash": "0fdffdfbb1e5da56db219d5bce3ab7f8a64f5d8347e74c4ad245f73ff29efd69",
+      "dependencies": [],
+      "package": "79e6ac0f-5f3f-e20a-2227-c63732e7dd1e"
+    },
+    {
+      "id": "da9f47da-3f99-4679-9fa1-1a7348cf3f5f",
+      "source": "Engine",
+      "path": "Configs/UI.yaml",
+      "type": "Config",
+      "name": "UI",
+      "hash": "77731c1a538891ca90282b4af8902bc2132a01d39ebfd18170a9b3820b88a682",
+      "dependencies": [],
+      "package": "79e6ac0f-5f3f-e20a-2227-c63732e7dd1e"
+    },
+    {
+      "id": "35e65dde-eb59-4c09-93e3-938e7a84cde4",
+      "source": "Engine",
+      "path": "Controls.input",
+      "type": "Input",
+      "name": "Controls",
+      "hash": "5de50818ba171c00acb6471fcc731264e85058a160244cb86a37a100c76ab2ae",
+      "dependencies": [],
+      "package": "79e6ac0f-5f3f-e20a-2227-c63732e7dd1e"
+    },
+    {
+      "id": "6715e1bf-614c-4cc6-8b43-bd029130b41d",
+      "source": "Engine",
+      "path": "Materials/Default.material",
+      "type": "Material",
+      "name": "Default",
+      "hash": "c42962eadd09830b3ff3a9b7479685c283e4c96864e825e39d6164ea3f6e3c38",
+      "dependencies": [
+        "cce11b81-b62b-40c3-a67b-8ae88c169960",
+        "2d431186-3cbd-4df8-a8ca-eeb19d7b5ae7"
+      ],
+      "package": "79e6ac0f-5f3f-e20a-2227-c63732e7dd1e"
+    },
+    {
+      "id": "cce11b81-b62b-40c3-a67b-8ae88c169960",
+      "source": "Engine",
+      "path": "Shaders/Lit.glsl",
+      "type": "Shader",
+      "name": "Lit",
+      "hash": "68c37d4de5e556389d8d570980540880deb47c7d9d3fd5d2cf5ec61023d5b103",
+      "dependencies": [],
+      "package": "79e6ac0f-5f3f-e20a-2227-c63732e7dd1e"
+    },
+    {
+      "id": "13baafcb-3599-4756-87aa-cff11e3fe409",
+      "source": "Engine",
+      "path": "Shaders/PostProcessing/Copy.glsl",
+      "type": "Shader",
+      "name": "Copy",
+      "hash": "15660dedc7c3e0b6910f06631453246a5f66a76ec356e278d720ecd42253e1cf",
+      "dependencies": [],
+      "package": "79e6ac0f-5f3f-e20a-2227-c63732e7dd1e"
+    },
+    {
+      "id": "f68b06b2-6171-4e9c-95d3-ef8f7e8d3ade",
+      "source": "Engine",
+      "path": "Shaders/PostProcessing/Retro.glsl",
+      "type": "Shader",
+      "name": "Retro",
+      "hash": "fd5a656082700207891558c428fab988375b068dec1de802ee0520cb50d83d9a",
+      "dependencies": [],
+      "package": "79e6ac0f-5f3f-e20a-2227-c63732e7dd1e"
+    },
+    {
+      "id": "fcbb9742-8d48-4f3a-b8f8-791d3855ff11",
+      "source": "Engine",
+      "path": "Shaders/PostProcessing/Vignette.glsl",
+      "type": "Shader",
+      "name": "Vignette",
+      "hash": "bed94aefaf6a5a03572587797cb0a300c12831b32a7a5fb8b9d0d0a653d249d4",
+      "dependencies": [],
+      "package": "79e6ac0f-5f3f-e20a-2227-c63732e7dd1e"
+    },
+    {
+      "id": "75926ce8-9327-42db-b87b-9db140ba6d7d",
+      "source": "Engine",
+      "path": "Shaders/Skybox.glsl",
+      "type": "Shader",
+      "name": "Skybox",
+      "hash": "fa6a84758c806f0be25cca168ede0e70fd4142625328c437ccff36d42aade6ac",
+      "dependencies": [],
+      "package": "79e6ac0f-5f3f-e20a-2227-c63732e7dd1e"
+    },
+    {
+      "id": "cb0bcdd7-db91-4910-8731-fb8ab50f1fc3",
+      "source": "Engine",
+      "path": "Shaders/Sprite.glsl",
+      "type": "Shader",
+      "name": "Sprite",
+      "hash": "e7a72bad07714690a1b61cffa77282761dd1727f6cc016b5c51c10322aac85fd",
+      "dependencies": [],
+      "package": "79e6ac0f-5f3f-e20a-2227-c63732e7dd1e"
+    },
+    {
+      "id": "8f00ba50-d1e5-4153-bc09-0a9f3d583543",
+      "source": "Engine",
+      "path": "SkyBox/cubemap/nx.png",
+      "type": "Texture2D",
+      "name": "nx",
+      "hash": "2bcedf3e72574aacb058409d6fe60b708f631c2b367fcb68f6a0c9000b8bb071",
+      "dependencies": [],
+      "package": "79e6ac0f-5f3f-e20a-2227-c63732e7dd1e"
+    },
+    {
+      "id": "77a04397-7b49-4020-8b2c-5d904fa0da2b",
+      "source": "Engine",
+      "path": "SkyBox/cubemap/ny.png",
+      "type": "Texture2D",
+      "name": "ny",
+      "hash": "b6770fdad43a81cab686955836d76d293fc4d373a592eeaac969ff9961ba77e9",
+      "dependencies": [],
+      "package": "79e6ac0f-5f3f-e20a-2227-c63732e7dd1e"
+    },
+    {
+      "id": "0dd9250c-1f74-4905-b8fd-dce409ce8ff1",
+      "source": "Engine",
+      "path": "SkyBox/cubemap/nz.png",
+      "type": "Texture2D",
+      "name": "nz",
+      "hash": "82207f0c6896552228e4c1f00eef4a6a050f72b7df4a37bf60b4d469657c52c2",
+      "dependencies": [],
+      "package": "79e6ac0f-5f3f-e20a-2227-c63732e7dd1e"
+    },
+    {
+      "id": "ebb7f928-ce9c-4322-8170-16e01701e34b",
+      "source": "Engine",
+      "path": "SkyBox/cubemap/px.png",
+      "type": "Texture2D",
+      "name": "px",
+      "hash": "f70cf4be9a042f577eead72d6d25f72e73aadd0e8dd857b176fc720cf8c8b979",
+      "dependencies": [],
+      "package": "79e6ac0f-5f3f-e20a-2227-c63732e7dd1e"
+    },
+    {
+      "id": "2319beb5-e812-4b43-9e45-e97f1cfd06ee",
+      "source": "Engine",
+      "path": "SkyBox/cubemap/py.png",
+      "type": "Texture2D",
+      "name": "py",
+      "hash": "27ed89c184fb1fbab0d795930d3965cbd3feff135c335f3d124661b4d1a42a7e",
+      "dependencies": [],
+      "package": "79e6ac0f-5f3f-e20a-2227-c63732e7dd1e"
+    },
+    {
+      "id": "391a1dad-6053-4cf7-bb9f-b4bdc107ac66",
+      "source": "Engine",
+      "path": "SkyBox/cubemap/pz.png",
+      "type": "Texture2D",
+      "name": "pz",
+      "hash": "489d87d72470a4fe3ab74350f32ffe472a62f8addc98c11e18e05d01fab6fa79",
+      "dependencies": [],
+      "package": "79e6ac0f-5f3f-e20a-2227-c63732e7dd1e"
+    },
+    {
+      "id": "720699f9-dfc8-4ae2-a598-05d0eb4c2671",
+      "source": "Engine",
+      "path": "SkyBox/Skybox.yaml",
+      "type": "Config",
+      "name": "Skybox",
+      "hash": "96a1527cba76a648cd2bba75215b857ff4337d445e0bf5f378a7223eda7293a5",
+      "dependencies": [],
+      "package": "79e6ac0f-5f3f-e20a-2227-c63732e7dd1e"
+    },
+    {
+      "id": "8d2917cb-f30c-4795-bf68-b60289f924ca",
+      "source": "Engine",
+      "path": "Textures/FmodLogo.png",
+      "type": "Texture2D",
+      "name": "FmodLogo",
+      "hash": "637a25a67d92d210c744f008ff3f19833d18f3945717ba7d8755565f588a7043",
+      "dependencies": [],
+      "package": "79e6ac0f-5f3f-e20a-2227-c63732e7dd1e"
+    },
+    {
+      "id": "93c591b7-c3bc-4313-b56b-6398736efc4b",
+      "source": "Engine",
+      "path": "Textures/Logo.png",
+      "type": "Texture2D",
+      "name": "Logo",
+      "hash": "31e72c3db4b39dc48847cbbc1c7f0dc6ba3bca5c11390f429c74167ffaa2a91f",
+      "dependencies": [],
+      "package": "79e6ac0f-5f3f-e20a-2227-c63732e7dd1e"
+    },
+    {
+      "id": "2d431186-3cbd-4df8-a8ca-eeb19d7b5ae7",
+      "source": "Engine",
+      "path": "Textures/T_Quad_White_64.png",
+      "type": "Texture2D",
+      "name": "T_Quad_White_64",
+      "hash": "7329544873bd6ddf000d93361d7084fbc76063ad92a667721d8c1c9bb732363b",
+      "dependencies": [],
+      "package": "79e6ac0f-5f3f-e20a-2227-c63732e7dd1e"
+    }
+  ],
+  "packages": [
+    {
+      "id": "98cbb7d7-e042-d142-6ea7-cbd84cd256be",
+      "name": "Game",
+      "descriptor": null,
+      "load": 0,
+      "dependencies": [],
+      "version": "1.0.0",
+      "remote": null
+    },
+    {
+      "id": "79e6ac0f-5f3f-e20a-2227-c63732e7dd1e",
+      "name": "Engine",
+      "descriptor": "engine.vpack",
+      "load": 0,
+      "dependencies": [],
+      "version": "1.0.0",
+      "remote": null
+    }
+  ]
+}

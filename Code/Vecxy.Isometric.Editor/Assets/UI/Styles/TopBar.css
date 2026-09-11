@@ -1,0 +1,4 @@
+.iso-editor .iso-topbar { height: 42ui; flex-shrink: 0; padding: 5ui 7ui; flex-direction: row; align-items: center; gap: 4ui; border-bottom: 1ui solid #111; background-color: #2d2d30; }
+.iso-editor .iso-topbar .iso-document-title { margin-left: auto; min-width: 260ui; align-items: flex-end; }
+.iso-editor .iso-topbar #document-title { font-weight: 700; }
+.iso-editor .iso-topbar #workspace-title { color: var(--muted); font-size: 10ui; }

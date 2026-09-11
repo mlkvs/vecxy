@@ -28,6 +28,7 @@
     <Project Path="Code/Vecxy.UI/Vecxy.UI.csproj" />
   </Folder>
   <Folder Name="/Isometric/">
+    <Project Path="Code/Vecxy.Isometric.Editor/Vecxy.Isometric.Editor.csproj" />
     <Project Path="Code/Vecxy.Isometric.Tests/Vecxy.Isometric.Tests.csproj" />
     <Project Path="Code/Vecxy.Isometric/Vecxy.Isometric.csproj" />
   </Folder>

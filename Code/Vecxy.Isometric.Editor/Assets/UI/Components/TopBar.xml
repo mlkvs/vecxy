@@ -1,0 +1,13 @@
+<panel class="iso-topbar">
+  <button id="open-assets">Open Assets...</button>
+  <button id="new-world">New World</button>
+  <button id="save-world" class="primary">Save</button>
+  <panel class="iso-toolbar-separator" />
+  <button id="undo-world">Undo</button>
+  <button id="redo-world">Redo</button>
+  <panel class="iso-toolbar-separator" />
+  <button id="select-tool" class="tool active">Select</button>
+  <button id="place-tool" class="tool">Place</button>
+  <button id="erase-tool" class="tool">Erase</button>
+  <panel class="iso-document-title"><text id="document-title">No world</text><text id="workspace-title">Open an Assets folder</text></panel>
+</panel>

@@ -1,0 +1,2 @@
+.iso-editor .iso-statusbar { height: 24ui; flex-shrink: 0; padding: 0 8ui; flex-direction: row; align-items: center; justify-content: space-between; border-top: 1ui solid #111; background-color: #27272a; color: #c9cbd0; font-size: 10ui; }
+.iso-editor .iso-statusbar #world-stats { color: var(--muted); }
