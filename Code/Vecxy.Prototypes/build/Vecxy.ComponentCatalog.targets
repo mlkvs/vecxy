@@ -1,0 +1,10 @@
+<Project>
+  <PropertyGroup>
+    <VecxyComponentCatalog Condition="'$(VecxyComponentCatalog)' == ''">$(MSBuildProjectDirectory)/Authoring/vecxy.components.json</VecxyComponentCatalog>
+    <VecxyComponentCatalogTool>$(MSBuildThisFileDirectory)../../../tools/Vecxy.ComponentCatalog/Vecxy.ComponentCatalog.csproj</VecxyComponentCatalogTool>
+  </PropertyGroup>
+  <Target Name="VecxyWriteComponentCatalog" AfterTargets="Build" DependsOnTargets="VecxyWeaveNetworking"
+          Condition="'$(DesignTimeBuild)' != 'true' and '$(VecxyGenerateComponentCatalog)' == 'true'">
+    <Exec Command="dotnet run --project &quot;$(VecxyComponentCatalogTool)&quot; -- &quot;$(TargetPath)&quot; &quot;$(VecxyComponentCatalog)&quot;" />
+  </Target>
+</Project>

@@ -64,6 +64,24 @@ class UsdCookTests(unittest.TestCase):
     def test_stale_render_cache(self):
         self.cook();output=self.root/'Compiled/scene.glb';output.write_bytes(b'broken')
         self.assertFalse(cooker.current(Path(str(self.stage)+'.usdscene')))
+    def test_visual_mesh_can_have_collider(self):
+        asset=Usd.Stage.Open(str(self.asset));root=asset.GetDefaultPrim()
+        root.CreateAttribute('vecxy:collider',Sdf.ValueTypeNames.Token).Set('box')
+        root.CreateAttribute('vecxy:colliderSize',Sdf.ValueTypeNames.Float3).Set(Gf.Vec3f(2,3,4))
+        root.CreateAttribute('vecxy:colliderCenter',Sdf.ValueTypeNames.Float3).Set(Gf.Vec3f(0,0,1))
+        asset.GetRootLayer().Save();doc=self.cook()
+        self.assertEqual(sum(p.get('collider')=='box' for p in doc['prims']),3)
+        data=(self.root/'Compiled/scene.glb').read_bytes();length=int.from_bytes(data[12:16],'little');model=json.loads(data[20:20+length])
+        self.assertEqual(len(model['meshes']),1,'Attaching a collider must not hide the visual mesh')
+    def test_component_field_overrides(self):
+        asset=Usd.Stage.Open(str(self.asset));root=asset.GetDefaultPrim()
+        root.CreateAttribute('vecxy:components',Sdf.ValueTypeNames.String).Set(json.dumps([{'key':'machine','type':'Game.Machine','data':{'number':0,'cycle':600}}]))
+        asset.GetRootLayer().Save()
+        stage=Usd.Stage.Open(str(self.stage));inst=stage.GetPrimAtPath('/World/Instance_1')
+        inst.CreateAttribute('vecxy:componentOverrides',Sdf.ValueTypeNames.String).Set(json.dumps([{'key':'machine','type':'Game.Machine','data':{'number':2}}]))
+        stage.GetRootLayer().Save();doc=self.cook()
+        record=next(p for p in doc['prims'] if p['path']=='/World/Instance_1')
+        self.assertEqual(record['components'][0]['data'],{'number':2,'cycle':600})
     def test_unresolved_reference_rejected(self):
         self.asset.unlink()
         with self.assertRaisesRegex(ValueError,'Unresolved USD dependencies'):self.cook()

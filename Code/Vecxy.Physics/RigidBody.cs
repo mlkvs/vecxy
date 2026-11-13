@@ -1,10 +1,12 @@
 using System.Numerics;
 using Vecxy.Scene;
+using Vecxy.Prototypes;
 
 namespace Vecxy.Physics;
 
 [SingleComponent]
-public sealed class RigidBody : AComponent
+[EditorComponent("Rigid Body", Category = "Physics", Key = "rigidBody")]
+public sealed partial class RigidBody : AComponent
 {
     private EPhysicsMotionType _motionType = EPhysicsMotionType.Dynamic;
     private float _mass = 1.0f;

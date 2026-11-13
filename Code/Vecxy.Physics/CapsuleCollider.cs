@@ -1,9 +1,11 @@
 using System.Numerics;
 using Vecxy.Scene;
+using Vecxy.Prototypes;
 
 namespace Vecxy.Physics;
 
-public sealed class CapsuleCollider : Collider
+[EditorComponent("Capsule Collider", Category = "Physics", Key = "collider")]
+public sealed partial class CapsuleCollider : Collider
 {
     private float _radius = 0.35f;
     private float _height = 1.1f;

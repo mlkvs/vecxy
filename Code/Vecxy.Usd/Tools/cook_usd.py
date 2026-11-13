@@ -265,6 +265,8 @@ class Cooker:
                 continue
             if prim.IsA(Geom.PointInstancer):
                 raise ValueError(f'{prim.GetPath()}: PointInstancer is unsupported; export scene instances/references')
+            if prim.IsA(self.Lux.DomeLight):
+                continue  # Environment lighting is configured by the game renderer.
             if prim.IsA(self.Shade.Material) or prim.IsA(self.Shade.Shader) or prim.IsA(Geom.Subset):
                 continue
             xf = Geom.Xformable(prim)
@@ -273,7 +275,9 @@ class Cooker:
             imageable = Geom.Imageable(prim)
             collider_api = prim.HasAPI(self.Physics.CollisionAPI)
             role = prim.GetAttribute('vecxy:role').Get() or ''
-            collider = prim.GetAttribute('vecxy:collider').Get() == 'box' or collider_api and prim.IsA(Geom.Cube)
+            collider_type = str(prim.GetAttribute('vecxy:collider').Get() or '')
+            collider = collider_type in ('box','sphere','capsule') or collider_api and prim.IsA(Geom.Cube)
+            collision_only = bool(prim.GetAttribute('vecxy:collisionOnly').Get()) or collider and imageable and imageable.ComputePurpose() == Geom.Tokens.guide
             if imageable and imageable.ComputeVisibility() == Geom.Tokens.invisible:
                 continue
             if imageable and imageable.ComputePurpose() == Geom.Tokens.guide and not collider and not role:
@@ -287,8 +291,13 @@ class Cooker:
                 ancestor = ancestor.GetParent()
             parent_world = self.cache.GetLocalToWorldTransform(ancestor) if ancestor and not ancestor.IsPseudoRoot() else self.Gf.Matrix4d(1)
             parent_node = self.nodes.get(str(ancestor.GetPath()), 0) if ancestor else 0
-            node = {'name': str(prim.GetName()), 'matrix': flatten(world * parent_world.GetInverse())}
-            if prim.IsA(Geom.Mesh) and not collider and not any(p.GetAttribute('vecxy:collider').Get() == 'box' for p in ancestors(prim)):
+            local = world * parent_world.GetInverse()
+            if role == 'spawn' and prim.GetAttribute('vecxy:markerBasis').Get() == 'blender':
+                # Blender marker forward is +Y. Convert its local basis once so the
+                # runtime's -Z-forward player receives the intended heading.
+                local = self.Gf.Matrix4d().SetRotate(self.Gf.Rotation(self.Gf.Vec3d(1,0,0),90)) * local
+            node = {'name': str(prim.GetName()), 'matrix': flatten(local)}
+            if prim.IsA(Geom.Mesh) and not collision_only and not any(p.GetAttribute('vecxy:collisionOnly').Get() for p in ancestors(prim)):
                 mesh = self.mesh(prim)
                 if mesh is not None:
                     node['mesh'] = mesh
@@ -305,9 +314,32 @@ class Cooker:
                 size = prim.GetAttribute('vecxy:colliderSize').Get()
                 if size is None and prim.IsA(Geom.Cube):
                     size = [Geom.Cube(prim).GetSizeAttr().Get()] * 3
-                if size is None:
-                    raise ValueError(f'{prim.GetPath()}: box collider requires vecxy:colliderSize')
-                record['colliderSize'] = [float(v) for v in size]
+                record['collider'] = collider_type or 'box'
+                if record['collider'] == 'box':
+                    if size is None:raise ValueError(f'{prim.GetPath()}: box requires vecxy:colliderSize')
+                    record['colliderSize'] = [float(v) for v in size]
+                record['colliderCenter'] = list(prim.GetAttribute('vecxy:colliderCenter').Get() or (0,0,0))
+                record['colliderRadius'] = float(prim.GetAttribute('vecxy:colliderRadius').Get() or .35)
+                height = prim.GetAttribute('vecxy:colliderHeight').Get()
+                record['colliderHeight'] = float(height if height is not None else 1.1)
+                record['colliderAxis'] = str(prim.GetAttribute('vecxy:colliderAxis').Get() or 'Y')
+                record['friction'] = float(prim.GetAttribute('vecxy:friction').Get() if prim.GetAttribute('vecxy:friction').HasValue() else .5)
+                record['restitution'] = float(prim.GetAttribute('vecxy:restitution').Get() or 0)
+                record['trigger'] = bool(prim.GetAttribute('vecxy:trigger').Get())
+            components = prim.GetAttribute('vecxy:components').Get()
+            overrides = prim.GetAttribute('vecxy:componentOverrides').Get()
+            if components or overrides:
+                defaults = json.loads(components) if components else []
+                own = json.loads(overrides) if overrides else []
+                if not isinstance(defaults,list) or not isinstance(own,list):
+                    raise ValueError(f'{prim.GetPath()}: components must be a list')
+                merged={item['key']:item for item in defaults}
+                for item in own:
+                    previous=merged.get(item['key'],{})
+                    merged[item['key']]={**previous,**item,'data':{**previous.get('data',{}),**item.get('data',{})}}
+                record['components'] = list(merged.values())
+            tint=prim.GetAttribute('vecxy:tint').Get()
+            if tint is not None:record['tint']=list(tint)
             if prim.HasAPI(self.Lux.LightAPI):
                 light = self.Lux.LightAPI(prim)
                 record['light'] = 'directional' if prim.IsA(self.Lux.DistantLight) else 'point'
@@ -327,7 +359,7 @@ class Cooker:
         import os
         def file_record(path):
             return {'path': Path(os.path.relpath(path, sidecar.parent)).as_posix(), 'hash': digest(path)}
-        document = {'format': VERSION, 'source': self.source.relative_to(self.assets).as_posix(),
+        document = {'format': VERSION, 'upAxis': str(Geom.GetStageUpAxis(self.stage)), 'source': self.source.relative_to(self.assets).as_posix(),
                     'model': model_path.relative_to(self.assets).as_posix(), 'prims': self.records,
                     'compiler': digest(__file__), 'inputs': [file_record(p) for p in sorted(self.dependencies)],
                     'outputs': [file_record(model_path)]}

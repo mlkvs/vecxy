@@ -6,4 +6,5 @@
           Condition="'$(DesignTimeBuild)' != 'true' and '$(VecxyUsdStage)' != ''">
     <Exec Command="&quot;$(VecxyUsdPython)&quot; &quot;$(MSBuildThisFileDirectory)../Tools/cook_usd.py&quot; &quot;$(VecxyUsdStage)&quot; --assets &quot;$(MSBuildProjectDirectory)/Assets&quot;" />
   </Target>
+  <Import Project="../../Vecxy.Prototypes/build/Vecxy.ComponentCatalog.targets" />
 </Project>

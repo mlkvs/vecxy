@@ -1,9 +1,11 @@
 using System.Numerics;
 using Vecxy.Scene;
+using Vecxy.Prototypes;
 
 namespace Vecxy.Physics;
 
-public sealed class SphereCollider : Collider
+[EditorComponent("Sphere Collider", Category = "Physics", Key = "collider")]
+public sealed partial class SphereCollider : Collider
 {
     private float _radius = 0.5f;
 

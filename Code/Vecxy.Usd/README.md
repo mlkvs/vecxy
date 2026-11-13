@@ -89,11 +89,22 @@ scene after edits; live updating existing scene topology is not implemented.
   roughness, opacity, emission. Textures are embedded in the cache (PNG conversion).
 - Sphere/rectangle/disk lights as point lights, distant lights as directional lights.
   Area-light shapes are approximated by point lights in this renderer.
+- Box/sphere/capsule colliders attached to visual objects. `vecxy:colliderCenter`,
+  `vecxy:colliderSize`, `vecxy:colliderRadius`, `vecxy:colliderHeight`, `vecxy:colliderAxis`
+  describe the local shape. `vecxy:friction`, `vecxy:restitution`, `vecxy:trigger` map
+  to physics properties. Visual geometry remains visible when it has a collider.
+- `vecxy:components` JSON defaults and `vecxy:componentOverrides` partial per-instance
+  records, merged by key and then by parameter. `UsdScene.Prototype` applies them using
+  the context's `IPrototypes`, including `Prototype.Options` deserialization.
+- `vecxy:tint` float4: per-instance material tint; GPU meshes stay shared.
+- `vecxy:markerBasis = "blender"`: spawn marker forward is Blender +Y. Local basis is
+  converted separately from positions, so spawning remains upright after Z-up export.
 - `vecxy:role` string: named gameplay marker, e.g. `spawn`, `entrance`, `washer`.
 - `vecxy:collider = "box"` plus `vecxy:colliderSize` float3: box on the same prim.
   Transform/scale belong to that prim. Collision cubes can instead use the standard
   `UsdPhysics.CollisionAPI`; a Cube's `size` is used as the unscaled box size.
-  Guide-purpose collider shapes are imported for physics and omitted from rendering.
+  Guide-purpose collider shapes (or `vecxy:collisionOnly = true`) are imported for
+  physics and omitted from rendering. New Blender objects need no helper shapes.
 - `vecxy:range` float: optional attenuation range for lights, in engine metres.
 
 This is a static scene pipeline, not a full USD renderer: skeletal/mesh animation,
@@ -119,3 +130,11 @@ Primary references: [OpenUSD instances](https://openusd.org/release/api/_usd__pa
 [transform cache](https://openusd.org/release/api/class_usd_geom_xform_cache.html),
 [material bindings](https://openusd.org/dev/api/class_usd_shade_material_binding_a_p_i.html),
 [Blender USD](https://docs.blender.org/manual/en/latest/files/import_export/usd.html).
+
+## Blender authoring addon
+
+[`tools/Blender`](../../tools/Blender/README.md) provides a sidebar for collider previews,
+component parameters, reusable collection prototypes and external-reference export.
+Scene and prototypes are authored in one `.blend`; exporting a prototype updates its
+separate USD asset without rewriting the scene. Game-specific component options are
+instantiated through the same `Vecxy.Prototypes` mechanism as other game components.

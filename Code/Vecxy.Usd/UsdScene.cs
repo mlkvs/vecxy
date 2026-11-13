@@ -29,12 +29,13 @@ public sealed class UsdScene : AComponent
             return root.AddComponent<UsdScene>();
         }
 
-        protected override void Configure(UsdScene target, Options options)
+        protected override void Configure(UsdScene target, Options options, IPrototypeContext context)
         {
             ArgumentException.ThrowIfNullOrWhiteSpace(options.Source);
             target.SceneObject!.Name = options.Name;
             target.Instance = scenes.Instantiate(target.SceneInstance, options.Source, options.Name);
             target.Instance.Root.SetParent(target.SceneObject, worldPositionStays: false);
+            target.Instance.ApplyComponents(RequireContext<ScenePrototypeContext>(context).Prototypes);
         }
     }
 }

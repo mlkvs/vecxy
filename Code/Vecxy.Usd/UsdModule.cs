@@ -3,6 +3,7 @@ using Autofac;
 using Vecxy.Assets;
 using Vecxy.Kernel;
 using Vecxy.Physics;
+using Vecxy.Prototypes;
 using Vecxy.Rendering;
 using Vecxy.Scene;
 
@@ -43,18 +44,45 @@ public sealed class UsdModule(IAssetsManager assets, ISceneInstantiator instanti
             {
                 var node = instance.GetNode(record.Node);
                 prims.Add(record.Path, node);
-                node.AddComponent(new UsdPrim(record.Path, record.Prototype, record.Role));
+                node.AddComponent(new UsdPrim(record.Path, record.Prototype, record.Role, source.Value.Document.UpAxis));
                 if (record.Role.Length > 0)
                 {
                     if (!roles.TryGetValue(record.Role, out var objects))
                         roles.Add(record.Role, objects = []);
                     objects.Add(node);
                 }
-                if (record.ColliderSize is { } size)
+                Collider? collider = record.Collider switch
                 {
-                    var collider = node.AddComponent<BoxCollider>();
-                    collider.Size = new Vector3(size[0], size[1], size[2]);
+                    "box" => node.AddComponent<BoxCollider>(),
+                    "sphere" => node.AddComponent<SphereCollider>(),
+                    "capsule" => node.AddComponent<CapsuleCollider>(),
+                    "" when record.ColliderSize is not null => node.AddComponent<BoxCollider>(),
+                    _ => null
+                };
+                if (collider is not null)
+                {
+                    if (collider is BoxCollider box && record.ColliderSize is { } size)
+                        box.Size = new Vector3(size[0], size[1], size[2]);
+                    if (collider is SphereCollider sphere) sphere.Radius = record.ColliderRadius;
+                    if (collider is CapsuleCollider capsule)
+                    {
+                        capsule.Radius = record.ColliderRadius;
+                        capsule.Height = record.ColliderHeight;
+                        capsule.Rotation = record.ColliderAxis switch
+                        {
+                            "Z" => Quaternion.CreateFromAxisAngle(Vector3.UnitX, MathF.PI * .5f),
+                            "X" => Quaternion.CreateFromAxisAngle(Vector3.UnitZ, -MathF.PI * .5f),
+                            _ => Quaternion.Identity
+                        };
+                    }
+                    collider.Center = new Vector3(record.ColliderCenter[0], record.ColliderCenter[1], record.ColliderCenter[2]);
+                    collider.Material.Friction = record.Friction;
+                    collider.Material.Restitution = record.Restitution;
+                    collider.IsTrigger = record.Trigger;
                 }
+                if (record.Tint is { } tint)
+                    foreach (var child in node.EnumerateHierarchy())
+                        child.GetComponent<MeshRenderer>()?.Material.SetVector("uTint", new Vector4(tint[0], tint[1], tint[2], tint[3]));
                 ALight? light = record.Light switch
                 {
                     "point" => node.AddComponent<PointLight>(),
@@ -82,11 +110,12 @@ public sealed class UsdModule(IAssetsManager assets, ISceneInstantiator instanti
     }
 }
 
-public sealed class UsdPrim(string path, string prototype, string role) : AComponent
+public sealed class UsdPrim(string path, string prototype, string role, string upAxis = "Y") : AComponent
 {
     public string Path { get; } = path;
     public string Prototype { get; } = prototype;
     public string Role { get; } = role;
+    public string UpAxis { get; } = upAxis;
 }
 
 public sealed class UsdSceneInstance : AComponent
@@ -111,6 +140,24 @@ public sealed class UsdSceneInstance : AComponent
     public IReadOnlyList<SceneObject> FindRole(string role) => _roles.TryGetValue(role, out var values) ? values : [];
     public SceneObject RequireRole(string role) => FindRole(role) is { Count: 1 } matches ? matches[0]
         : throw new InvalidDataException($"USD scene requires exactly one '{role}' marker.");
+
+    public void ApplyComponents(IPrototypes prototypes)
+    {
+        foreach (var record in _source.Value.Document.Prims)
+        {
+            foreach (var component in record.Components.Where(c => c.Enabled))
+            {
+                var definition = prototypes.Types.SingleOrDefault(info => info.TargetType.FullName == component.Type)
+                    ?? throw new InvalidDataException($"No Vecxy prototype for USD component '{component.Type}' at '{record.Path}'.");
+                if (!typeof(AComponent).IsAssignableFrom(definition.TargetType))
+                    throw new InvalidDataException($"USD components must create AComponent: '{component.Type}'.");
+                var document = PrototypeSerializer.Deserialize("format: 1\ntype: " + component.Type + "\ndata: " + component.Data.GetRawText());
+                var options = PrototypeSerializer.DeserializeOptions(document.Data, definition.OptionsType);
+                prototypes.Instantiate(definition.TargetType,
+                    new ScenePrototypeContext { Scene = SceneInstance, Object = _prims[record.Path] }, options);
+            }
+        }
+    }
 
     public override void OnDestroy()
     {

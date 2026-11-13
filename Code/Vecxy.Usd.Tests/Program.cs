@@ -15,6 +15,8 @@ void Invalid(string json, string message)
     catch (InvalidDataException) { Console.WriteLine($"PASS: {message}"); return; }
     throw new Exception(message);
 }
+Invalid("""{"format":1,"model":"x.glb","prims":[{"path":"/A","node":0,"collider":"capsule","colliderRadius":-1}]}""", "Invalid capsule radius rejected");
+Invalid("""{"format":1,"model":"x.glb","prims":[{"path":"/A","node":0,"collider":"box"}]}""", "Box without dimensions rejected");
 Invalid("{}", "Missing model and version rejected");
 Invalid("""{"format":2,"model":"x.glb"}""", "Unsupported document version rejected");
 Invalid("""{"format":1,"model":"../x.glb"}""", "Escaping asset path rejected");
@@ -41,7 +43,7 @@ Check(washers.Select(x => x.Prototype).Distinct().Count() == 1 && washers[0].Pro
 Check(document.Prims.Count(x => x.Role == "spawn") == 1 && document.Prims.Count(x => x.Role == "entrance") == 1,
     "Spawn and entrance are authored USD markers");
 Check(document.Prims.Count(x => x.Light.Length > 0) == 8, "Eight authored lights loaded");
-Check(document.Prims.Count(x => x.ColliderSize is not null) >= 40, "Room, furniture and prototype collisions loaded");
+Check(document.Prims.Count(x => x.ColliderSize is not null || x.Components.Any(c => c.Enabled && c.Type == "Vecxy.Physics.BoxCollider")) >= 40, "Room, furniture and prototype collisions loaded");
 var meshes = new List<int[]>();
 foreach (var washer in washers)
 {

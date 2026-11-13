@@ -1,9 +1,11 @@
 using System.Numerics;
 using Vecxy.Scene;
+using Vecxy.Prototypes;
 
 namespace Vecxy.Physics;
 
-public sealed class BoxCollider : Collider
+[EditorComponent("Box Collider", Category = "Physics", Key = "collider")]
+public sealed partial class BoxCollider : Collider
 {
     private Vector3 _size = Vector3.One;
 
