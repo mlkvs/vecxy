@@ -42,7 +42,14 @@ internal sealed class UiRenderer : IDisposable
     private int _layerQuadHeight;
     private readonly Dictionary<UiDocument, LayerCache> _documentLayers =
         new(ReferenceEqualityComparer.Instance);
+    private readonly List<UiDocument> _worldDocuments = [];
+    private long _renderMetricsFrame = -1, _frameRenderAllocated;
+    private double _frameRenderMilliseconds, _frameTessellationMilliseconds, _frameUploadMilliseconds,
+        _frameLayerMilliseconds, _frameCompositeMilliseconds;
     private int _viewportUniform;
+    private int _worldUniform;
+    private int _worldTransformUniform;
+    private int _axisClipUniform;
     private readonly int[] _textureUniforms = new int[MaxTextureSlots];
     private int _translationUniform;
     private int _transformAUniform;
@@ -114,9 +121,21 @@ internal sealed class UiRenderer : IDisposable
         }
     }
 
-    public void Draw(IReadOnlyList<UiDocument> documents, int width, int height, UiConfig? settings)
+    public void ReleaseDocument(UiDocument document)
+    {
+        if (_documentLayers.Remove(document, out var layer)) layer.Dispose(_device.GL);
+        _worldDocuments.Remove(document);
+    }
+
+    public void Draw(IReadOnlyList<UiDocument> documents, int width, int height, UiConfig? settings, RenderWorldContext? world = null)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
+        if (_renderMetricsFrame != _statistics.Frame)
+        {
+            _renderMetricsFrame = _statistics.Frame; _frameRenderAllocated = 0;
+            _frameRenderMilliseconds = _frameTessellationMilliseconds = _frameUploadMilliseconds =
+                _frameLayerMilliseconds = _frameCompositeMilliseconds = 0;
+        }
         var renderStarted = Stopwatch.GetTimestamp();
         var allocatedBeforeRender = GC.GetAllocatedBytesForCurrentThread();
         double tessellationMilliseconds = 0;
@@ -129,11 +148,38 @@ internal sealed class UiRenderer : IDisposable
         gl.GetInteger(GetPName.DrawFramebufferBinding, out var destinationFramebuffer);
         RemoveUnusedLayerCaches(documents);
 
-        foreach (var document in documents)
+        var outputWidth = width; var outputHeight = height;
+        IReadOnlyList<UiDocument> renderDocuments = documents;
+        if (world is { } worldContext)
         {
+            _worldDocuments.Clear();
+            foreach (var candidate in documents)
+                if (candidate.RenderMode == EUiRenderMode.WorldSpace && candidate.CanRender && candidate.Canvas?.SceneInstance == worldContext.Scene)
+                    _worldDocuments.Add(candidate);
+            var cameraPosition = worldContext.Camera.Transform.WorldPosition;
+            _worldDocuments.Sort((a,b) =>
+            {
+                var pa = a.Canvas!.TryGetPlane(out var first) ? first.Center : Vector3.Zero;
+                var pb = b.Canvas!.TryGetPlane(out var second) ? second.Center : Vector3.Zero;
+                return Vector3.DistanceSquared(pb, cameraPosition).CompareTo(Vector3.DistanceSquared(pa, cameraPosition));
+            });
+            renderDocuments = _worldDocuments;
+        }
+        foreach (var document in renderDocuments)
+        {
+            if ((world is not null) != (document.RenderMode == EUiRenderMode.WorldSpace)) continue;
+            Matrix4x4? worldTransform = null;
+            width = outputWidth; height = outputHeight;
+            if (world is { } context)
+            {
+                if (document.Canvas is not { } canvas || canvas.SceneInstance != context.Scene || !canvas.TryGetPlane(out var plane)) continue;
+                if (!canvas.DoubleSided && Vector3.Dot(new Vector3(plane.CanvasToWorld.M31, plane.CanvasToWorld.M32, plane.CanvasToWorld.M33), context.Camera.Transform.WorldPosition - plane.Center) <= 0) continue;
+                width = plane.Width; height = plane.Height;
+                worldTransform = plane.CanvasToWorld * context.ViewProjection;
+            }
             var documentStatistics = _statistics.GetDocument(document);
-            documentStatistics.Visible = document.IsVisible;
-            if (!document.IsVisible)
+            documentStatistics.Visible = document.CanRender;
+            if (!document.CanRender)
                 continue;
             if (!_documentLayers.TryGetValue(document, out var layer))
             {
@@ -197,8 +243,8 @@ internal sealed class UiRenderer : IDisposable
             {
                 var layerDrawStarted = Stopwatch.GetTimestamp();
                 gl.BindFramebuffer(FramebufferTarget.Framebuffer, (uint)destinationFramebuffer);
-                gl.Viewport(0, 0, (uint)width, (uint)height);
-                DrawUploadedGeometry(layer, width, height, transparentTarget: false);
+                gl.Viewport(0, 0, (uint)outputWidth, (uint)outputHeight);
+                DrawUploadedGeometry(layer, width, height, transparentTarget: false, worldTransform);
                 layerDrawMilliseconds += Stopwatch.GetElapsedTime(layerDrawStarted).TotalMilliseconds;
             }
             layer.HasContent = layer.IndexCount > 0;
@@ -206,14 +252,17 @@ internal sealed class UiRenderer : IDisposable
             UpdateDocumentStatistics(document, layer, documentStatistics);
             _statistics.Accumulate(documentStatistics);
         }
-        _statistics.CompleteRender(
-            documents,
-            Stopwatch.GetElapsedTime(renderStarted).TotalMilliseconds,
-            tessellationMilliseconds,
-            uploadMilliseconds,
-            layerDrawMilliseconds,
-            compositeMilliseconds,
-            GC.GetAllocatedBytesForCurrentThread() - allocatedBeforeRender);
+        _frameRenderMilliseconds += Stopwatch.GetElapsedTime(renderStarted).TotalMilliseconds;
+        _frameTessellationMilliseconds += tessellationMilliseconds;
+        _frameUploadMilliseconds += uploadMilliseconds;
+        _frameLayerMilliseconds += layerDrawMilliseconds;
+        _frameCompositeMilliseconds += compositeMilliseconds;
+        _frameRenderAllocated += GC.GetAllocatedBytesForCurrentThread() - allocatedBeforeRender;
+        // Overlay is the final UI stage: publish one timing sample for all camera
+        // world passes and the overlay, rather than overwriting world UI with zero.
+        if (world is null)
+            _statistics.CompleteRender(documents, _frameRenderMilliseconds, _frameTessellationMilliseconds,
+                _frameUploadMilliseconds, _frameLayerMilliseconds, _frameCompositeMilliseconds, _frameRenderAllocated);
     }
 
     private void PaintElement(
@@ -1578,19 +1627,22 @@ internal sealed class UiRenderer : IDisposable
         LayerCache layer,
         int width,
         int height,
-        bool transparentTarget)
+        bool transparentTarget, Matrix4x4? worldTransform = null)
     {
         var gl = _device.GL;
         gl.BindVertexArray(layer.VertexArray);
         gl.UseProgram(_program);
         gl.Uniform2(_viewportUniform, (float)width, (float)height);
+        gl.Uniform1(_worldUniform, worldTransform.HasValue ? 1 : 0);
+        if (worldTransform is { } worldMatrix) gl.UniformMatrix4(_worldTransformUniform, 1, false, (float*)&worldMatrix);
         for (var slot = 0; slot < MaxTextureSlots; slot++)
             gl.Uniform1(_textureUniforms[slot], slot);
         gl.ActiveTexture(TextureUnit.Texture0);
         gl.BindTexture(TextureTarget.Texture2D, _whiteTexture);
         for (var index = 0; index < layer.Textures.Count; index++)
             layer.Textures[index].Bind((uint)(index + 1), TextureSamplerState.LinearClamp);
-        gl.Disable(EnableCap.DepthTest);
+        if (worldTransform.HasValue) gl.Enable(EnableCap.DepthTest); else gl.Disable(EnableCap.DepthTest);
+        gl.Disable(EnableCap.CullFace);
         gl.DepthMask(false);
         gl.Enable(EnableCap.Blend);
         if (transparentTarget)
@@ -1605,7 +1657,7 @@ internal sealed class UiRenderer : IDisposable
         {
             gl.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha);
         }
-        gl.Enable(EnableCap.ScissorTest);
+        if (worldTransform.HasValue) gl.Disable(EnableCap.ScissorTest); else gl.Enable(EnableCap.ScissorTest);
 
         foreach (var batch in layer.DrawBatches)
         {
@@ -1629,7 +1681,8 @@ internal sealed class UiRenderer : IDisposable
             var y = Math.Clamp((int)MathF.Floor(height - resolvedClip.Bottom), 0, height);
             var right = Math.Clamp((int)MathF.Ceiling(resolvedClip.Right), 0, width);
             var top = Math.Clamp((int)MathF.Ceiling(height - resolvedClip.Top), 0, height);
-            gl.Scissor(x, y, (uint)Math.Max(0, right - x), (uint)Math.Max(0, top - y));
+            gl.Uniform4(_axisClipUniform, resolvedClip.X, resolvedClip.Y, resolvedClip.Right, resolvedClip.Bottom);
+            if (!worldTransform.HasValue) gl.Scissor(x, y, (uint)Math.Max(0, right - x), (uint)Math.Max(0, top - y));
 
             gl.DrawElements(
                 PrimitiveType.Triangles,
@@ -2007,6 +2060,9 @@ internal sealed class UiRenderer : IDisposable
         var gl = _device.GL;
         _program = BuildProgram(gl);
         _viewportUniform = gl.GetUniformLocation(_program, "uViewport");
+        _worldUniform = gl.GetUniformLocation(_program, "uWorldSpace");
+        _worldTransformUniform = gl.GetUniformLocation(_program, "uWorldTransform");
+        _axisClipUniform = gl.GetUniformLocation(_program, "uAxisClip");
         for (var slot = 0; slot < MaxTextureSlots; slot++)
             _textureUniforms[slot] = gl.GetUniformLocation(_program, $"uTextures[{slot}]");
         _translationUniform = gl.GetUniformLocation(_program, "uTranslation");
@@ -2068,11 +2124,14 @@ internal sealed class UiRenderer : IDisposable
             layout(location = 2) in vec4 aColor;
             layout(location = 3) in float aTextureSlot;
             uniform vec2 uViewport;
+            uniform int uWorldSpace;
+            uniform mat4 uWorldTransform;
             uniform vec2 uTranslation;
             uniform vec4 uTransformA;
             uniform vec2 uTransformB;
             uniform float uOpacity;
             out vec2 vUv;
+            out vec2 vCanvasPosition;
             out vec4 vColor;
             flat out int vTextureSlot;
             void main() {
@@ -2082,7 +2141,8 @@ internal sealed class UiRenderer : IDisposable
                 position += uTranslation;
                 vec2 ndc = vec2(position.x / uViewport.x * 2.0 - 1.0,
                                 1.0 - position.y / uViewport.y * 2.0);
-                gl_Position = vec4(ndc, 0.0, 1.0);
+                gl_Position = uWorldSpace == 1 ? uWorldTransform * vec4(position, 0.0, 1.0) : vec4(ndc, 0.0, 1.0);
+                vCanvasPosition = position;
                 vUv = aUv;
                 vColor = vec4(aColor.rgb, aColor.a * uOpacity);
                 vTextureSlot = int(aTextureSlot + 0.5);
@@ -2091,10 +2151,12 @@ internal sealed class UiRenderer : IDisposable
         var fragmentSource = """
             #version 330 core
             in vec2 vUv;
+            in vec2 vCanvasPosition;
             in vec4 vColor;
             flat in int vTextureSlot;
             uniform sampler2D uTextures[16];
             uniform vec2 uViewport;
+            uniform vec4 uAxisClip;
             uniform int uRoundedClipCount;
             uniform vec4 uRoundedClipBounds[8];
             uniform float uRoundedClipRadius[8];
@@ -2102,7 +2164,8 @@ internal sealed class UiRenderer : IDisposable
             uniform vec2 uRoundedClipMatrixB[8];
             out vec4 oColor;
             void main() {
-                vec2 screenPoint = vec2(gl_FragCoord.x, uViewport.y - gl_FragCoord.y);
+                vec2 screenPoint = vCanvasPosition;
+                if (screenPoint.x < uAxisClip.x || screenPoint.y < uAxisClip.y || screenPoint.x > uAxisClip.z || screenPoint.y > uAxisClip.w) discard;
                 for (int i = 0; i < uRoundedClipCount; i++) {
                     vec4 a = uRoundedClipMatrixA[i];
                     vec2 b = uRoundedClipMatrixB[i];

@@ -97,7 +97,8 @@ public sealed class RenderingModule(
         ITextureResolver,
         IGraphicsDeviceProvider,
         ISceneInstantiator,
-        IRenderOverlayStage
+        IRenderOverlayStage,
+        IRenderWorldStage
 {
     private const int MaxPointLights = 8;
     private const int MaxSpotLights = 8;
@@ -113,7 +114,8 @@ public sealed class RenderingModule(
                 typeof(ITextureResolver),
                 typeof(IGraphicsDeviceProvider),
                 typeof(ISceneInstantiator),
-                typeof(IRenderOverlayStage)
+                typeof(IRenderOverlayStage),
+                typeof(IRenderWorldStage)
             ];
 
         protected override void RegisterModule(
@@ -168,6 +170,7 @@ public sealed class RenderingModule(
     }
 
     private readonly List<Action<RenderOverlayContext>> _gameOverlayCallbacks = [];
+    private readonly List<Action<RenderWorldContext>> _worldCallbacks = [];
     private readonly List<Action> _overlayCallbacks = [];
     private readonly List<GameView> _views = [];
     private readonly HashSet<IRenderTarget> _presentedTargets = [];
@@ -444,6 +447,19 @@ public sealed class RenderingModule(
             return new Vector3(world.X, world.Y, world.Z);
 
         return new Vector3(world.X, world.Y, world.Z) / world.W;
+    }
+
+    public void RegisterWorld(Action<RenderWorldContext> draw)
+    {
+        ArgumentNullException.ThrowIfNull(draw);
+        if (!_worldCallbacks.Contains(draw)) _worldCallbacks.Add(draw);
+    }
+
+    public void UnregisterWorld(Action<RenderWorldContext> draw) => _worldCallbacks.Remove(draw);
+
+    private void DrawWorld(RenderWorldContext context)
+    {
+        foreach (var draw in _worldCallbacks) draw(context);
     }
 
     public void RegisterOverlay(Action draw)
@@ -1031,6 +1047,7 @@ public sealed class RenderingModule(
         DrawSprites(scene, viewProjection);
 
         DrawMeshRenderers(scene, camera, viewProjection, lighting);
+        DrawWorld(new RenderWorldContext(scene, camera, viewProjection, renderWidth, renderHeight));
 
         PresentScene(
             camera,
@@ -1085,6 +1102,7 @@ public sealed class RenderingModule(
         DrawSprites(scene, viewProjection);
 
         DrawMeshRenderers(scene, camera, viewProjection, lighting);
+        DrawWorld(new RenderWorldContext(scene, camera, viewProjection, target.Width, target.Height));
     }
 
     private void DrawSkybox(
@@ -1838,6 +1856,7 @@ public sealed class RenderingModule(
 
         _views.Clear();
         _gameOverlayCallbacks.Clear();
+        _worldCallbacks.Clear();
         _overlayCallbacks.Clear();
         assets.UnregisterImporter<Model>();
         assets.UnregisterImporter<Material>();

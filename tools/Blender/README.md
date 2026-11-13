@@ -118,3 +118,19 @@ are stored under `.agents/local/`.
 
 The real example and Russian workflow guide are `Horror/Authoring/Sandbox.blend`
 and `Horror/Authoring/README.md`.
+
+## UI document fields
+
+`[Authoring("Document", AssetType = "UiDocument")]` exposes a searchable XML asset
+picker. Choices come from the shared generation pipeline and Assets.manifest. The
+UI displays paths while the component stores the stable AssetId; asset renames keep
+the reference. Run normal generation after adding/renaming assets.
+`UI / UI Canvas` can be attached to a plane: choose a document and WorldSpace. The
+plane defines bounds/orientation and stays visible as an authoring region, while its
+renderer is suppressed in the game. The XML/CSS document is the same as for Overlay.
+
+`Pointer mode` selects normal mouse, centre-camera `ViewRay`, or `SurfaceCursor`.
+`Activation key` defaults to E in addition to primary click. For SurfaceCursor,
+`Cursor image` uses the same generic asset picker (`AssetType = "Texture2D"`);
+choose **None** to clear it. Cursor size is in logical UI pixels, hotspot is top-left.
+The two examples in the Horror scene demonstrate both modes and custom cursors.

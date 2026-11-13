@@ -63,7 +63,7 @@ public sealed class PointerInteractionModule(
         if (!_initialized)
             return;
 
-        var suppressed = inputCapture.SuppressMouse;
+        var suppressed = inputCapture.SuppressMouse || inputCapture.SuppressMouseButtons;
         PhysicsRaycastHit? hit = null;
         if (!suppressed &&
             renderer.TryCreateCameraRay(input.PointerPosition, out var ray))

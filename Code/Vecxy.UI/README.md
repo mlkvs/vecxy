@@ -247,6 +247,103 @@ public sealed class HudLayer(IUiManager ui) : AAppLayer
 Не нужно каждый кадр пересоздавать документ или элементы. Сохраните ссылки и меняйте
 их свойства только при изменении игровых данных.
 
+## WorldSpace и UI Canvas
+
+Обычный `ui.Load("UI/Panel.xml")` создаёт экранный Overlay, как раньше. Для UI в мире
+добавьте компонент **UI / UI Canvas** на объект с плоским прямоугольным мешем и выберите
+XML в поле **Document**. В Blender это обычный плейн; коллайдер для UI не нужен.
+Компонент загружается через `Vecxy.Prototypes`, включая компоненты из USD.
+
+| Поле компонента | Поведение |
+|---|---|
+| Document | Обычный XML UI; picker использует Assets.manifest и сохраняет стабильный AssetId. Допустим и строковый asset path. |
+| Render mode | `WorldSpace` — область в сцене, `ScreenOverlay` — весь игровой viewport. |
+| Pixels per metre | Плотность логических UI-пикселей. Размер определяется мешем и его world transform, а не разрешением окна. Default: 800. |
+| Interactive | Проекция указателя в координаты холста, hover/click/drag/scroll/touch. Выключается для информационных плашек. |
+| Double sided | Разрешает отображение и ввод с обратной стороны. По умолчанию видна только лицевая сторона. |
+| Pointer mode | `Mouse` — свободная экранная мышь; `ViewRay` — луч из центра камеры; `SurfaceCursor` — свободный курсор на панели с захватом mouse look. |
+| Activation key | Клавиша активации в дополнение к ЛКМ; default `E`, `Undefined` отключает клавишу. |
+| Cursor image | Своя Texture2D из asset picker для SurfaceCursor. Хранится стабильный AssetId; допустим asset path. Без изображения используется белая точка. |
+| Cursor size | Размер иконки в координатах UI; hotspot в левом верхнем углу. |
+
+Плейн остаётся областью авторинга: его `MeshRenderer` отключён, сам он в игре не
+рисуется. Выключение UI Canvas убирает UI, сохраняя плейн скрытым. Удаление компонента
+восстанавливает обычный меш. Удаление объекта выгружает документ и его GPU-буферы.
+
+Меш должен быть плоским: XY, XZ или YZ определяются по bounds. Для XY лицевая нормаль
+направлена по +Z, для XZ — +Y, для YZ — +X. Произвольные повороты, иерархия и
+неравномерный масштаб поддерживаются. Область не обязана иметь origin в центре.
+Слишком толстая или вырожденная область отклоняется с ошибкой.
+
+XML/CSS и DOM остаются общими: Flex/Grid, проценты, clipping, скругления, изображения,
+TTF, анимации, события и hot reload. По умолчанию WorldSpace использует `scale-mode: none`
+и размер плейна в UI-пикселях. XML может явно задавать собственные reference/scale-mode.
+`ui`, `px`, проценты и viewport units вычисляются относительно этого холста.
+
+```csharp
+var canvas = prototypes.Instantiate<UiCanvas>(
+    new ScenePrototypeContext { Scene = scene, Object = planeObject },
+    new UiCanvas.Prototype.Options
+    {
+        Document = "UI/Panel.xml", // также AssetId из authoring picker
+        RenderMode = EUiRenderMode.WorldSpace,
+        PixelsPerMeter = 600
+    });
+canvas.Document!.GetElementById<UiText>("status").Value = "Готово";
+// При кешировании DOM-ссылок перепривязывайте их через Document.Reloaded.
+canvas.RenderMode = EUiRenderMode.ScreenOverlay; // тот же документ, экранная раскладка
+```
+
+UI рисуется непосредственно в пространстве камеры, с depth test, до post processing.
+Промежуточная текстура на каждый холст не создаётся; существующий retained renderer
+переиспользует GPU-геометрию. Движение камеры или области не требует пересоздания UI.
+Axis/rounded clipping проверяется в координатах холста, поэтому работает и под углом.
+Несколько world-документов рисуются от дальнего к ближнему; Overlay имеет приоритет
+при обработке ввода. Захваченный pointer может продолжать drag за краем области.
+Отрисовка учитывает непрозрачную геометрию сцены. Блокировку ввода стенами/коллайдерами
+игра при необходимости проверяет своим physics raycast; проекция UI сама не требует
+физического коллайдера.
+
+При захваченной игровой мыши `ViewRay` проецирует центр viewport: hover, ЛКМ и
+Activation key работают через обычные события кнопок. Поворот камеры остаётся доступен.
+`SurfaceCursor` включается при наведении центра на область: движения мыши перемещают
+курсор, `IInputCaptureState.SuppressMouseMotion` блокирует mouse look. За краем области
+курсор исчезает, mouse look освобождается. Чтобы войти снова, отведите взгляд от панели
+и наведите его обратно. При свободной системной мыши оба режима используют обычную
+экранную позицию. Экранный overlay обрабатывается раньше world-панелей.
+
+Для контроллера персонажа, читающего raw input, проверяйте `SuppressMouseMotion`
+(и старый `SuppressMouse`). Action maps фильтруют движения, кнопки и Activation key
+отдельно: `SuppressMouseButtons` не мешает вращать камеру в режиме ViewRay.
+UI не подавляет WASD, пока пользователь не редактирует текстовое поле.
+
+Можно направить собственный луч, например из камеры или VR-контроллера:
+
+```csharp
+if (ui.RaycastWorld(origin, direction, out var hit, maxDistance: 5))
+{
+    // hit.Canvas, Document, Element, Position (UI-координаты), Distance (метры).
+    if (activate) ui.ActivateWorld(hit); // обычные focus/pressed/released/click события
+}
+// Необязательная проверка препятствий; engine UI не зависит от физического модуля.
+canvas.IsRayOccluded = (origin, direction, distance) =>
+    distance > .005f && physics.Raycast(origin, direction, distance - .005f, playerObject, out _);
+```
+
+`RaycastWorld` выбирает ближайший интерактивный world-холст. `IsRayOccluded` применяется
+также к обычному вводу, чтобы нельзя было нажимать кнопку через стену. Сам UI-плейн
+не нуждается в коллайдере. Курсор — элемент того же документа с `pointer-events: none`;
+для обрезки его изображения по границе задайте корню `overflow: hidden`.
+
+Полный пример: `Horror/Authoring/Sandbox.blend`, коллекция `05_UI`, объект
+`Washer_01_UI_Area` (ViewRay, кнопка питания) и `Washer_02_UI_Area` (SurfaceCursor,
+счётчик и смена цвета), `Assets/UI/WasherStatus.xml`, `WasherConsole.xml` и CSS с Noto Sans.
+`Crosshair.xml` — экранная точка, `UI/Cursors/WorldPointer.png` — сменная иконка.
+`WorldUiDemo.cs` показывает привязку действий, hot reload и проверку препятствий.
+После правки XML/CSS работает hot reload. После правки области в Blender экспортируйте
+USD и перезапустите сцену. Каталог UI-компонента и список документов обновляются через
+обычный `vecxy generate`; отдельных UI-регистраций в Blender не требуется.
+
 ## Глобальная конфигурация
 
 `UiModule` загружает `Configs/UI.yaml` через систему YAML-конфигов.

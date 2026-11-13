@@ -2,6 +2,7 @@ using System.Numerics;
 using System.Reflection;
 using System.Runtime.Loader;
 using System.Text.Json;
+using Vecxy.Assets;
 using Vecxy.Prototypes;
 using Vecxy.Scene;
 
@@ -16,6 +17,8 @@ public static partial class AssetPipeline
         var assemblyPath = Path.GetFullPath(assemblyFile);
         if (!File.Exists(assemblyPath)) throw new FileNotFoundException("Build the game before finalizing authoring metadata.", assemblyPath);
         var directory = Path.GetDirectoryName(assemblyPath)!;
+        var manifestFile = Path.Combine(root, "Assets.manifest");
+        var manifest = File.Exists(manifestFile) ? AssetManifest.Load(manifestFile) : new AssetManifest();
         var context = new AuthoringLoadContext(assemblyPath);
         try
         {
@@ -55,14 +58,24 @@ public static partial class AssetPipeline
                         else throw new InvalidDataException($"{optionsType.FullName}.{property.Name}: unsupported authoring field type {kind}.");
                         if (field.Default.Length > 0)
                             value = kind.IsEnum || kind == typeof(string) ? field.Default : JsonSerializer.Deserialize<object>(field.Default);
-                        fields.Add(new Dictionary<string, object?>
+                        var descriptor = new Dictionary<string, object?>
                         {
                             ["key"] = JsonNamingPolicy.CamelCase.ConvertName(property.Name), ["label"] = field.Name.Length > 0 ? field.Name : property.Name,
                             ["description"] = field.Description, ["kind"] = fieldType, ["default"] = value,
                             ["min"] = double.IsNaN(field.Min) ? null : field.Min,
                             ["max"] = double.IsNaN(field.Max) ? null : field.Max, ["unit"] = field.Unit,
                             ["choices"] = kind.IsEnum ? Enum.GetNames(kind) : []
-                        });
+                        };
+                        if (field.AssetType.Length > 0)
+                        {
+                            descriptor["assetType"] = field.AssetType;
+                            descriptor["assets"] = manifest.Assets.Where(a => field.AssetType == "UiDocument"
+                                    ? a.Path.EndsWith(".xml", StringComparison.OrdinalIgnoreCase)
+                                    : a.Type.Equals(field.AssetType, StringComparison.OrdinalIgnoreCase))
+                                .OrderBy(a => a.Path, StringComparer.Ordinal)
+                                .Select(a => new { id = a.Id.ToString("D"), path = a.Path }).ToArray();
+                        }
+                        fields.Add(descriptor);
                     }
                     components.Add(new { type = type.FullName, label = component.Name.Length > 0 ? component.Name : type.Name, category = component.Category,
                         description = component.Description, key = component.Key.Length > 0 ? component.Key : type.Name, fields });

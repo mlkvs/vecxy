@@ -119,7 +119,8 @@ public sealed class InputModule :
         _actionSnapshot.CopyFrom(
             _snapshot,
             _captureState.SuppressKeyboard,
-            _captureState.SuppressMouse);
+            _captureState.SuppressMouse, _captureState.SuppressMouseMotion,
+            _captureState.SuppressMouseButtons, _captureState.SuppressedKey);
 
         foreach (var map in _maps.ToArray())
             map.Update(_actionSnapshot);

@@ -25,6 +25,7 @@ TextEditingCoreSupportsInsertReplaceAndDelete();
 TextEditingCoreSupportsNavigationAndSelection();
 TextEditingCoreRespectsUnicodeAndMaxLength();
 InputFieldSupportsClipboardAndPasswordSafety();
+WorldSpaceTests.Run();
 Console.WriteLine("All Vecxy.UI checks passed.");
 
 static void TextEditingCoreSupportsInsertReplaceAndDelete()

@@ -131,3 +131,27 @@ assert 'removedField' not in schema.values(comp),'Removed fields must not leak s
 assert any(p.key=='removedField' for p in comp.parameters),'Keep old author data available without exporting it'
 settings.catalog_path=original_catalog;vecxy_usd.watch_project_catalog()
 print('PASS: automatic catalog refresh after generation while the Blender scene remains open')
+
+# UI document selection is driven by the same asset manifest and stores stable IDs.
+bpy.ops.mesh.primitive_plane_add(size=1)
+area=bpy.context.object
+canvas=schema.add_component(area.vecxy,'Vecxy.UI.UiCanvas')
+field=next(f for f in schema.CATALOG[canvas.type_name]['fields'] if f['key']=='document')
+assert field['assetType']=='UiDocument' and field['assets']
+asset=next(a for a in field['assets'] if a['path']=='UI/WasherStatus.xml')
+assert bpy.ops.vecxy.choose_asset(type_name=canvas.type_name,key='document',component=0,asset=asset['id'])=={'FINISHED'}
+assert schema.values(canvas)['document']==asset['id']
+assert exporter.components(area.vecxy)[0]['data']['document']==asset['id']
+print('PASS: UI document asset picker displays manifest assets and exports a stable AssetId')
+
+# Surface cursor uses the same generic picker, including an explicit empty reference.
+field=next(f for f in schema.CATALOG[canvas.type_name]['fields'] if f['key']=='cursorImage')
+assert field['assetType']=='Texture2D'
+asset=next(a for a in field['assets'] if a['path']=='UI/Cursors/WorldPointer.png')
+assert bpy.ops.vecxy.choose_asset(type_name=canvas.type_name,key='cursorImage',component=0,asset=asset['id'])=={'FINISHED'}
+assert exporter.components(area.vecxy)[0]['data']['cursorImage']==asset['id']
+assert bpy.ops.vecxy.choose_asset(type_name=canvas.type_name,key='cursorImage',component=0,asset='NONE')=={'FINISHED'}
+assert schema.values(canvas)['cursorImage']==''
+mode=next(f for f in schema.CATALOG[canvas.type_name]['fields'] if f['key']=='inputMode')
+assert mode['choices']==['Mouse','ViewRay','SurfaceCursor']
+print('PASS: custom cursor picker, empty reference and pointer modes come from the project catalog')

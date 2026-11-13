@@ -1,5 +1,5 @@
 bl_info = {
-    'name': 'Vecxy USD Tools', 'author': 'Vecxy', 'version': (1, 2, 0),
+    'name': 'Vecxy USD Tools', 'author': 'Vecxy', 'version': (1, 3, 0),
     'blender': (5, 2, 0), 'location': '3D View > Sidebar > Vecxy',
     'description': 'Components, collider previews, shared prototypes and referenced USD export',
     'category': 'Import-Export',
@@ -401,6 +401,30 @@ class VECXY_OT_export_prototype(bpy.types.Operator):
         self.report({'INFO'},'Only the prototype asset was updated');return {'FINISHED'}
 
 
+def asset_choices(operator,context):
+    definition=schema.CATALOG.get(operator.type_name,{})
+    field=next((f for f in definition.get('fields',[]) if f['key']==operator.key),{})
+    import json
+    key=json.dumps(field.get('assets',[]),sort_keys=True)
+    if key not in schema.ENUM_ITEMS:
+        schema.ENUM_ITEMS[key]=[('NONE','None','Clear the asset reference')]+[(a['id'],a['path'],a['path']) for a in field.get('assets',[])]
+    return schema.ENUM_ITEMS[key]
+
+
+class VECXY_OT_choose_asset(bpy.types.Operator):
+    bl_idname='vecxy.choose_asset';bl_label='Choose asset';bl_options={'REGISTER','UNDO'}
+    bl_property='asset'
+    type_name:StringProperty();key:StringProperty();component:IntProperty()
+    asset:EnumProperty(items=asset_choices)
+    def invoke(self,context,event):
+        context.window_manager.invoke_search_popup(self);return {'RUNNING_MODAL'}
+    def execute(self,context):
+        comp=current_settings(context).components[self.component]
+        field=next(f for f in schema.CATALOG[self.type_name]['fields'] if f['key']==self.key)
+        schema.set_param(comp,field,'' if self.asset=='NONE' else self.asset,override=True)
+        return {'FINISHED'}
+
+
 class VECXY_OT_field_help(bpy.types.Operator):
     bl_idname='vecxy.field_help';bl_label='Component field information'
     type_name:StringProperty();key:StringProperty()
@@ -485,7 +509,13 @@ class VECXY_PT_tools(bpy.types.Panel):
                         row.label(text=field['label']+': '+str(value))
                     else:
                         controls=row.row()
-                        controls.prop(param,{'FLOAT':'number','INT':'integer','BOOL':'boolean','STRING':'text','VECTOR3':'vector','ENUM':'enum_value'}[param.kind],text=field['label'])
+                        if field.get('assetType'):
+                            controls.label(text=field['label'])
+                            selected=next((a['path'] for a in field.get('assets',[]) if a['id']==param.text or a['path']==param.text),param.text or 'Choose asset…')
+                            op=controls.operator('vecxy.choose_asset',text=selected,icon='FILE_FOLDER')
+                            op.type_name=comp.type_name;op.key=field['key'];op.component=i
+                        else:
+                            controls.prop(param,{'FLOAT':'number','INT':'integer','BOOL':'boolean','STRING':'text','VECTOR3':'vector','ENUM':'enum_value'}[param.kind],text=field['label'])
                     if field.get('description') or field.get('unit'):
                         op=row.operator('vecxy.field_help',text='',icon='INFO');op.type_name=comp.type_name;op.key=field['key']
                 if comp.type_name in schema.COLLIDERS:sub.operator('vecxy.fit_collider',text='Fit to model')
@@ -546,7 +576,7 @@ def draw_colliders():
     finally:gpu.state.line_width_set(1);gpu.state.depth_test_set('NONE');gpu.state.blend_set('NONE')
 
 
-CLASSES=(VECXY_Parameter,VECXY_Component,VECXY_Settings,VECXY_SceneSettings,VECXY_OT_fit_collider,VECXY_OT_mark_prototype,VECXY_OT_create_instance,VECXY_OT_edit_prototype,VECXY_OT_finish_edit,VECXY_OT_component,VECXY_OT_override_component,VECXY_OT_reset,VECXY_OT_field_help,VECXY_OT_reload_catalog,VECXY_OT_export_scene,VECXY_OT_export_prototype,VECXY_PT_tools)
+CLASSES=(VECXY_Parameter,VECXY_Component,VECXY_Settings,VECXY_SceneSettings,VECXY_OT_fit_collider,VECXY_OT_mark_prototype,VECXY_OT_create_instance,VECXY_OT_edit_prototype,VECXY_OT_finish_edit,VECXY_OT_component,VECXY_OT_override_component,VECXY_OT_reset,VECXY_OT_choose_asset,VECXY_OT_field_help,VECXY_OT_reload_catalog,VECXY_OT_export_scene,VECXY_OT_export_prototype,VECXY_PT_tools)
 _handle=None
 _catalog_stamp=None
 

@@ -54,28 +54,32 @@ public sealed class InputSnapshot
     internal void CopyFrom(
         InputSnapshot source,
         bool suppressKeyboard,
-        bool suppressMouse)
+        bool suppressMouse, bool suppressMouseMotion = false, bool suppressMouseButtons = false,
+        EKeyboardKey suppressedKey = EKeyboardKey.Undefined)
     {
         ArgumentNullException.ThrowIfNull(source);
 
+        suppressMouseMotion |= suppressMouse; suppressMouseButtons |= suppressMouse;
         MousePosition = source.MousePosition;
-        MouseDelta = suppressMouse ? Vector2.Zero : source.MouseDelta;
-        MouseWheelDelta = suppressMouse ? Vector2.Zero : source.MouseWheelDelta;
+        MouseDelta = suppressMouseMotion ? Vector2.Zero : source.MouseDelta;
+        MouseWheelDelta = suppressMouseButtons ? Vector2.Zero : source.MouseWheelDelta;
         PointerPosition = source.PointerPosition;
-        PointerDelta = suppressMouse ? Vector2.Zero : source.PointerDelta;
+        PointerDelta = suppressMouseMotion ? Vector2.Zero : source.PointerDelta;
         PointerKind = source.PointerKind;
-        IsPrimaryPointerPressed = !suppressMouse && source.IsPrimaryPointerPressed;
+        IsPrimaryPointerPressed = !suppressMouseButtons && source.IsPrimaryPointerPressed;
 
         _touches.Clear();
-        if (!suppressMouse)
+        if (!suppressMouseButtons)
             _touches.AddRange(source._touches);
 
         _pressedKeys.Clear();
         if (!suppressKeyboard)
             _pressedKeys.UnionWith(source._pressedKeys);
 
+        if (suppressedKey != EKeyboardKey.Undefined) _pressedKeys.Remove(suppressedKey);
+
         _pressedMouseButtons.Clear();
-        if (!suppressMouse)
+        if (!suppressMouseButtons)
             _pressedMouseButtons.UnionWith(source._pressedMouseButtons);
     }
 

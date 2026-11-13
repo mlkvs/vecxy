@@ -53,6 +53,9 @@ public sealed class UiDocument : IDisposable
     public string Path => _source.Metadata.Path;
     public UiElement Root { get; private set; } = null!;
     public bool IsVisible { get; set; } = true;
+    public EUiRenderMode RenderMode => Canvas?.RenderMode ?? EUiRenderMode.ScreenOverlay;
+    public UiCanvas? Canvas { get; internal set; }
+    internal bool CanRender => IsVisible && (Canvas is null || Canvas.IsActive && Canvas.SceneInstance.IsActive);
     public event Action<UiDocument>? Reloaded;
     internal float LayoutScale { get; private set; } = 1.0f;
     internal int ActiveAnimationCount => _activeAnimationElements.Count;
@@ -269,7 +272,7 @@ public sealed class UiDocument : IDisposable
         Refresh();
         var refreshMilliseconds = System.Diagnostics.Stopwatch
             .GetElapsedTime(refreshStarted).TotalMilliseconds;
-        var canvas = UiCanvas.Resolve(Root, width, height, _settings);
+        var canvas = UiLayoutCanvas.Resolve(Root, width, height, _settings);
         LayoutScale = canvas.Scale;
         if (_layoutValid &&
             _lastLayoutVersion == Root.LayoutVersion &&
@@ -303,7 +306,7 @@ public sealed class UiDocument : IDisposable
         UiConfig settings)
     {
         _settings = settings;
-        var canvas = UiCanvas.Resolve(Root, width, height, settings);
+        var canvas = UiLayoutCanvas.Resolve(Root, width, height, settings);
         if (_animationSyncPending)
         {
             _animationTreeScans++;
@@ -382,8 +385,18 @@ public sealed class UiDocument : IDisposable
         Root.ScrollVersion,
         Root.CompositeVersion);
 
-    internal Vector2 ToLayoutPoint(Vector2 outputPoint) =>
-        outputPoint / Math.Max(0.0001f, LayoutScale);
+    private Vector2 _lastWorldPointer;
+
+    internal Vector2 ToLayoutPoint(Vector2 outputPoint)
+    {
+        if (RenderMode == EUiRenderMode.WorldSpace)
+        {
+            if (Canvas!.TryMapOutputPoint(outputPoint, false, out var pixel, out _))
+                _lastWorldPointer = pixel / Math.Max(0.0001f, LayoutScale);
+            return _lastWorldPointer;
+        }
+        return outputPoint / Math.Max(0.0001f, LayoutScale);
+    }
 
     internal UiResolvedImage? ResolveImage(UiElement element)
     {

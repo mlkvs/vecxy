@@ -49,6 +49,7 @@ public sealed class UiModule :
     private readonly ITextInputSource _textInput;
     private readonly IClipboard _clipboard;
     private readonly UiRenderer _uiRenderer;
+    private readonly IRenderWorldStage? _worldStage;
     private readonly UiPerformanceStatistics _statistics = new();
     private readonly Config _yogaConfig = new();
     private readonly List<UiDocument> _documents = [];
@@ -67,6 +68,7 @@ public sealed class UiModule :
     private readonly Dictionary<int, (UiElement Element, UiDocument Document)> _touchCaptures = [];
     private Vector2 _pressPosition;
     private Vector2 _lastPointerPosition;
+    private Vector2 _pressLayoutPosition, _lastLayoutPosition;
     private Vector2 _scrollVelocity;
     private float _scrollbarThumbGrabOffset;
     private Vector2 _cachedHitPoint = new(float.NaN, float.NaN);
@@ -95,8 +97,10 @@ public sealed class UiModule :
         IGraphicsDeviceProvider graphics,
         IWindow window,
         ITextInputSource textInput,
-        IClipboard clipboard)
+        IClipboard clipboard,
+        IRenderWorldStage? worldStage = null)
     {
+        _worldStage = worldStage;
         _assets = assets;
         _configs = configs;
         _input = input;
@@ -144,6 +148,9 @@ public sealed class UiModule :
             return false;
         if (_focusedElement is not null && document.Root.DescendantsAndSelf().Contains(_focusedElement))
             Focus(null);
+        if (ReferenceEquals(_cachedHitDocument, document))
+        { _cachedHitDocument = null; _cachedHitElement = null; _cachedHitSignature = int.MinValue; }
+        _uiRenderer.ReleaseDocument(document);
         document.Dispose();
         return true;
     }
@@ -186,6 +193,7 @@ public sealed class UiModule :
         _assets.RegisterImporter<UiSpriteAtlasAsset>(new UiSpriteAtlasAssetImporter());
         _settings = _configs.LoadConfig<UiConfig>("Configs/UI.yaml");
         _overlays.RegisterGameOverlay(RenderOverlay);
+        _worldStage?.RegisterWorld(RenderWorld);
         _window.KeyChanged += OnKeyChanged;
         _textInput.TextInput += OnTextInput;
         _textInput.CompositionCommitted += OnTextInput;
@@ -224,10 +232,13 @@ public sealed class UiModule :
             {
                 var started = Stopwatch.GetTimestamp();
                 var allocatedBeforePhase = GC.GetAllocatedBytesForCurrentThread();
-                var metrics = document.Layout(
-                    _renderer.GameOutputWidth,
-                    _renderer.GameOutputHeight,
-                    Settings);
+                document.Canvas?.UpdateView(_renderer.GameOutputWidth, _renderer.GameOutputHeight, Settings,
+                    _input.MouseDelta,_window.IsCursorCaptured);
+                var worldCanvas = document.RenderMode == EUiRenderMode.WorldSpace ? document.Canvas : null;
+                var width = _renderer.GameOutputWidth; var height = _renderer.GameOutputHeight;
+                if (worldCanvas is not null && worldCanvas.TryGetPlane(out var plane)) { width = plane.Width; height = plane.Height; }
+                var layoutSettings = worldCanvas?.WorldSettings ?? Settings;
+                var metrics = document.Layout(width, height, layoutSettings);
                 layoutMilliseconds += Stopwatch.GetElapsedTime(started).TotalMilliseconds;
                 layoutAllocatedBytes += GC.GetAllocatedBytesForCurrentThread() - allocatedBeforePhase;
                 refreshMilliseconds += metrics.RefreshMilliseconds;
@@ -250,9 +261,7 @@ public sealed class UiModule :
                 allocatedBeforePhase = GC.GetAllocatedBytesForCurrentThread();
                 document.UpdateAnimations(
                     deltaTime,
-                    _renderer.GameOutputWidth,
-                    _renderer.GameOutputHeight,
-                    Settings);
+                    width, height, layoutSettings);
                 animationMilliseconds += Stopwatch.GetElapsedTime(started).TotalMilliseconds;
                 animationAllocatedBytes += GC.GetAllocatedBytesForCurrentThread() - allocatedBeforePhase;
             }
@@ -290,7 +299,12 @@ public sealed class UiModule :
         DispatchTextEditingInput();
         HandleScrolling(hit);
 
-        var pointerPressed = _input.IsPrimaryPointerPressed;
+        var activationCanvas = (hitDocument ?? _pressedDocument)?.Canvas ?? _documents.Select(d => d.Canvas).FirstOrDefault(c => c?.CapturesMouseLook == true);
+        var activationKey = activationCanvas is { Interactive: true, RenderMode: EUiRenderMode.WorldSpace } ? activationCanvas.ActivationKey : EKeyboardKey.Undefined;
+        var keyPressed = _focusedElement is not UiInputField && activationKey != EKeyboardKey.Undefined && _input.IsKeyPressed(activationKey);
+        var anyWorldKeyPressed = _focusedElement is not UiInputField && _documents.Any(d => d.CanRender && d.Canvas is
+            { Interactive: true, RenderMode: EUiRenderMode.WorldSpace } c && c.ActivationKey != EKeyboardKey.Undefined && _input.IsKeyPressed(c.ActivationKey));
+        var pointerPressed = _input.IsPrimaryPointerPressed || keyPressed;
         var pointerCancelled = _input.Touches.Any(touch =>
             touch.IsPrimary && touch.Phase == ETouchPhase.Cancelled);
         if (pointerPressed && !_wasPointerPressed)
@@ -304,6 +318,7 @@ public sealed class UiModule :
             _scrollVelocity = Vector2.Zero;
             _pressPosition = pointer;
             _lastPointerPosition = pointer;
+            _pressLayoutPosition = _lastLayoutPosition = hitDocument?.ToLayoutPoint(pointer) ?? pointer;
             Focus(hit, false);
             hit?.RaisePointerPressed(new UiPointerEvent(hitDocument!.ToLayoutPoint(pointer), Vector2.Zero));
             if (hit is UiInputField inputField)
@@ -313,19 +328,21 @@ public sealed class UiModule :
         }
         else if (pointerPressed && _wasPointerPressed && _pressedElement is { } pressed)
         {
-            var pointerDelta = pointer - _lastPointerPosition;
+            var layoutPoint = _pressedDocument?.ToLayoutPoint(pointer) ?? pointer;
+            var pointerDelta = layoutPoint - _lastLayoutPosition;
             if (_pressedDocument is not null)
-                pressed.RaisePointerMoved(new UiPointerEvent(_pressedDocument.ToLayoutPoint(pointer), pointerDelta / Math.Max(.0001f, _pressedDocument.LayoutScale)));
+                pressed.RaisePointerMoved(new UiPointerEvent(_pressedDocument.ToLayoutPoint(pointer), pointerDelta));
             if (_pressedElement is UiInputField selectingInput && _pressedDocument is not null)
                 selectingInput.UpdatePointerSelection(_pressedDocument.ToLayoutPoint(pointer));
             if (_scrollbarDragElement is not null)
                 DragScrollbar(pointer);
-            var threshold = Settings.DragScrollThreshold * (_pressedDocument?.LayoutScale ?? 1.0f);
-            var exceededThreshold = Vector2.DistanceSquared(pointer, _pressPosition) >= threshold * threshold;
+            var threshold = Settings.DragScrollThreshold;
+            var pressMovement = layoutPoint - _pressLayoutPosition;
+            var exceededThreshold = pressMovement.LengthSquared() >= threshold * threshold;
 
             if (_scrollbarDragElement is null && _scrollingElement is null && _draggingElement is null && exceededThreshold &&
                 _scrollCandidate is { } scrollCandidate &&
-                MovementMatchesScrollAxis(scrollCandidate, pointer - _pressPosition))
+                MovementMatchesScrollAxis(scrollCandidate, pressMovement))
             {
                 _scrollingElement = scrollCandidate;
                 pressed.IsActive = false;
@@ -348,6 +365,7 @@ public sealed class UiModule :
                 SetDropTarget(FindDropTarget(hit, _draggingElement));
 
             _lastPointerPosition = pointer;
+            _lastLayoutPosition = layoutPoint;
         }
         else if (!pointerPressed && _wasPointerPressed)
         {
@@ -383,8 +401,15 @@ public sealed class UiModule :
             _pressedDocument = null;
         }
 
-        _wasPointerPressed = pointerPressed;
-        _inputCapture.SuppressMouse = hit is not null || _pressedElement is not null || _scrollingElement is not null;
+        _wasPointerPressed = _input.IsPrimaryPointerPressed || anyWorldKeyPressed;
+        var hoveredInput = hit is not null || _pressedElement is not null || _scrollingElement is not null;
+        var pointerCanvas = (hitDocument ?? _pressedDocument)?.Canvas;
+        var lookRay = pointerCanvas?.UsesViewRay ?? false;
+        var surfaceCapture = _documents.Any(d => d.CanRender && d.Canvas is { CapturesMouseLook: true });
+        _inputCapture.SuppressMouse = hoveredInput && !lookRay && !surfaceCapture;
+        _inputCapture.SuppressMouseButtons = hoveredInput || surfaceCapture;
+        _inputCapture.SuppressMouseMotion = surfaceCapture || hoveredInput && !lookRay;
+        _inputCapture.SuppressedKey = activationKey;
         _inputCapture.SuppressKeyboard =
             _focusedElement?.TagName is "input" or "input-field" or "textarea" or "select";
         if (_focusedElement is UiInputField focusedInput)
@@ -424,8 +449,9 @@ public sealed class UiModule :
         signature.Add(_documents.Count);
         foreach (var document in _documents)
         {
-            signature.Add(document.IsVisible);
+            signature.Add(document.CanRender);
             signature.Add(document.HitTestVersion);
+            signature.Add(document.Canvas?.HitSignature ?? 0);
         }
         var currentSignature = signature.ToHashCode();
         if (outputPoint == _cachedHitPoint && currentSignature == _cachedHitSignature)
@@ -437,14 +463,23 @@ public sealed class UiModule :
         for (var index = _documents.Count - 1; index >= 0; index--)
         {
             var document = _documents[index];
-            if (!document.IsVisible)
+            if (!document.CanRender || document.Canvas is { Interactive: false } || document.RenderMode != EUiRenderMode.ScreenOverlay)
                 continue;
             var hit = document.Root.HitTest(document.ToLayoutPoint(outputPoint));
             if (hit is null)
                 continue;
             return CacheHit(outputPoint, currentSignature, hit, document, out hitDocument);
         }
-        return CacheHit(outputPoint, currentSignature, null, null, out hitDocument);
+        UiElement? nearest = null; UiDocument? nearestDocument = null; var nearestDistance = float.PositiveInfinity;
+        for (var index = _documents.Count - 1; index >= 0; index--)
+        {
+            var document = _documents[index];
+            if (!document.CanRender || document.RenderMode != EUiRenderMode.WorldSpace || document.Canvas is not { Interactive: true } canvas) continue;
+            if (!canvas.TryMapOutputPoint(outputPoint, true, out var pixel, out var distance) || distance >= nearestDistance) continue;
+            var hit = document.Root.HitTest(pixel / Math.Max(.0001f, document.LayoutScale));
+            if (hit is not null) { nearest = hit; nearestDocument = document; nearestDistance = distance; }
+        }
+        return CacheHit(outputPoint, currentSignature, nearest, nearestDocument, out hitDocument);
     }
 
     private UiElement? CacheHit(
@@ -502,7 +537,7 @@ public sealed class UiModule :
         return new UiTouchEvent(
             touch.Id,
             document.ToLayoutPoint(current),
-            (current - previous) / Math.Max(0.0001f, document.LayoutScale),
+            document.ToLayoutPoint(current) - document.ToLayoutPoint(previous),
             touch.Pressure,
             touch.IsPrimary);
     }
@@ -520,8 +555,7 @@ public sealed class UiModule :
     {
         if (_scrollingElement is not { } element)
             return;
-        var scale = Math.Max(0.0001f, _pressedDocument?.LayoutScale ?? 1.0f);
-        var requested = -outputDelta / scale;
+        var requested = -outputDelta;
         if (!element.CanScrollHorizontally)
             requested.X = 0.0f;
         if (!element.CanScrollVertically)
@@ -654,7 +688,7 @@ public sealed class UiModule :
                 _input.IsKeyPressed(EKeyboardKey.LeftShift) ||
                 _input.IsKeyPressed(EKeyboardKey.RightShift);
             var candidates = _documents
-                .Where(document => document.IsVisible)
+                .Where(document => document.CanRender && document.Canvas is not { Interactive: false })
                 .SelectMany(document => document.Root.DescendantsAndSelf())
                 .Where(element =>
                     element.IsFocusable &&
@@ -693,6 +727,13 @@ public sealed class UiModule :
             _dropTarget.IsDropTarget = true;
     }
 
+    private void RenderWorld(RenderWorldContext context)
+    {
+        if (!_initialized || _documents.Count == 0) return;
+        try { _uiRenderer.Draw(_documents, context.Width, context.Height, Settings, context); }
+        catch (Exception exception) { Logger.Error(exception, "Could not render WorldSpace UI."); }
+    }
+
     private void RenderOverlay(RenderOverlayContext context)
     {
         if (!_initialized || _documents.Count == 0)
@@ -712,6 +753,9 @@ public sealed class UiModule :
         if (!_initialized)
             return;
         _overlays.UnregisterGameOverlay(RenderOverlay);
+        _worldStage?.UnregisterWorld(RenderWorld);
+        _inputCapture.SuppressMouse = _inputCapture.SuppressMouseButtons = _inputCapture.SuppressMouseMotion = false;
+        _inputCapture.SuppressedKey = EKeyboardKey.Undefined;
         _window.KeyChanged -= OnKeyChanged;
         _textInput.TextInput -= OnTextInput;
         _textInput.CompositionCommitted -= OnTextInput;

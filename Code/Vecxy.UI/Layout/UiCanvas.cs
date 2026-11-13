@@ -2,9 +2,9 @@ using System.Globalization;
 
 namespace Vecxy.UI;
 
-internal readonly record struct UiCanvas(float Scale, int Width, int Height)
+internal readonly record struct UiLayoutCanvas(float Scale, int Width, int Height)
 {
-    public static UiCanvas Resolve(
+    public static UiLayoutCanvas Resolve(
         UiElement root,
         int outputWidth,
         int outputHeight,
@@ -19,7 +19,7 @@ internal readonly record struct UiCanvas(float Scale, int Width, int Height)
             ? configuredMode
             : UiConfig.ParseScaleMode(modeSource);
         if (mode == EUiScaleMode.None)
-            return new UiCanvas(1.0f, outputWidth, outputHeight);
+            return new UiLayoutCanvas(1.0f, outputWidth, outputHeight);
 
         var referenceWidth = settings?.ReferenceWidth ?? 1920.0f;
         var referenceHeight = settings?.ReferenceHeight ?? 1080.0f;
@@ -39,7 +39,7 @@ internal readonly record struct UiCanvas(float Scale, int Width, int Height)
             _ => Math.Min(widthScale, heightScale)
         };
         scale = Math.Max(0.0001f, scale);
-        return new UiCanvas(
+        return new UiLayoutCanvas(
             scale,
             Math.Max(1, (int)MathF.Ceiling(outputWidth / scale)),
             Math.Max(1, (int)MathF.Ceiling(outputHeight / scale)));

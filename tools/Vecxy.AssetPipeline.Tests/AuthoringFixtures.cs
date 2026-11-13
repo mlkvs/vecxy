@@ -17,6 +17,7 @@ public sealed class AuthoringDevice : AComponent
             [Authoring] public bool Powered { get; set; } = true;
             [Authoring("Offset")] public Vector3 Offset { get; set; } = new(1, 2, 3);
             [Authoring("Mode", Default = "Fast")] public DeviceMode Mode { get; set; } = DeviceMode.Normal;
+            [Authoring("Document", AssetType = "UiDocument")] public string Document { get; set; } = "";
             public int InternalOnly { get; set; } = 7;
         }
         protected override AuthoringDevice Instantiate(IPrototypeContext context) =>

@@ -8,6 +8,8 @@ public sealed class AuthoringAttribute(string name = "") : Attribute
     public string Category { get; set; } = "Gameplay";
     public string Description { get; set; } = "";
     public string Key { get; set; } = "";
+    /// <summary>Asset picker kind for string references (for example UiDocument).</summary>
+    public string AssetType { get; set; } = "";
     public double Min { get; set; } = double.NaN;
     public double Max { get; set; } = double.NaN;
     public string Unit { get; set; } = "";
