@@ -31,7 +31,8 @@ public sealed class EngineLayer(
 
         public Definition(
             AssetsModule.Options? assets = null,
-            PhysicsModule.Options? physics = null)
+            PhysicsModule.Options? physics = null,
+            IReadOnlyList<Vecxy.Kernel.IDefinition>? additionalModules = null)
         {
             Children =
             [
@@ -48,7 +49,8 @@ public sealed class EngineLayer(
                 new UiModule.Definition(),
                 new PointerInteractionModule.Definition(),
                 new AudioModule.Definition(),
-                new MessagingModule.Definition()
+                new MessagingModule.Definition(),
+                .. additionalModules ?? []
             ];
         }
     }

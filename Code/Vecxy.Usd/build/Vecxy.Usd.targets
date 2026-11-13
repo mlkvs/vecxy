@@ -1,0 +1,9 @@
+<Project>
+  <PropertyGroup>
+    <VecxyUsdPython Condition="'$(VecxyUsdPython)' == ''">python3</VecxyUsdPython>
+  </PropertyGroup>
+  <Target Name="VecxyCookUsd" BeforeTargets="VecxyPrepareAssets;VecxyPackageAssets;PrepareForBuild"
+          Condition="'$(DesignTimeBuild)' != 'true' and '$(VecxyUsdStage)' != ''">
+    <Exec Command="&quot;$(VecxyUsdPython)&quot; &quot;$(MSBuildThisFileDirectory)../Tools/cook_usd.py&quot; &quot;$(VecxyUsdStage)&quot; --assets &quot;$(MSBuildProjectDirectory)/Assets&quot;" />
+  </Target>
+</Project>
