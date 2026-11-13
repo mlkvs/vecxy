@@ -4,7 +4,7 @@ using Vecxy.Prototypes;
 
 namespace Vecxy.Physics;
 
-[EditorComponent("Sphere Collider", Category = "Physics", Key = "collider")]
+[Authoring("Sphere Collider", Category = "Physics", Key = "collider")]
 public sealed partial class SphereCollider : Collider
 {
     private float _radius = 0.5f;

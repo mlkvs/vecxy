@@ -6,13 +6,13 @@ namespace Vecxy.Physics;
 
 public class ColliderOptions
 {
-    [EditorField("Center", Order = 1, Description = "Offset in the object's local coordinates.")]
+    [Authoring("Center", Order = 1, Description = "Offset in the object's local coordinates.")]
     public Vector3 Center { get; set; }
-    [EditorField("Friction", Min = 0, Order = 20)]
+    [Authoring("Friction", Min = 0, Order = 20)]
     public float Friction { get; set; } = 0.5f;
-    [EditorField("Restitution", Min = 0, Max = 1, Order = 21)]
+    [Authoring("Restitution", Min = 0, Max = 1, Order = 21)]
     public float Restitution { get; set; }
-    [EditorField("Trigger", Order = 22)]
+    [Authoring("Trigger", Order = 22)]
     public bool IsTrigger { get; set; }
 
     internal void Apply(Collider collider)
@@ -30,7 +30,7 @@ public sealed partial class BoxCollider
     {
         public sealed class Options : ColliderOptions
         {
-            [EditorField("Size", Min = 0.001, Order = 0, Description = "Full dimensions in local coordinates.")]
+            [Authoring("Size", Min = 0.001, Order = 0, Description = "Full dimensions in local coordinates.")]
             public Vector3 Size { get; set; } = Vector3.One;
         }
         protected override BoxCollider Instantiate(IPrototypeContext context)
@@ -52,7 +52,7 @@ public sealed partial class SphereCollider
     {
         public sealed class Options : ColliderOptions
         {
-            [EditorField("Radius", Min = 0.001, Order = 0)]
+            [Authoring("Radius", Min = 0.001, Order = 0)]
             public float Radius { get; set; } = 0.5f;
         }
         protected override SphereCollider Instantiate(IPrototypeContext context)
@@ -76,11 +76,11 @@ public sealed partial class CapsuleCollider
     {
         public sealed class Options : ColliderOptions
         {
-            [EditorField("Radius", Min = 0.001, Order = 0)]
+            [Authoring("Radius", Min = 0.001, Order = 0)]
             public float Radius { get; set; } = 0.35f;
-            [EditorField("Cylinder height", Min = 0, Order = 2, Description = "Height between hemisphere centers.")]
+            [Authoring("Cylinder height", Min = 0, Order = 2, Description = "Height between hemisphere centers.")]
             public float Height { get; set; } = 1.1f;
-            [EditorField("Axis", Default = "Z", Order = 3)]
+            [Authoring("Axis", Default = "Z", Order = 3)]
             public EColliderAxis Axis { get; set; } = EColliderAxis.Y;
         }
         protected override CapsuleCollider Instantiate(IPrototypeContext context)
@@ -109,13 +109,13 @@ public sealed partial class RigidBody
     {
         public sealed class Options
         {
-            [EditorField("Motion", Order = 0)]
+            [Authoring("Motion", Order = 0)]
             public EPhysicsMotionType MotionType { get; set; } = EPhysicsMotionType.Dynamic;
-            [EditorField("Mass", Min = 0.001, Unit = "kg", Order = 1)]
+            [Authoring("Mass", Min = 0.001, Unit = "kg", Order = 1)]
             public float Mass { get; set; } = 1;
-            [EditorField("Gravity", Order = 2)]
+            [Authoring("Gravity", Order = 2)]
             public bool AffectedByGravity { get; set; } = true;
-            [EditorField("Linear damping", Min = 0, Max = 1, Order = 3)]
+            [Authoring("Linear damping", Min = 0, Max = 1, Order = 3)]
             public float LinearDamping { get; set; }
         }
         protected override RigidBody Instantiate(IPrototypeContext context)

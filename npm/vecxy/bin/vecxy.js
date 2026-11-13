@@ -8,7 +8,7 @@ import { homedir, platform } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const VERSION = '0.1.7';
+const VERSION = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version;
 const DOTNET_VERSION = '10.0.110';
 const ENGINE_REPOSITORY = 'https://github.com/mlkvs/vecxy.git';
 const home = process.env.VECXY_HOME || join(homedir(), '.vecxy');
@@ -50,6 +50,7 @@ Usage:
   vecxy engine list
   vecxy sprite-editor [-p|--project <directory>]
   vecxy build [dev|release] [-p|--project <path>] -t|--platform <linux|windows|android>
+  vecxy generate [-p|--project <path>]
   vecxy assets <scan|generate|analyze|validate|packages|pack|prepare>
 
 Environment:

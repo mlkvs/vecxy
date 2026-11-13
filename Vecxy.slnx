@@ -36,7 +36,6 @@
   </Folder>
   <Folder Name="/Tools/">
     <Project Path="tools/Vecxy.Cli/Vecxy.Cli.csproj" />
-    <Project Path="tools/Vecxy.ComponentCatalog/Vecxy.ComponentCatalog.csproj" />
     <Project Path="tools/Vecxy.AssetAnalyzer/Vecxy.AssetAnalyzer.csproj" />
     <Project Path="tools/Vecxy.AssetPipeline/Vecxy.AssetPipeline.csproj" />
     <Project Path="tools/Vecxy.AssetPipeline.Tests/Vecxy.AssetPipeline.Tests.csproj" />

@@ -160,4 +160,15 @@
     <Message Text="Vecxy: weaving networking RPC and replicated state for $(MSBuildProjectName)" Importance="high" />
     <Exec Command="dotnet run --project &quot;$(VecxyNetworkingWeaverProject)&quot; -c $(Configuration) -- &quot;$(TargetPath)&quot; &quot;$(VecxyTarget)&quot; &quot;$(TargetDir)rpc-manifest.json&quot;" />
   </Target>
+  <!-- Authoring metadata belongs to the same project generation pipeline as asset
+       IDs and Assets.g.cs. It needs the fresh compilation, so finalize after Build. -->
+  <PropertyGroup>
+    <VecxyGenerateAuthoring Condition="'$(VecxyGenerateAuthoring)' == '' and '$(VecxyPlatform)' == 'Desktop'">true</VecxyGenerateAuthoring>
+    <VecxyAuthoringCatalog Condition="'$(VecxyAuthoringCatalog)' == ''">$(MSBuildProjectDirectory)/Authoring/vecxy.components.json</VecxyAuthoringCatalog>
+  </PropertyGroup>
+  <Target Name="VecxyFinalizeAuthoring" AfterTargets="Build" DependsOnTargets="VecxyWeaveNetworking"
+          Condition="'$(DesignTimeBuild)' != 'true' and '$(VecxyGenerateAuthoring)' == 'true' and Exists('$(TargetPath)') and Exists('$(VecxyCliProject)')">
+    <Message Text="Vecxy: finalizing project authoring metadata" Importance="high" />
+    <Exec Command="dotnet run --project &quot;$(VecxyCliProject)&quot; -p:UseArtifactsOutput=true -p:ArtifactsPath=&quot;$(VecxyCliArtifactsPath)&quot; -- --project &quot;$(MSBuildProjectDirectory)&quot; assets generate --assembly &quot;$(TargetPath)&quot; --catalog &quot;$(VecxyAuthoringCatalog)&quot;" />
+  </Target>
 </Project>

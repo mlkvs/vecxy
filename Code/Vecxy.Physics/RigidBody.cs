@@ -5,7 +5,7 @@ using Vecxy.Prototypes;
 namespace Vecxy.Physics;
 
 [SingleComponent]
-[EditorComponent("Rigid Body", Category = "Physics", Key = "rigidBody")]
+[Authoring("Rigid Body", Category = "Physics", Key = "rigidBody")]
 public sealed partial class RigidBody : AComponent
 {
     private EPhysicsMotionType _motionType = EPhysicsMotionType.Dynamic;

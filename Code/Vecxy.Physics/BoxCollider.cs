@@ -4,7 +4,7 @@ using Vecxy.Prototypes;
 
 namespace Vecxy.Physics;
 
-[EditorComponent("Box Collider", Category = "Physics", Key = "collider")]
+[Authoring("Box Collider", Category = "Physics", Key = "collider")]
 public sealed partial class BoxCollider : Collider
 {
     private Vector3 _size = Vector3.One;

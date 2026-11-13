@@ -18,7 +18,7 @@ def reload_catalog(context,required=False):
     path=catalog_path(context)
     if not path.exists():
         CATALOG={};COMPONENT_ITEMS=[]
-        if required:raise RuntimeError('Build the game project first to generate '+str(path))
+        if required:raise RuntimeError('Run vecxy generate (or dotnet build) to generate '+str(path))
         return False
     document=json.loads(path.read_text(encoding='utf-8-sig'))
     if document.get('format')!=1:raise RuntimeError('Unsupported component catalog version')
@@ -30,7 +30,7 @@ def reload_catalog(context,required=False):
 
 
 def component_items(self,context):
-    return COMPONENT_ITEMS or [('NONE','Build/reload project components','No component catalog loaded')]
+    return COMPONENT_ITEMS or [('NONE','Generate/reload project components','No component catalog loaded')]
 
 
 def enum_items(self,context):
@@ -62,7 +62,8 @@ def values(component,include_defaults=True):
         for field in definition['fields']:
             value=field['default']
             result[field['key']]={'x':value[0],'y':value[1],'z':value[2]} if field['kind']=='VECTOR3' else value
-    result.update({p.key:field_value(p) for p in component.parameters if p.is_override})
+    allowed={f['key'] for f in definition['fields']} if definition else None
+    result.update({p.key:field_value(p) for p in component.parameters if p.is_override and (allowed is None or p.key in allowed)})
     if definition:
         for field in definition['fields']:
             value=result.get(field['key'])

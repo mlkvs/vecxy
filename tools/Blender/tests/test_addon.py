@@ -112,3 +112,22 @@ assert settings.editing is None and not second.hide_get()
 assert col.name not in bpy.context.scene.collection.children
 assert len(bpy.data.objects)==count
 print('PASS: generated component fields, colliders, USD inheritance, original prototype isolation without copies, source transforms unchanged and scene visibility restored')
+
+# Simulate a generated catalog update while the scene stays open.
+original_catalog=settings.catalog_path
+updated=json.loads(Path(bpy.path.abspath(original_catalog)).read_text())
+entry=next(c for c in updated['components'] if c['type']=='Horror.LaundryMachine')
+entry['label']='Automatically refreshed machine'
+watched=root/'watched.components.json';watched.write_text(json.dumps(updated))
+settings.catalog_path=str(watched)
+assert vecxy_usd.watch_project_catalog()==1.0
+assert schema.CATALOG['Horror.LaundryMachine']['label']=='Automatically refreshed machine'
+entry['label']='Changed again';watched.write_text(json.dumps(updated))
+vecxy_usd.watch_project_catalog()
+assert schema.CATALOG['Horror.LaundryMachine']['label']=='Changed again'
+assert schema.values(comp)['cycleSeconds']==600,'Refreshing metadata must preserve authored values'
+obsolete=comp.parameters.add();obsolete.key='removedField';obsolete.kind='FLOAT';obsolete.number=17
+assert 'removedField' not in schema.values(comp),'Removed fields must not leak stale anonymous parameters into exports'
+assert any(p.key=='removedField' for p in comp.parameters),'Keep old author data available without exporting it'
+settings.catalog_path=original_catalog;vecxy_usd.watch_project_catalog()
+print('PASS: automatic catalog refresh after generation while the Blender scene remains open')

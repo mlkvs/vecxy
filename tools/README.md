@@ -42,3 +42,21 @@ To collect references during every normal MSBuild compilation, add the analyzer:
 
 The CLI `build` command also performs reference analysis itself before validation, so
 the wrapper works without globally installing a tool or modifying the game project.
+
+## Unified project generation
+
+`vecxy generate` (alias: `vecxy assets generate`) prepares asset GUIDs and
+`Generated/Assets.g.cs`, compiles the project, then finalizes
+`Authoring/vecxy.components.json` from `[Authoring]` metadata. The compiler uses the
+shared pipeline in `Vecxy.AssetPipeline`; there is no separate catalog executable.
+Every standard desktop `dotnet build` performs the same precompile/finalize stages.
+`assets scan` remains the lightweight manifest-only operation; `assets prepare` is
+the precompile scan/generate/analyze/validate stage. Failed compilation returns a
+nonzero exit code and does not replace a valid authoring catalog with stale data.
+
+The catalog includes both engine and game components. `[Authoring]` applies to
+classes and `Prototype.Options` properties, with optional labels and named metadata
+(Category, Description, Min, Max, Unit, Order, Default). Blender reads the catalog;
+it does not parse C# or need game DLLs. Customize the output through
+`VecxyAuthoringCatalog`. Desktop generation also supplies Blender when packaging
+Android; the catalog is tooling data outside `Assets/`, not a runtime asset.

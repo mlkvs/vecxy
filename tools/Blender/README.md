@@ -60,14 +60,14 @@ assemblies. No C# assemblies are executed inside Blender. Only explicitly annota
 components and fields are exposed:
 
 ```csharp
-[EditorComponent("Washing machine", Category = "Gameplay", Key = "machine")]
+[Authoring("Washing machine", Category = "Gameplay", Key = "machine")]
 public sealed class LaundryMachine : AComponent
 {
     public sealed class Prototype : APrototype<LaundryMachine, Prototype.Options>
     {
         public sealed class Options
         {
-            [EditorField("Cycle duration", Min = 0.1, Unit = "s")]
+            [Authoring("Cycle duration", Min = 0.1, Unit = "s")]
             public float CycleSeconds { get; set; } = 1320;
         }
         // Instantiate and Configure implement the usual Vecxy prototype factory.
@@ -75,11 +75,18 @@ public sealed class LaundryMachine : AComponent
 }
 ```
 
-Attributes belong to `Vecxy.Prototypes`. Enable `VecxyGenerateComponentCatalog` in
-the game project and import `Vecxy.Prototypes/build/Vecxy.ComponentCatalog.targets`
-(already imported by the USD targets). Override `VecxyComponentCatalog` for another
-output path; the default is `Authoring/vecxy.components.json`.
-After changing C#, build the game and press **Reload project components** in Blender.
+The universal `Authoring` attribute belongs to `Vecxy.Prototypes` and is used on
+both component classes and `Prototype.Options` properties. A label is optional.
+Every standard Vecxy desktop project generates the catalog through the shared asset
+pipeline. No USD-specific import or generator executable is needed.
+
+Run `vecxy generate` (or `vecxy assets generate`) for the complete cycle: asset GUIDs,
+`Assets.g.cs`, fresh project compilation and authoring metadata. `dotnet build` runs
+the same stages automatically. The default output is `Authoring/vecxy.components.json`;
+set `VecxyAuthoringCatalog` in the project to change it. Metadata is finalized after
+compilation, so source changes are never scanned from a previous build.
+The addon automatically reloads a changed catalog while Blender stays open;
+**Reload project components** also allows a manual refresh.
 Pick an item from the component dropdown, then **Add selected component**. Physics
 and game types appear together under their categories. Fields are generated with
 the declared labels, defaults, descriptions, units and ranges. Supported types are

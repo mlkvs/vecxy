@@ -7,6 +7,11 @@ var arguments = ExpandShortOptions(args).ToList();
 try
 {
     var projectOption = GetOption(arguments, "--project");
+    var assemblyOption = GetOption(arguments, "--assembly");
+    var catalogOption = GetOption(arguments, "--catalog");
+    if (arguments is ["generate"]) arguments = ["assets", "generate"];
+    if ((assemblyOption is not null || catalogOption is not null) && arguments is not ["assets", "generate"])
+        throw new ArgumentException("--assembly and --catalog are only supported by assets generate.");
     var platformOption = GetOption(arguments, "--platform");
     var outputOption = GetOption(arguments, "--output");
     var engineOption = GetOption(arguments, "--engine");
@@ -43,9 +48,14 @@ try
     }
     if (arguments is ["assets", "generate"])
     {
-        Pipeline.Scan(project);
-        Console.WriteLine($"Generated {Pipeline.Generate(project)}");
-        return 0;
+        if (assemblyOption is not null)
+        {
+            Console.WriteLine($"Generated {Pipeline.GenerateAuthoringCatalog(project, assemblyOption, catalogOption)}");
+            return 0;
+        }
+        if (catalogOption is not null) throw new ArgumentException("Use the VecxyAuthoringCatalog project property to customize the catalog path.");
+        if (Prepare(project) != 0) return 1;
+        return await GenerateCommand.RunAsync(project);
     }
     if (arguments is ["assets", "validate"])
         return Validate(project);
@@ -180,4 +190,4 @@ static string ResolveProject(string? value)
         throw new InvalidOperationException($"No .csproj found in '{path}'. Select a game: --project HardCore.Cultivation");
     throw new InvalidOperationException($"More than one .csproj found in '{path}'. Select one with --project <path>.");
 }
-static void PrintUsage() => Console.WriteLine("Usage: vecxy new <name> [-o|--output <directory>] [-e|--engine <path-to-Engine/Vecxy>]\n       vecxy [-p|--project <game-directory|csproj>] assets <scan|generate|analyze|validate|packages|pack|prepare|build> [-t|--platform <windows|linux|android>]\n       vecxy [-p|--project <game-directory|csproj>] packages manifest [-t|--platform <windows|linux|android>]\n       vecxy [-p|--project <game-directory|csproj>] build [dev|release] -t|--platform <linux|windows|android> [-r|--runtime <rid>] [-o|--output <path>]\n       vecxy [-p|--project <game-directory|csproj>] build [dev|release] -t|--platform android [-f|--format <apk|aab|both>] [--version <name>] [--version-code <number>]\n\nAndroid signing: -k|--keystore <path> -a|--alias <name>, with passwords in VECXY_ANDROID_STORE_PASSWORD and optional VECXY_ANDROID_KEY_PASSWORD.\n--project may be omitted when the current directory contains exactly one .csproj.\n'new' creates a project in ./<name> unless --output is specified.");
+static void PrintUsage() => Console.WriteLine("Usage: vecxy new <name> [-o|--output <directory>] [-e|--engine <path-to-Engine/Vecxy>]\n       vecxy [-p|--project <game-directory|csproj>] generate\n       vecxy [-p|--project <game-directory|csproj>] assets <scan|generate|analyze|validate|packages|pack|prepare|build> [-t|--platform <windows|linux|android>]\n       vecxy [-p|--project <game-directory|csproj>] packages manifest [-t|--platform <windows|linux|android>]\n       vecxy [-p|--project <game-directory|csproj>] build [dev|release] -t|--platform <linux|windows|android> [-r|--runtime <rid>] [-o|--output <path>]\n       vecxy [-p|--project <game-directory|csproj>] build [dev|release] -t|--platform android [-f|--format <apk|aab|both>] [--version <name>] [--version-code <number>]\n\nAndroid signing: -k|--keystore <path> -a|--alias <name>, with passwords in VECXY_ANDROID_STORE_PASSWORD and optional VECXY_ANDROID_KEY_PASSWORD.\n--project may be omitted when the current directory contains exactly one .csproj.\n'new' creates a project in ./<name> unless --output is specified.");

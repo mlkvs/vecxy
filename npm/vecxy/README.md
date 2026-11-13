@@ -25,6 +25,7 @@ vecxy build -t linux
 - `vecxy sprite-editor [-p <path>]` opens the native sprite and atlas editor for a project.
 - `vecxy doctor [--no-android]` checks desktop and Android requirements.
 - `vecxy new <name> [--output <path>]` creates a minimal game project.
+- `vecxy generate` prepares asset IDs/code, compiles the project and generates the `[Authoring]` catalog for Blender.
 - `vecxy assets scan|generate|analyze|validate|packages|pack|prepare` manages assets.
 - `vecxy build [dev|release] --platform linux|windows|android` creates distributable builds.
 

@@ -4,7 +4,7 @@ using Vecxy.Prototypes;
 
 namespace Vecxy.Physics;
 
-[EditorComponent("Capsule Collider", Category = "Physics", Key = "collider")]
+[Authoring("Capsule Collider", Category = "Physics", Key = "collider")]
 public sealed partial class CapsuleCollider : Collider
 {
     private float _radius = 0.35f;

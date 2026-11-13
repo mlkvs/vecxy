@@ -4,6 +4,25 @@ using Vecxy.Assets;
 var root = Path.Combine(Path.GetTempPath(), "vecxy-asset-tests", Guid.NewGuid().ToString("N"));
 try
 {
+    var assemblyFile = typeof(AuthoringDevice).Assembly.Location;
+    var catalogPath = AssetPipeline.GenerateAuthoringCatalog(root, assemblyFile);
+    using (var catalog = System.Text.Json.JsonDocument.Parse(File.ReadAllText(catalogPath)))
+    {
+        var components = catalog.RootElement.GetProperty("components").EnumerateArray().ToArray();
+        Assert(components.Length == 1, "authoring only exposes explicitly annotated components");
+        var component = components.Single();
+        Assert(component.GetProperty("label").GetString() == "Test device" && component.GetProperty("key").GetString() == "device", "universal Authoring attribute on component classes");
+        var fields = component.GetProperty("fields").EnumerateArray().ToDictionary(f => f.GetProperty("key").GetString()!);
+        Assert(fields.Count == 4 && !fields.ContainsKey("internalOnly"), "explicit authoring fields only, including inherited options");
+        Assert(fields["duration"].GetProperty("default").GetSingle() == 30 && fields["duration"].GetProperty("unit").GetString() == "s", "actual initialized defaults and field metadata");
+        Assert(fields["powered"].GetProperty("default").GetBoolean() && fields["powered"].GetProperty("label").GetString() == "Powered", "Authoring without a label uses the property name");
+        Assert(fields["offset"].GetProperty("default").EnumerateArray().Select(v => v.GetSingle()).SequenceEqual(new float[] { 1, 2, 3 }), "typed Vector3 defaults");
+        Assert(fields["mode"].GetProperty("default").GetString() == "Fast" && fields["mode"].GetProperty("choices").GetArrayLength() == 2, "enum choices and authoring default override");
+    }
+    File.SetLastWriteTimeUtc(catalogPath, new DateTime(2020, 1, 1, 0, 0, 0, DateTimeKind.Utc));
+    var unchangedTime = File.GetLastWriteTimeUtc(catalogPath);
+    AssetPipeline.GenerateAuthoringCatalog(root, assemblyFile);
+    Assert(File.GetLastWriteTimeUtc(catalogPath) == unchangedTime, "repeated project generation keeps unchanged authoring files stable");
     Assert(PackageVersion.Parse("1.10.2") > PackageVersion.Parse("1.9.9"), "semantic package version comparison");
     Assert(!PackageVersion.TryParse("1.0", out _) && !PackageVersion.TryParse("01.0.0", out _), "semantic package version validation");
     Assert(typeof(PackageDownloadProgress).GetProperty(nameof(PackageDownloadProgress.TotalBytes))!.PropertyType == typeof(long) &&

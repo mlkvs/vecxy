@@ -1,7 +1,0 @@
-<Project Sdk="Microsoft.NET.Sdk">
-  <PropertyGroup><OutputType>Exe</OutputType></PropertyGroup>
-  <ItemGroup>
-    <ProjectReference Include="../../Code/Vecxy.Prototypes/Vecxy.Prototypes.csproj" />
-    <ProjectReference Include="../../Code/Vecxy.Scene/Vecxy.Scene.csproj" />
-  </ItemGroup>
-</Project>
