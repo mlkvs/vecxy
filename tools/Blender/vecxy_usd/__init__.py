@@ -78,7 +78,7 @@ class VECXY_Settings(bpy.types.PropertyGroup):
 class VECXY_SceneSettings(bpy.types.PropertyGroup):
     catalog_path: StringProperty(name='Component catalog',subtype='FILE_PATH', options={'PATH_SUPPORTS_BLEND_RELATIVE'},default='//vecxy.components.json')
     selected_component: EnumProperty(name='Component',items=schema.component_items)
-    export_path: StringProperty(name='Scene USD', subtype='FILE_PATH', options={'PATH_SUPPORTS_BLEND_RELATIVE'}, default='//../Assets/Scenes/Laundromat.usda')
+    export_path: StringProperty(name='Scene USD', subtype='FILE_PATH', options={'PATH_SUPPORTS_BLEND_RELATIVE'}, default='//../Assets/Scenes/Scene.usda')
     python_path: StringProperty(name='OpenUSD Python', subtype='FILE_PATH', description='Python with usd-core and Pillow; auto-detects project .agents/local/usd-env')
     cook_after_export: BoolProperty(name='Prepare game cache', default=True)
     export_prototypes: BoolProperty(name='Export prototype files with scene', default=True)
@@ -151,9 +151,13 @@ class VECXY_OT_fit_collider(bpy.types.Operator):
         if component is None:
             component=schema.add_component(settings,'Vecxy.Physics.BoxCollider')
         axis=schema.values(component).get('axis','Z');axis_index='XYZ'.index(axis)
-        extents=hi-lo
+        extents=hi-lo;center=(lo+hi)*.5
+        # A plane still needs a physical thickness. Keep its upward surface at
+        # the authored height rather than pushing the player above the mesh.
+        if extents.z<1e-5:extents.z=.02;center.z-=.01
+        for i in range(3):extents[i]=max(extents[i],.02)
         radial=[extents[i] for i in range(3) if i!=axis_index] if component.type_name.endswith('CapsuleCollider') else extents
-        data={'center':tuple((lo+hi)*.5),'size':tuple(extents),'radius':max(radial)*.5}
+        data={'center':tuple(center),'size':tuple(extents),'radius':max(radial)*.5}
         data['height']=max(0,extents[axis_index]-2*data['radius'])
         for field in schema.CATALOG[component.type_name]['fields']:
             if field['key'] in data:schema.set_param(component,field,data[field['key']])

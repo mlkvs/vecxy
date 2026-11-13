@@ -351,7 +351,9 @@ class Cooker:
         model_path = self.source.parent / 'Compiled' / (stem + '.glb')
         self.data.extend(b'\0' * (-len(self.data) % 4))
         self.gltf['buffers'] = [{'byteLength': len(self.data)}]
-        js = json.dumps(self.gltf, separators=(',', ':'), allow_nan=False).encode()
+        # glTF optional arrays have minItems=1; texture-free scenes omit them.
+        document_gltf = {key:value for key,value in self.gltf.items() if not isinstance(value,list) or value}
+        js = json.dumps(document_gltf, separators=(',', ':'), allow_nan=False).encode()
         js += b' ' * (-len(js) % 4)
         payload = struct.pack('<III', 0x46546C67, 2, 28 + len(js) + len(self.data)) + struct.pack('<II', len(js), 0x4E4F534A) + js + struct.pack('<II', len(self.data), 0x004E4942) + self.data
         save_if_changed(model_path, payload)

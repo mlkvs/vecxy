@@ -108,5 +108,5 @@ shared instances, external references, collider/tint overrides, field inheritanc
 prototype-only export, override reset and prototype-edit lifecycle. All test artifacts
 are stored under `.agents/local/`.
 
-The real example and Russian workflow guide are `Horror/Authoring/Laundromat.blend`
+The real example and Russian workflow guide are `Horror/Authoring/Sandbox.blend`
 and `Horror/Authoring/README.md`.

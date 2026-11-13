@@ -23,6 +23,13 @@ assert 'Horror.LaundryMachine' in schema.CATALOG
 assert 'Vecxy.Physics.BoxCollider' in schema.CATALOG
 assert any(f['label']=='Номер машинки' and f['kind']=='INT' for f in schema.CATALOG['Horror.LaundryMachine']['fields'])
 bpy.ops.object.select_all(action='SELECT');bpy.ops.object.delete(use_global=False)
+bpy.ops.mesh.primitive_plane_add(size=4)
+plane=bpy.context.object
+schema.add_component(plane.vecxy,'Vecxy.Physics.BoxCollider')
+assert bpy.ops.vecxy.fit_collider()=={'FINISHED'}
+shape=schema.collider_view(plane.vecxy)
+assert abs(shape.collider_size[2]-.02)<1e-5 and abs(shape.collider_center[2]+.01)<1e-5
+bpy.data.objects.remove(plane,do_unlink=True)
 bpy.ops.mesh.primitive_cube_add(size=2,location=(0,0,1))
 obj=bpy.context.object;obj.name='TestWasher'
 # Re-exporting already localized images must not grow content-hash prefixes.

@@ -3,6 +3,7 @@ import importlib.util
 import json
 from pathlib import Path
 import shutil
+import struct
 import tempfile
 import unittest
 from pxr import Usd, UsdGeom, UsdShade, Sdf, Gf, UsdUtils
@@ -82,6 +83,14 @@ class UsdCookTests(unittest.TestCase):
         stage.GetRootLayer().Save();doc=self.cook()
         record=next(p for p in doc['prims'] if p['path']=='/World/Instance_1')
         self.assertEqual(record['components'][0]['data'],{'number':2,'cycle':600})
+    def test_texture_free_glb_omits_empty_optional_arrays(self):
+        self.cook()
+        data=(self.root/'Compiled/scene.glb').read_bytes()
+        length=struct.unpack_from('<I',data,12)[0]
+        gltf=json.loads(data[20:20+length])
+        self.assertNotIn('images',gltf)
+        self.assertNotIn('textures',gltf)
+        self.assertTrue(all(not isinstance(v,list) or len(v)>0 for v in gltf.values()))
     def test_unresolved_reference_rejected(self):
         self.asset.unlink()
         with self.assertRaisesRegex(ValueError,'Unresolved USD dependencies'):self.cook()
