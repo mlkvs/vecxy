@@ -25,6 +25,17 @@ assert any(f['label']=='Номер машинки' and f['kind']=='INT' for f in
 bpy.ops.object.select_all(action='SELECT');bpy.ops.object.delete(use_global=False)
 bpy.ops.mesh.primitive_cube_add(size=2,location=(0,0,1))
 obj=bpy.context.object;obj.name='TestWasher'
+# Re-exporting already localized images must not grow content-hash prefixes.
+import hashlib
+image=bpy.data.images.new('TestTexture',width=2,height=2)
+image.filepath_raw=str(root/'test.png');image.file_format='PNG';image.save()
+payload=(root/'test.png').read_bytes();digest=hashlib.sha256(payload).hexdigest()[:12]
+localized=root/(digest+'_test.png');localized.write_bytes(payload);image.filepath=str(localized)
+material=bpy.data.materials.new('Textured');material.use_nodes=True
+texture=material.node_tree.nodes.new('ShaderNodeTexImage');texture.image=image
+material.node_tree.links.new(texture.outputs['Color'],material.node_tree.nodes.get('Principled BSDF').inputs['Base Color'])
+obj.data.materials.append(material)
+
 # A rotated child under a nonuniform instance must retain its exact shape.
 bpy.ops.mesh.primitive_cube_add(size=.5,location=(.8,0,1))
 child=bpy.context.object;child.name='Angled detail';child.parent=obj
@@ -52,6 +63,7 @@ bpy.ops.wm.save_as_mainfile(filepath=str(root/'Authoring.blend'))
 count=len(bpy.data.objects)
 assert bpy.ops.vecxy.export_scene()=={'FINISHED'}
 assert len(bpy.data.objects)==count,'Export must not create collider helper objects'
+assert not any(digest+'_'+digest in p.name for p in (root/'Assets').rglob('*.png'))
 scene_bytes=(root/'Assets/Scene.usda').read_bytes()
 field=next(f for f in schema.CATALOG[comp.type_name]['fields'] if f['key']=='cycleSeconds');schema.set_param(comp,field,600)
 assert bpy.ops.vecxy.export_prototype()=={'FINISHED'}

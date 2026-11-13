@@ -38,7 +38,10 @@ def run(manifest):
             resolved=value.resolvedPath or str((source.parent/value.path).resolve())
             if not Path(resolved).is_file():raise ValueError('Missing exported asset: '+str(value.path)+'; check image paths in Blender')
             payload=Path(resolved).read_bytes()
-            target=output.parent/'Textures'/(hashlib.sha256(payload).hexdigest()[:12]+'_'+Path(value.path).name)
+            digest=hashlib.sha256(payload).hexdigest()[:12]
+            name=Path(value.path).name
+            while name.startswith(digest+'_'):name=name[len(digest)+1:]
+            target=output.parent/'Textures'/(digest+'_'+name)
             target.parent.mkdir(exist_ok=True)
             if not target.exists() or target.read_bytes()!=payload:target.write_bytes(payload)
             attr.Set(Sdf.AssetPath(Path(os.path.relpath(target,output.parent)).as_posix()))
