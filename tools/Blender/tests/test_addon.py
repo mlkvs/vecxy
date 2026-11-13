@@ -89,26 +89,26 @@ assert any(p.get('tint') for p in instances)
 assert bpy.ops.vecxy.reset_overrides()=={'FINISHED'}
 assert len(second.vecxy.components)==0
 original_matrices={o:o.matrix_world.copy() for o in col.all_objects}
+instance_matrix=second.matrix_world.copy()
 assert bpy.ops.vecxy.edit_prototype()=={'FINISHED'}
-proxy=settings.editing_proxy
-assert proxy and col.name not in bpy.context.scene.collection.children
-for copy in proxy.all_objects:
-    if not copy.get('vecxy_edit_original'):continue
-    original=bpy.data.objects[copy['vecxy_edit_original']]
-    assert copy.data is original.data
-    expected=second.matrix_world @ original_matrices[original]
-    assert max(abs(copy.matrix_world[i][j]-expected[i][j]) for i in range(4) for j in range(4))<.00001,'Editing must preserve instance position, scale and proportions'
-    assert max(abs(original.matrix_world[i][j]-original_matrices[original][i][j]) for i in range(4) for j in range(4))<.00001
-# Shared vertex edits and object-mode changes survive a scaled edit placement.
-copy=next(o for o in proxy.all_objects if o.type=='MESH')
-original=bpy.data.objects[copy['vecxy_edit_original']]
-copy.data.vertices[0].co.x+=.25
-assert original.data.vertices[0].co.x==copy.data.vertices[0].co.x
-copy.location.x+=.3
+assert settings.editing_proxy is None
+assert bpy.context.collection==col,'New parts must be added into the real prototype'
+assert len(bpy.data.objects)==count,'Opening a prototype must create no objects'
+assert bpy.context.object in set(col.all_objects),'Edit the real source, not a copy'
+assert all(o.hide_get() for o in (instance,second))
+for original in col.all_objects:
+    assert not original.hide_get()
+    assert max(abs(original.matrix_world[i][j]-original_matrices[original][i][j]) for i in range(4) for j in range(4))<1e-5
+# Edits directly update the source. Instance scale never gets applied to it.
+original=next(o for o in col.all_objects if o.type=='MESH')
+original.data.vertices[0].co.x+=.25
+original.location.x+=.3
 bpy.context.view_layer.update()
-expected=second.matrix_world.inverted() @ copy.matrix_world
+expected=original.matrix_world.copy()
 assert bpy.ops.vecxy.finish_prototype()=={'FINISHED'}
 assert max(abs(original.matrix_world[i][j]-expected[i][j]) for i in range(4) for j in range(4))<1e-5
-assert settings.editing_proxy is None and not second.hide_get()
+assert max(abs(second.matrix_world[i][j]-instance_matrix[i][j]) for i in range(4) for j in range(4))<1e-5
+assert settings.editing is None and not second.hide_get()
+assert col.name not in bpy.context.scene.collection.children
 assert len(bpy.data.objects)==count
-print('PASS: generated project/engine catalog, typed colliders as components, field inheritance, external prototype update, shared GPU source, no collider objects, in-place editing with exact nonuniform instance scale')
+print('PASS: generated component fields, colliders, USD inheritance, original prototype isolation without copies, source transforms unchanged and scene visibility restored')

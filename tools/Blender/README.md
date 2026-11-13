@@ -22,10 +22,11 @@ and writes components. Set **OpenUSD Python** in the sidebar, or use the reposit
 
 - Marking a selected hierarchy as a prototype moves its geometry into a source
   collection and leaves an instance in the same position.
-- All instances use the source collection. **Edit shared model here** creates temporary
-  linked mesh views at the selected instance’s exact placement and scale, keeping the
-  current viewpoint. **Finish editing shared model** applies object transforms back to
-  the source and removes the temporary views. Mesh edits are shared immediately.
+- All instances use the source collection. **Edit original prototype** exposes that
+  actual collection and enters Blender's native Local View (`/`). No object, mesh or
+  collection is duplicated. The source keeps its own authoring scale. The active
+  collection is the prototype, so added/deleted parts directly change the shared model.
+  **Return to scene** restores visibility, library exclusion and instance selection.
 - Default components, including colliders, belong to the source collection. Individual
   instances can override collider settings, role, tint and component fields.
 - Components are keyed records. The instance stores only `vecxy:componentOverrides`;
@@ -105,7 +106,7 @@ blender --background --factory-startup --python Engine/Vecxy/tools/Blender/tests
 
 The test creates a fresh scene and checks operator behavior, fitting without helpers,
 shared instances, external references, collider/tint overrides, field inheritance after
-prototype-only export, override reset and prototype-edit lifecycle. All test artifacts
+prototype-only export, override reset and original-source isolation/visibility restoration. All test artifacts
 are stored under `.agents/local/`.
 
 The real example and Russian workflow guide are `Horror/Authoring/Sandbox.blend`

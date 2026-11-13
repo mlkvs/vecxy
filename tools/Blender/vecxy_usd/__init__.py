@@ -1,5 +1,5 @@
 bl_info = {
-    'name': 'Vecxy USD Tools', 'author': 'Vecxy', 'version': (1, 0, 0),
+    'name': 'Vecxy USD Tools', 'author': 'Vecxy', 'version': (1, 1, 0),
     'blender': (5, 2, 0), 'location': '3D View > Sidebar > Vecxy',
     'description': 'Components, collider previews, shared prototypes and referenced USD export',
     'category': 'Import-Export',
@@ -86,7 +86,12 @@ class VECXY_SceneSettings(bpy.types.PropertyGroup):
     editing_proxy: PointerProperty(type=bpy.types.Collection)
     editing_instance: PointerProperty(type=bpy.types.Object)
     editing_hidden: BoolProperty(default=False)
-    editing_matrix: StringProperty(default='')
+    editing_matrix: StringProperty(default='')  # Legacy proxy migration only.
+    editing_visibility: StringProperty(default='')
+    editing_layer_state: StringProperty(default='')
+    editing_selection: StringProperty(default='')
+    editing_view_area: StringProperty(default='')
+    editing_linked: BoolProperty(default=False)
     normalized_z_up: BoolProperty(default=True, options={'HIDDEN'})
 
 
@@ -140,10 +145,7 @@ class VECXY_OT_fit_collider(bpy.types.Operator):
     def execute(self,context):
         obj=settings_owner(context.object);settings=current_settings(context)
         editing=context.scene.vecxy_usd.editing
-        if editing and context.scene.vecxy_usd.editing_proxy:
-            import json
-            inverse=Matrix(json.loads(context.scene.vecxy_usd.editing_matrix)).inverted_safe()
-            points=[inverse @ mesh.matrix_world @ Vector(c) for mesh in context.scene.vecxy_usd.editing_proxy.all_objects if mesh.type=='MESH' for c in mesh.bound_box]
+        if editing and obj.name in editing.all_objects:points=collection_bounds(editing)
         else:points=local_bounds(obj)
         if not points:self.report({'ERROR'},'No mesh geometry to fit');return {'CANCELLED'}
         lo=Vector(tuple(min(p[i] for p in points) for i in range(3)));hi=Vector(tuple(max(p[i] for p in points) for i in range(3)))
@@ -226,64 +228,123 @@ class VECXY_OT_create_instance(bpy.types.Operator):
         return {'FINISHED'}
 
 
+def layer_path(layer,col):
+    if layer.collection==col:return [layer]
+    for child in layer.children:
+        path=layer_path(child,col)
+        if path:return [layer,*path]
+    return None
+
+
+def viewport(context,stored=''):
+    import json
+    if bpy.app.background:return None
+    wanted=json.loads(stored) if stored else None
+    for window in context.window_manager.windows:
+        for index,area in enumerate(window.screen.areas):
+            if area.type!='VIEW_3D':continue
+            if wanted and wanted!=[window.screen.name,index]:continue
+            if not wanted and context.area and context.area.type=='VIEW_3D' and area!=context.area:continue
+            return window,area,index
+    return None
+
+
+def toggle_local_view(context,view,frame=True):
+    window,area,_=view
+    region=next(r for r in area.regions if r.type=='WINDOW')
+    with context.temp_override(window=window,area=area,region=region):
+        bpy.ops.view3d.localview(frame_selected=frame)
+
+
 class VECXY_OT_edit_prototype(bpy.types.Operator):
-    bl_idname='vecxy.edit_prototype';bl_label='Edit shared model here';bl_options={'REGISTER','UNDO'}
+    bl_idname='vecxy.edit_prototype';bl_label='Edit original prototype';bl_options={'REGISTER','UNDO'}
     def execute(self,context):
         import json
         settings=context.scene.vecxy_usd
-        if settings.editing:self.report({'ERROR'},'Finish the current shared-model edit first');return {'CANCELLED'}
+        if settings.editing_proxy:bpy.ops.vecxy.finish_prototype()
+        if settings.editing:self.report({'ERROR'},'Return to the scene first');return {'CANCELLED'}
         instance=context.object;col=instance_collection(instance)
         if not col:self.report({'ERROR'},'Select a prototype instance first');return {'CANCELLED'}
-        proxy=bpy.data.collections.new('Vecxy_Shared_Edit');proxy.vecxy.is_edit_proxy=True
-        context.scene.collection.children.link(proxy)
-        placement=instance.matrix_world @ Matrix.Translation(-col.instance_offset)
-        settings.editing=col;settings.editing_proxy=proxy;settings.editing_instance=instance
-        settings.editing_hidden=instance.hide_get();settings.editing_matrix=json.dumps([list(row) for row in placement])
-        for selected in context.selected_objects:selected.select_set(False)
-        instance.hide_set(True)
-        # Keep placement on a parent: decomposing nonuniform scale and a rotated
-        # child's world matrix into TRS would introduce a shape-changing shear loss.
-        root=bpy.data.objects.new('Vecxy_Edit_Placement',None);proxy.objects.link(root)
-        root.matrix_world=placement;root.hide_select=True
-        copies={}
-        for original in col.all_objects:
-            copy=original.copy();proxy.objects.link(copy);copy['vecxy_edit_original']=original.name
-            copy.hide_set(False);copies[original]=copy
-        for original,copy in copies.items():
-            if original.parent in copies:copy.parent=copies[original.parent]
-            else:
-                copy.parent=root;copy.matrix_parent_inverse=Matrix.Identity(4);copy.matrix_basis=original.matrix_world.copy()
-            copy.select_set(copy.type=='MESH')
+        if context.mode!='OBJECT':bpy.ops.object.mode_set(mode='OBJECT')
+        settings.editing_selection=json.dumps({'selected':[o.name for o in context.selected_objects],'active':instance.name,'layer':context.view_layer.active_layer_collection.collection.name})
+        settings.editing=col;settings.editing_instance=instance
+        # Expose the existing collection in place in the library hierarchy. Only
+        # unlinked collections need a temporary link; no objects or data are copied.
+        path=layer_path(context.view_layer.layer_collection,col)
+        settings.editing_linked=path is None
+        if path is None:
+            context.scene.collection.children.link(col)
+            path=layer_path(context.view_layer.layer_collection,col)
+        settings.editing_layer_state=json.dumps([{'name':layer.collection.name,'exclude':layer.exclude,
+            'hidden':layer.hide_viewport,'collectionHidden':layer.collection.hide_viewport} for layer in path[1:]])
+        for layer in path:
+            layer.exclude=False;layer.hide_viewport=False;layer.collection.hide_viewport=False
+        context.view_layer.active_layer_collection=path[-1]
         context.view_layer.update()
-        active=next((o for o in copies.values() if o.type=='MESH'),None)
-        if active:context.view_layer.objects.active=active
-        # Keep the existing viewpoint, position and instance scale. Mesh data is shared
-        # so edits appear on all instances while the source transforms stay untouched.
+        settings.editing_visibility=json.dumps({o.name:o.hide_get() for o in context.view_layer.objects})
+        members=set(col.all_objects)
+        for obj in context.view_layer.objects:
+            obj.select_set(False);obj.hide_set(obj not in members)
+        for obj in members:obj.select_set(True)
+        active=next((o for o in col.all_objects if o.type=='MESH'),next(iter(col.all_objects),None))
+        context.view_layer.objects.active=active
+        view=viewport(context)
+        if view:
+            if view[1].spaces.active.local_view:toggle_local_view(context,view,False)
+            toggle_local_view(context,view)
+            settings.editing_view_area=json.dumps([view[0].screen.name,view[2]])
         return {'FINISHED'}
 
 
 class VECXY_OT_finish_edit(bpy.types.Operator):
-    bl_idname='vecxy.finish_prototype';bl_label='Finish editing shared model';bl_options={'REGISTER','UNDO'}
+    bl_idname='vecxy.finish_prototype';bl_label='Return to scene';bl_options={'REGISTER','UNDO'}
     def execute(self,context):
         import json
-        settings=context.scene.vecxy_usd;proxy=settings.editing_proxy
+        settings=context.scene.vecxy_usd;proxy=settings.editing_proxy;was_proxy=proxy is not None
+        if context.mode!='OBJECT' and context.object:bpy.ops.object.mode_set(mode='OBJECT')
+        # Older saved files may still contain temporary edit copies. Transfer their
+        # object transforms back once, retaining the shared mesh edits, then remove
+        # only these explicitly tagged temporary objects.
         if proxy:
             placement=Matrix(json.loads(settings.editing_matrix));inverse=placement.inverted_safe()
             pairs=[(o,bpy.data.objects.get(o.get('vecxy_edit_original',''))) for o in proxy.all_objects]
             def depth(obj):
                 result=0
-                while obj.parent:
-                    result+=1;obj=obj.parent
+                while obj.parent:result+=1;obj=obj.parent
                 return result
             pairs.sort(key=lambda pair:depth(pair[0]))
             for copy,original in pairs:
                 if original:original.matrix_world=inverse @ copy.matrix_world
             for copy,_ in pairs:bpy.data.objects.remove(copy,do_unlink=True)
             bpy.data.collections.remove(proxy)
+        else:
+            view=viewport(context,settings.editing_view_area) if settings.editing_view_area else None
+            if view and view[1].spaces.active.local_view:toggle_local_view(context,view,False)
+            context.view_layer.objects.active=None
+            for name,hidden in json.loads(settings.editing_visibility or '{}').items():
+                obj=context.view_layer.objects.get(name)
+                if obj:obj.hide_set(hidden);obj.select_set(False)
+            for state in json.loads(settings.editing_layer_state or '[]'):
+                col=bpy.data.collections.get(state['name'])
+                path=layer_path(context.view_layer.layer_collection,col) if col else None
+                if path:
+                    layer=path[-1];layer.exclude=state['exclude'];layer.hide_viewport=state['hidden'];col.hide_viewport=state['collectionHidden']
+            if settings.editing_linked and settings.editing and settings.editing.name in context.scene.collection.children:
+                context.scene.collection.children.unlink(settings.editing)
         instance=settings.editing_instance
-        if instance:
-            instance.hide_set(settings.editing_hidden);instance.select_set(True);context.view_layer.objects.active=instance
-        settings.editing=None;settings.editing_proxy=None;settings.editing_instance=None;settings.editing_matrix=''
+        selection=json.loads(settings.editing_selection or '{}')
+        old_layer=bpy.data.collections.get(selection.get('layer',''))
+        old_path=layer_path(context.view_layer.layer_collection,old_layer) if old_layer else None
+        if old_path:context.view_layer.active_layer_collection=old_path[-1]
+        for name in selection.get('selected',[]):
+            obj=context.view_layer.objects.get(name)
+            if obj and not obj.hide_get():obj.select_set(True)
+        if instance and instance.name in context.view_layer.objects:
+            if was_proxy:instance.hide_set(settings.editing_hidden)
+            instance.select_set(True);context.view_layer.objects.active=instance
+        settings.editing=None;settings.editing_proxy=None;settings.editing_instance=None
+        settings.editing_matrix='';settings.editing_visibility='';settings.editing_layer_state=''
+        settings.editing_selection='';settings.editing_view_area='';settings.editing_linked=False
         return {'FINISHED'}
 
 
@@ -382,7 +443,7 @@ class VECXY_PT_tools(bpy.types.Panel):
                 layout.label(text='Shared model: '+col.vecxy.asset_name,icon='OUTLINER_COLLECTION')
                 layout.label(text='Instance: '+obj.name)
                 layout.operator('vecxy.create_instance',text='Create linked copy')
-                layout.operator('vecxy.edit_prototype',text='Edit shared model here')
+                layout.operator('vecxy.edit_prototype',text='Edit original prototype')
                 layout.prop(obj.vecxy,'edit_defaults')
                 if obj.vecxy.edit_defaults:
                     layout.prop(col.vecxy,'asset_name');layout.prop(col.vecxy,'export_path')
@@ -455,7 +516,7 @@ def draw_colliders():
             if settings.collider=='NONE':continue
             if source_edit:
                 import json
-                matrix=Matrix(json.loads(context.scene.vecxy_usd.editing_matrix)) if context.scene.vecxy_usd.editing_matrix else Matrix.Identity(4)
+                matrix=Matrix.Identity(4)
             else:matrix=obj.matrix_world
             center=Vector(settings.collider_center);points=[]
             axis=getattr(settings,'collider_axis','Z')
@@ -494,6 +555,7 @@ def load_project_catalog(dummy):
             schema.reload_catalog(bpy.context)
             for owner in [*bpy.data.objects,*bpy.data.collections]:
                 for component in owner.vecxy.components:schema.ensure_fields(component,overrides=isinstance(owner,bpy.types.Object) and bool(instance_collection(owner)))
+            if bpy.context.scene.vecxy_usd.editing_proxy:bpy.ops.vecxy.finish_prototype()
         except Exception as error:print('Vecxy catalog:',error)
 
 
