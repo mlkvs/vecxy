@@ -88,8 +88,11 @@ public sealed class UiCanvas(IUiManager ui, IAssetsManager? assets = null) : ACo
     public Func<Vector3,Vector3,float,bool>? IsRayOccluded { get; set; }
     private int _occlusionFrame;
     public bool CursorVisible => _cursor?.IsVisible == true && CapturesMouseLook;
-    public Vector2? CursorPosition => CapturesMouseLook && RaycastOutput(_surfacePointer.Output,true,out var p,out _)
-        ? p / Math.Max(.0001f,Document?.LayoutScale ?? 1) : null;
+    public Vector2? CursorPosition => CapturesMouseLook
+        ? _surfacePointer.Position / Math.Max(.0001f,Document?.LayoutScale ?? 1) : null;
+    /// <summary>The cursor target remains attached to the canvas while the camera follows it.</summary>
+    public Vector3? CursorWorldPosition => CapturesMouseLook && TryGetPlane(out var plane)
+        ? Vector3.Transform(new Vector3(_surfacePointer.Position,0),plane.CanvasToWorld) : null;
     public bool CapturesMouseLook => IsActive && Interactive && RenderMode == EUiRenderMode.WorldSpace &&
         _capturedInput && InputMode == EUiWorldInputMode.SurfaceCursor && _surfacePointer.Active;
     internal bool UsesViewRay => _capturedInput && InputMode == EUiWorldInputMode.ViewRay;
@@ -132,9 +135,19 @@ public sealed class UiCanvas(IUiManager ui, IAssetsManager? assets = null) : ACo
         var centre = new Vector2(_outputWidth*.5f,_outputHeight*.5f);
         if (_capturedInput && InputMode == EUiWorldInputMode.SurfaceCursor && IsActive)
         {
-            var centreInside = RaycastOutput(centre,true,out _,out _);
-            var movedInside = RaycastOutput(_surfacePointer.Output+pointerDelta,true,out _,out _);
-            _surfacePointer.Update(centreInside,movedInside,centre,pointerDelta);
+            var centreInside = RaycastOutput(centre,true,out var centrePoint,out _);
+            var candidate = _surfacePointer.Position;
+            var candidateValid = false;
+            var candidateInside = false;
+            if ((_surfacePointer.Active || _surfacePointer.Released) && _camera is not null && TryGetPlane(out var area) &&
+                area.TryProject(_surfacePointer.Position, _camera.ViewMatrix * _camera.GetProjectionMatrix(_outputWidth/(float)_outputHeight),
+                    _outputWidth,_outputHeight,out var projected))
+            {
+                candidateValid = RaycastOutput(projected+pointerDelta,false,out candidate,out _);
+                candidateInside = candidateValid && RaycastOutput(projected+pointerDelta,true,out _,out _);
+                if (candidateValid && pointerDelta == Vector2.Zero) candidate = _surfacePointer.Position;
+            }
+            _surfacePointer.Update(centreInside,centrePoint,candidateValid,candidateInside,candidate,pointerDelta.LengthSquared()>0);
         }
         else _surfacePointer.Reset();
         UpdateCursor();
@@ -149,7 +162,7 @@ public sealed class UiCanvas(IUiManager ui, IAssetsManager? assets = null) : ACo
     }
 
     internal int HitSignature => HashCode.Combine(
-        HashCode.Combine(HashCode.Combine(IsActive, Interactive, RenderMode, PixelsPerMeter, DoubleSided, InputMode, _surfacePointer.Output, _surfacePointer.Active),_occlusionFrame,_capturedInput),
+        HashCode.Combine(HashCode.Combine(IsActive, Interactive, RenderMode, PixelsPerMeter, DoubleSided, InputMode, _surfacePointer.Position, _surfacePointer.Active),_occlusionFrame,_capturedInput),
         _surface is { IsDestroyed: false, IsConfigured: true } ? _surface.Mesh : null,
         _surface is { IsDestroyed: false } ? _surface.Transform.WorldMatrix : Matrix4x4.Identity,
         _camera is { IsDestroyed: false } ? _camera.Transform.WorldMatrix : Matrix4x4.Identity,
@@ -187,11 +200,10 @@ public sealed class UiCanvas(IUiManager ui, IAssetsManager? assets = null) : ACo
             if (path.Length == 0) { _cursor.SetStyle("background-color","white"); _cursor.SetStyle("border-radius","50%"); }
             document.Root.Add(_cursor);
         }
-        var pixel = Vector2.Zero;
-        var visible = CapturesMouseLook && RaycastOutput(_surfacePointer.Output,true,out pixel,out _);
+        var visible = CapturesMouseLook;
         _cursor.IsVisible = visible;
         if (!visible) return;
-        var point = pixel / Math.Max(.0001f,document.LayoutScale);
+        var point = _surfacePointer.Position / Math.Max(.0001f,document.LayoutScale);
         var size = CursorImage.Length > 0 ? Math.Clamp(CursorSize,4,256) : 6;
         _cursor.SetStyle("width",size.ToString(System.Globalization.CultureInfo.InvariantCulture)+"px");
         _cursor.SetStyle("height",size.ToString(System.Globalization.CultureInfo.InvariantCulture)+"px");
@@ -202,7 +214,11 @@ public sealed class UiCanvas(IUiManager ui, IAssetsManager? assets = null) : ACo
     {
         if (_capturedInput && InputMode == EUiWorldInputMode.ViewRay) output = new Vector2(_outputWidth*.5f,_outputHeight*.5f);
         else if (_capturedInput && InputMode == EUiWorldInputMode.SurfaceCursor)
-        { if (!_surfacePointer.Active) { point = default; distance = 0; return false; } output = _surfacePointer.Output; }
+        {
+            point = _surfacePointer.Position;
+            distance = CursorWorldPosition is { } world && _camera is not null ? Vector3.Distance(world,_camera.Transform.WorldPosition) : 0;
+            return _surfacePointer.Active;
+        }
         return RaycastOutput(output,clip,out point,out distance);
     }
 

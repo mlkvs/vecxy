@@ -36,14 +36,30 @@ public static class UiWorldInteraction
 internal sealed class UiSurfacePointer
 {
     public bool Active { get; private set; }
-    public bool NeedsLookAway { get; private set; }
-    public Vector2 Output { get; private set; }
-    public void Reset() { Active = NeedsLookAway = false; Output = default; }
-    public void Update(bool centreInside, bool movedInside, Vector2 centre, Vector2 delta)
+    public bool Released { get; private set; }
+    public Vector2 Position { get; private set; }
+    private bool _lookedAway;
+
+    public void Reset() { Active = Released = _lookedAway = false; Position = default; }
+
+    // Position belongs to the canvas, so moving the camera cannot drag the cursor.
+    public void Update(bool centreInside, Vector2 centre, bool candidateValid, bool candidateInside, Vector2 candidate, bool moved)
     {
-        if (NeedsLookAway) { if (!centreInside) NeedsLookAway = false; return; }
-        if (!Active) { if (centreInside) { Active = true; Output = centre; } return; }
-        Output += delta;
-        if (!movedInside) { Active = false; NeedsLookAway = true; }
+        if (Active)
+        {
+            if (candidateValid) Position = candidate;
+            if (!candidateInside) { Active = false; Released = true; _lookedAway = !centreInside; }
+            return;
+        }
+        if (!centreInside) _lookedAway = true;
+        if (centreInside && (!Released || _lookedAway))
+            Enter(centre);
+        else if (centreInside && Released && moved && candidateInside)
+            Enter(candidate);
+    }
+
+    private void Enter(Vector2 position)
+    {
+        Position = position; Active = true; Released = _lookedAway = false;
     }
 }

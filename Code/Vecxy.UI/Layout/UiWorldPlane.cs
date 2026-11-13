@@ -6,6 +6,16 @@ internal readonly record struct UiWorldPlane(Matrix4x4 CanvasToWorld, int Width,
 {
     public Vector3 Center => Vector3.Transform(new Vector3(Width * .5f, Height * .5f, 0), CanvasToWorld);
 
+    public bool TryProject(Vector2 point, Matrix4x4 viewProjection, int width, int height, out Vector2 output)
+    {
+        var world = Vector3.Transform(new Vector3(point, 0), CanvasToWorld);
+        var clip = Vector4.Transform(new Vector4(world, 1), viewProjection);
+        output = default;
+        if (!float.IsFinite(clip.W) || clip.W <= 1e-6f) return false;
+        output = new Vector2((clip.X / clip.W * .5f + .5f) * width, (.5f - clip.Y / clip.W * .5f) * height);
+        return float.IsFinite(output.X) && float.IsFinite(output.Y);
+    }
+
     public static UiWorldPlane FromBounds(Vector3 min, Vector3 max, Matrix4x4 model, float pixelsPerMeter)
     {
         if (!float.IsFinite(pixelsPerMeter) || pixelsPerMeter <= 0) throw new ArgumentOutOfRangeException(nameof(pixelsPerMeter));

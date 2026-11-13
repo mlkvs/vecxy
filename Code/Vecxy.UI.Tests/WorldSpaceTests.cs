@@ -30,22 +30,53 @@ internal static class WorldSpaceTests
     }
     private static void SurfaceCursorReleasesLookAtTheBoundary()
     {
-        var pointer = new UiSurfacePointer(); var centre = new Vector2(640,360);
-        pointer.Update(false,false,centre,Vector2.Zero);
+        var pointer = new UiSurfacePointer(); var centre = new Vector2(354,180);
+        pointer.Update(false,centre,false,false,default,false);
         Check(!pointer.Active,"Looking away must not capture the mouse");
-        pointer.Update(true,false,centre,new(30,20));
-        Check(pointer.Active && pointer.Output == centre,"Entering the panel starts at the view ray");
-        pointer.Update(true,true,centre,new(30,20));
-        Check(pointer.Output == centre+new Vector2(30,20),"Captured pointer follows relative mouse motion");
-        pointer.Update(true,false,centre,new(2000,0));
-        Check(!pointer.Active && pointer.NeedsLookAway,"Leaving the panel hides the cursor and releases look");
-        pointer.Update(true,true,centre,Vector2.Zero);
-        Check(!pointer.Active,"A pointer leaving the edge must not immediately snap back to centre");
-        pointer.Update(false,false,centre,Vector2.Zero);
-        pointer.Update(true,true,centre,Vector2.Zero);
-        Check(pointer.Active && pointer.Output == centre,"Looking away and back permits reentry");
+        pointer.Update(true,centre,false,false,default,true);
+        Check(pointer.Active && pointer.Position == centre,"Entering the panel starts at the view ray");
+        var moved=centre+new Vector2(30,20);
+        pointer.Update(true,centre,true,true,moved,true);
+        Check(pointer.Position == moved,"Captured pointer follows relative mouse motion");
+        pointer.Update(true,centre,true,false,new(720,180),true);
+        Check(!pointer.Active && pointer.Released,"Leaving the panel hides the cursor and releases look");
+        pointer.Update(true,centre,true,false,new(720,180),false);
+        Check(!pointer.Active,"A stationary pointer leaving the edge must not snap back to centre");
+        pointer.Update(true,centre,true,true,new(700,180),true);
+        Check(pointer.Active && pointer.Position == new Vector2(700,180),"Reversing through the same edge reenters without requiring look-away");
+        for (var i=0;i<20;i++)
+        {
+            pointer.Update(true,centre,true,false,new(720,180),true);
+            pointer.Update(true,centre,true,true,new(700,180),true);
+            Check(pointer.Active,"Repeated edge exits and reentries must not latch the cursor off");
+        }
+        pointer.Update(true,centre,true,false,new(720,180),true);
+        pointer.Update(false,centre,true,true,new(700,180),true);
+        Check(!pointer.Active,"An old released panel must not capture the mouse while looking elsewhere");
+        pointer.Update(true,centre,true,false,new(720,180),false);
+        Check(pointer.Active && pointer.Position == centre,"Looking away and back also permits reentry");
         pointer.Reset();
-        Check(!pointer.Active && !pointer.NeedsLookAway,"Disabling input clears the capture state");
+        Check(!pointer.Active && !pointer.Released,"Disabling input clears the capture state");
+        SurfaceCursorProjectionSurvivesCameraMotion();
+    }
+
+    private static void SurfaceCursorProjectionSurvivesCameraMotion()
+    {
+        var plane=UiWorldPlane.FromBounds(new(-1,-.5f,0),new(1,.5f,0),Matrix4x4.Identity,600);
+        var point=new Vector2(870,420);
+        var projection=Matrix4x4.CreatePerspectiveFieldOfView(1.3f,1280f/720,.05f,100);
+        foreach(var eye in new[]{new Vector3(0,0,3),new Vector3(.4f,.2f,2.8f),new Vector3(-.5f,.3f,2.6f)})
+        {
+            var vp=Matrix4x4.CreateLookAt(eye,new(.2f,.1f,0),Vector3.UnitY)*projection;
+            Check(plane.TryProject(point,vp,1280,720,out var output),"World cursor projects after camera movement");
+            Matrix4x4.Invert(vp,out var inverse);
+            var clip=new Vector4(output.X/1280*2-1,1-output.Y/720*2,0,1);
+            var unprojected=Vector4.Transform(clip,inverse);
+            var rayPoint=new Vector3(unprojected.X,unprojected.Y,unprojected.Z)/unprojected.W;
+            Check(plane.TryRaycast(eye,Vector3.Normalize(rayPoint-eye),100,true,false,out var actual,out _),"Projected cursor still hits its canvas");
+            Check(Vector2.Distance(actual,point)<.01f,"Camera follow must not move the cursor off its original UI point");
+        }
+        Check(!plane.TryProject(point,Matrix4x4.CreateLookAt(new(0,0,-3),new(0,0,-4),Vector3.UnitY)*projection,1280,720,out _),"A cursor behind the camera cannot retain input capture");
     }
     private static void Near(Vector3 a,Vector3 b)=>Check(Vector3.Distance(a,b)<.002f,"Plane corners preserve source transforms and proportions");
     private static void Check(bool value,string message){if(!value)throw new Exception(message);}
