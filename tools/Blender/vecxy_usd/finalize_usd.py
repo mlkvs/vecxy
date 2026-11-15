@@ -7,7 +7,7 @@ import os
 from pathlib import Path
 import shutil
 import sys
-from pxr import Usd, UsdGeom, Sdf, Gf, Ar
+from pxr import Usd, UsdGeom, Sdf, Gf, Ar, UsdShade
 
 TYPES={'collider':Sdf.ValueTypeNames.Token,'colliderAxis':Sdf.ValueTypeNames.Token,
        'colliderSize':Sdf.ValueTypeNames.Float3,'colliderCenter':Sdf.ValueTypeNames.Float3,
@@ -29,6 +29,16 @@ def apply_settings(prim,values):
 def run(manifest):
     source=Path(manifest['input']);output=Path(manifest['output']);output.parent.mkdir(parents=True,exist_ok=True)
     stage=Usd.Stage.Open(str(source));layer=stage.GetRootLayer()
+    for prim in stage.Traverse():
+        if not prim.IsA(UsdShade.Material):continue
+        name=prim.GetAttribute('userProperties:blender:data_name').Get()
+        interpolation=manifest.get('textureFilters',{}).get(name)
+        if not interpolation:continue
+        surface=UsdShade.Material(prim).ComputeSurfaceSource()
+        diffuse=surface[0].GetInput('diffuseColor') if surface else None
+        if diffuse and diffuse.HasConnectedSource():
+            shader=diffuse.GetConnectedSource()[0].GetPrim()
+            shader.CreateAttribute('vecxy:interpolation',Sdf.ValueTypeNames.Token,custom=True).Set(interpolation)
     # Relocate texture assets from native export staging into stable per-asset storage.
     for prim in stage.Traverse():
         for attr in prim.GetAttributes():

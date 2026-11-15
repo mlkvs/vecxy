@@ -86,7 +86,9 @@ scene after edits; live updating existing scene topology is not implemented.
   triangle normals. Holes are omitted. Export evaluated/triangulated meshes for best
   fidelity; subdivision is the authored control mesh, not a runtime subdivision surface.
 - `UsdPreviewSurface`: diffuse color and `UsdUVTexture` color, constant metallic,
-  roughness, opacity, emission. Textures are embedded in the cache (PNG conversion).
+  roughness, opacity, emission. Textures are embedded in the cache (PNG conversion). The Blender addon preserves
+  connected base-color Image Texture interpolation: Closest uses NEAREST sampling,
+  while Linear retains linear sampling through GLB import and runtime materials.
 - Sphere/rectangle/disk lights as point lights, distant lights as directional lights.
   Area-light shapes are approximated by point lights in this renderer.
 - Box/sphere/capsule colliders attached to visual objects. `vecxy:colliderCenter`,

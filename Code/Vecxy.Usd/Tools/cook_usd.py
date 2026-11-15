@@ -114,8 +114,10 @@ class Cooker:
         resolved = value.resolvedPath
         if not resolved:
             raise ValueError(f'Unresolved texture {value.path} at {shader.GetPath()}')
-        if resolved in self.texture_cache:
-            return self.texture_cache[resolved]
+        closest = shader.GetPrim().GetAttribute('vecxy:interpolation').Get() == 'Closest'
+        key = (resolved, closest)
+        if key in self.texture_cache:
+            return self.texture_cache[key]
         from pxr import Ar
         from PIL import Image
         # Ar resolves both ordinary textures and assets inside USDZ archives.
@@ -128,8 +130,10 @@ class Cooker:
         image = len(self.gltf['images'])
         self.gltf['images'].append({'bufferView': self.view(stream.getvalue()), 'mimeType': 'image/png'})
         index = len(self.gltf['textures'])
-        self.gltf['textures'].append({'source': image, 'sampler': 0})
-        self.texture_cache[resolved] = index
+        sampler = {'magFilter': 9728, 'minFilter': 9728, 'wrapS': 10497, 'wrapT': 10497} if closest else self.gltf['samplers'][0]
+        if sampler not in self.gltf['samplers']:self.gltf['samplers'].append(sampler)
+        self.gltf['textures'].append({'source': image, 'sampler': self.gltf['samplers'].index(sampler)})
+        self.texture_cache[key] = index
         if '[' not in resolved:
             self.dependencies.add(Path(resolved).resolve())
         return index
@@ -166,6 +170,10 @@ class Cooker:
                 texture_shader = self.Shade.Shader(connected.GetPrim())
                 if texture_shader.GetIdAttr().Get() != 'UsdUVTexture':
                     raise ValueError(f'{shader.GetPath()}: only UsdUVTexture color connections are supported')
+                # USD connections replace an input's fallback value. glTF multiplies
+                # texture samples by baseColorFactor, so retaining the fallback
+                # (or our .5 default) would incorrectly tint every textured surface.
+                descriptor['pbrMetallicRoughness']['baseColorFactor'] = [1, 1, 1, opacity]
                 descriptor['pbrMetallicRoughness']['baseColorTexture'] = {'index': self.texture(texture_shader)}
             # Scalar texture networks cannot be represented faithfully yet; never silently drop them.
             for name in ('metallic', 'roughness', 'normal', 'opacity', 'emissiveColor'):

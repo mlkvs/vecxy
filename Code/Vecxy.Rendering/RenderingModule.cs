@@ -850,19 +850,19 @@ public sealed class RenderingModule(
         {
             parameters["uTexture"] =
                 new EmbeddedTextureMaterialParameter(
-                    source.BaseColorTexture);
+                    source.BaseColorTexture, Vector2.One, Vector2.Zero, source.BaseColorSampler);
         }
 
         if (source.NormalTexture is not null)
         {
             parameters["uNormalTexture"] =
-                new EmbeddedTextureMaterialParameter(source.NormalTexture);
+                new EmbeddedTextureMaterialParameter(source.NormalTexture, Vector2.One, Vector2.Zero, source.NormalSampler);
         }
 
         if (source.MetallicRoughnessTexture is not null)
         {
             parameters["uMetallicRoughnessTexture"] =
-                new EmbeddedTextureMaterialParameter(source.MetallicRoughnessTexture);
+                new EmbeddedTextureMaterialParameter(source.MetallicRoughnessTexture, Vector2.One, Vector2.Zero, source.MetallicRoughnessSampler);
         }
 
         return new Material(

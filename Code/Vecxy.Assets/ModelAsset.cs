@@ -234,10 +234,13 @@ public sealed class ModelMaterial
     public Vector4 BaseColor { get; }
     public TextureAsset? BaseColorTexture { get; }
     public int BaseColorTexCoord { get; }
+    public TextureSamplerState BaseColorSampler { get; }
     public TextureAsset? NormalTexture { get; }
     public int NormalTexCoord { get; }
+    public TextureSamplerState NormalSampler { get; }
     public TextureAsset? MetallicRoughnessTexture { get; }
     public int MetallicRoughnessTexCoord { get; }
+    public TextureSamplerState MetallicRoughnessSampler { get; }
     public float MetallicFactor { get; }
     public float RoughnessFactor { get; }
     public Vector3 EmissiveColor { get; }
@@ -253,7 +256,10 @@ public sealed class ModelMaterial
         int metallicRoughnessTexCoord,
         float metallicFactor,
         float roughnessFactor,
-        Vector3 emissiveColor)
+        Vector3 emissiveColor,
+        TextureSamplerState? baseColorSampler = null,
+        TextureSamplerState? normalSampler = null,
+        TextureSamplerState? metallicRoughnessSampler = null)
     {
         Name = name;
         BaseColor = baseColor;
@@ -266,6 +272,9 @@ public sealed class ModelMaterial
         MetallicFactor = metallicFactor;
         RoughnessFactor = roughnessFactor;
         EmissiveColor = emissiveColor;
+        BaseColorSampler = baseColorSampler ?? TextureSamplerState.Default;
+        NormalSampler = normalSampler ?? TextureSamplerState.Default;
+        MetallicRoughnessSampler = metallicRoughnessSampler ?? TextureSamplerState.Default;
     }
 }
 
@@ -685,10 +694,30 @@ public sealed class ModelAssetImporter : IAssetImporter<ModelAsset>
                 metallicRoughnessTexCoord,
                 pbr?.MetallicFactor ?? 1.0f,
                 pbr?.RoughnessFactor ?? 1.0f,
-                emissiveColor);
+                emissiveColor,
+                ImportSampler(gltf, textureIndex),
+                ImportSampler(gltf, material.NormalTexture?.Index),
+                ImportSampler(gltf, pbr?.MetallicRoughnessTexture?.Index));
         }
 
         return result;
+    }
+
+    private static TextureSamplerState ImportSampler(Gltf gltf, int? textureIndex)
+    {
+        if (textureIndex is null || gltf.Textures is null ||
+            textureIndex < 0 || textureIndex >= gltf.Textures.Length)
+            return TextureSamplerState.Default;
+        var index = gltf.Textures[textureIndex.Value].Sampler;
+        if (index is null || gltf.Samplers is null || index < 0 || index >= gltf.Samplers.Length)
+            return TextureSamplerState.Default;
+        var sampler = gltf.Samplers[index.Value];
+        var min = (int?)sampler.MinFilter ?? 9729;
+        return new TextureSamplerState(
+            min is 9728 or 9984 or 9986 ? ETextureFilter.Nearest : ETextureFilter.Linear,
+            (int?)sampler.MagFilter == 9728 ? ETextureFilter.Nearest : ETextureFilter.Linear,
+            (int)sampler.WrapS == 33071 ? ETextureWrap.Clamp : ETextureWrap.Repeat,
+            (int)sampler.WrapT == 33071 ? ETextureWrap.Clamp : ETextureWrap.Repeat);
     }
 
     private static ModelSkin[] ImportSkins(

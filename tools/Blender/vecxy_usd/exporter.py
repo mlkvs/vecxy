@@ -104,7 +104,17 @@ def native_export(context,objects,temporary):
 
 
 def finalize(context,input_path,output,records,root_settings=None):
-    manifest={'input':str(input_path),'output':str(output),'objects':records,'root':root_settings or {}}
+    # Blender's USD exporter omits Image Texture interpolation. Preserve the
+    # connected base-color node's setting alongside the native export.
+    filters={}
+    for material in bpy.data.materials:
+        if not material.use_nodes:continue
+        for node in material.node_tree.nodes:
+            if node.type!='BSDF_PRINCIPLED':continue
+            links=node.inputs['Base Color'].links
+            if links and links[0].from_node.type=='TEX_IMAGE':
+                filters[material.name]=links[0].from_node.interpolation
+    manifest={'input':str(input_path),'output':str(output),'objects':records,'root':root_settings or {},'textureFilters':filters}
     descriptor=input_path.with_suffix('.json');descriptor.write_text(json.dumps(manifest),encoding='utf8')
     result=subprocess.run([python_executable(context),str(Path(__file__).with_name('finalize_usd.py')),str(descriptor)],capture_output=True,text=True)
     if result.returncode:raise RuntimeError((result.stderr or result.stdout)[-1500:]+'\nSet OpenUSD Python to a Python with usd-core and Pillow installed.')

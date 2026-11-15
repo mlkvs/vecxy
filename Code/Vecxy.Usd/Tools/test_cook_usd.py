@@ -91,6 +91,41 @@ class UsdCookTests(unittest.TestCase):
         self.assertNotIn('images',gltf)
         self.assertNotIn('textures',gltf)
         self.assertTrue(all(not isinstance(v,list) or len(v)>0 for v in gltf.values()))
+    def test_connected_diffuse_texture_replaces_fallback_color(self):
+        from PIL import Image
+        import io
+        Image.new('RGBA',(2,2),(80,160,240,255)).save(self.root/'albedo.png')
+        asset=Usd.Stage.Open(str(self.asset))
+        material=UsdShade.Material.Define(asset,'/Asset/Material')
+        surface=UsdShade.Shader.Define(asset,'/Asset/Material/Surface')
+        surface.CreateIdAttr('UsdPreviewSurface')
+        color=surface.CreateInput('diffuseColor',Sdf.ValueTypeNames.Color3f)
+        texture=UsdShade.Shader.Define(asset,'/Asset/Material/Texture')
+        texture.CreateIdAttr('UsdUVTexture')
+        texture.CreateInput('file',Sdf.ValueTypeNames.Asset).Set(Sdf.AssetPath('albedo.png'))
+        texture.CreateOutput('rgb',Sdf.ValueTypeNames.Float3)
+        color.ConnectToSource(texture.ConnectableAPI(),'rgb')
+        material.CreateSurfaceOutput().ConnectToSource(surface.ConnectableAPI(),'surface')
+        UsdShade.MaterialBindingAPI.Apply(asset.GetPrimAtPath('/Asset/Mesh')).Bind(material)
+        # A connected input uses its source, even when an authored fallback exists.
+        for fallback, interpolation in ((None, 'Linear'),(Gf.Vec3f(.2,.3,.4), 'Closest')):
+            with self.subTest(fallback=fallback):
+                if fallback is not None:color.Set(fallback)
+                texture.GetPrim().CreateAttribute('vecxy:interpolation',Sdf.ValueTypeNames.Token).Set(interpolation)
+                asset.GetRootLayer().Save();self.cook()
+                data=(self.root/'Compiled/scene.glb').read_bytes()
+                length=struct.unpack_from('<I',data,12)[0];gltf=json.loads(data[20:20+length])
+                pbr=gltf['materials'][0]['pbrMetallicRoughness']
+                self.assertEqual(pbr['baseColorFactor'],[1,1,1,1])
+                tex=gltf['textures'][pbr['baseColorTexture']['index']]
+                sampler=gltf['samplers'][tex['sampler']]
+                self.assertEqual(sampler['magFilter'],9728 if interpolation=='Closest' else 9729)
+                self.assertEqual(sampler['minFilter'],9728 if interpolation=='Closest' else 9729)
+                image=gltf['images'][tex['source']]
+                view=gltf['bufferViews'][image['bufferView']]
+                start=20+length+8+view.get('byteOffset',0)
+                decoded=Image.open(io.BytesIO(data[start:start+view['byteLength']]))
+                self.assertEqual(decoded.getpixel((0,0)),(80,160,240,255))
     def test_unresolved_reference_rejected(self):
         self.asset.unlink()
         with self.assertRaisesRegex(ValueError,'Unresolved USD dependencies'):self.cook()

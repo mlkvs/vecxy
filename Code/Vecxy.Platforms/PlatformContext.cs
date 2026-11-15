@@ -20,7 +20,9 @@ internal static class DesktopBootstrapAssets
             return null;
 
         var assets = Vecxy.Assets.AssetManifest.Load(assetManifestPath).Assets
-            .ToDictionary(entry => Normalize(entry.Path), StringComparer.OrdinalIgnoreCase);
+            // Match AssetsModule.LoadManifest: the first path wins (game overrides engine defaults).
+            .GroupBy(entry => Normalize(entry.Path), StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase);
         var packages = System.Text.Json.JsonSerializer.Deserialize<Vecxy.Assets.VPackBuildManifest>(
                            File.ReadAllText(packageManifestPath),
                            Vecxy.Assets.AssetManifest.SerializerOptions)
