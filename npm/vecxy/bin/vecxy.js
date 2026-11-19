@@ -5,7 +5,7 @@ import { stdin, stdout } from 'node:process';
 import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { homedir, platform } from 'node:os';
-import { dirname, join, resolve } from 'node:path';
+import { dirname, join, resolve, relative, delimiter } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const VERSION = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version;
@@ -26,7 +26,9 @@ if (args.length === 0 || args.includes('--help') || args[0] === 'help') {
   process.exit(0);
 }
 if (args[0] === 'doctor') process.exit(doctor(args.slice(1)));
-if (args[0] === 'engine') {
+if (args[0] === 'update') {
+  engineCommand(['update', ...args.slice(1)]).then(code => process.exit(code), fail);
+} else if (args[0] === 'engine') {
   engineCommand(args.slice(1)).then(code => process.exit(code), fail);
 } else if (args[0] === 'setup') {
   setup(args.slice(1)).then(code => process.exit(code), fail);
@@ -45,6 +47,8 @@ Usage:
   vecxy new <name> [-o|--output <directory>]
   vecxy engine install [latest|tag|branch|commit]
   vecxy engine use <latest|tag|branch|commit> [-p|--project <directory>]
+  vecxy engine use --local <checkout-or-submodule> [-p|--project <directory>]
+  vecxy update [--check] [-p|--project <directory>]
   vecxy engine use <latest|tag|branch|commit> -g|--global
   vecxy engine current [-p|--project <directory>] [-g|--global]
   vecxy engine list
@@ -111,7 +115,8 @@ async function setup(options) {
   console.log(`Vecxy will configure tools under ${home}`);
   if (dryRun) {
     console.log(`Would install .NET SDK ${DOTNET_VERSION} into ${join(home, 'dotnet')}`);
-    console.log(`Would install Vecxy Engine ref '${engineRef}' in ${engineDirectory(engineRef)}`);
+    if (projectConfig?.engine.path) console.log(`Would use local Vecxy checkout ${resolveEngine(project)} without changing its branch or files.`);
+    else console.log(`Would install Vecxy Engine ref '${engineRef}' in ${engineDirectory(engineRef)}`);
     if (android) {
       console.log('Would install JDK 21, the .NET Android workload, Android API/build-tools 36, platform-tools, NDK r28 and CMake.');
       console.log(`Android SDK destination: ${androidSdk}`);
@@ -124,8 +129,9 @@ async function setup(options) {
   }
   mkdirSync(home, { recursive: true });
   await installDotnet();
-  const installedEngine = await installEngine(engineRef);
-  if (projectConfig) configureProject(project, engineRef, installedEngine);
+  const installedEngine = projectConfig?.engine.path ? resolveEngine(project) : await installEngine(engineRef);
+  if (projectConfig?.engine.path) writeEngineProps(project, installedEngine);
+  else if (projectConfig) configureProject(project, engineRef, installedEngine);
   else writeGlobalConfig(engineRef);
   if (android) await installAndroid(installedEngine);
   writeEnvironment();
@@ -270,16 +276,26 @@ function writeEnvironment() {
 function forward(values) {
   const dotnet = findDotnet();
   if (!hasSdk(dotnet)) fail(new Error('The .NET 10 SDK is missing. Run: vecxy setup'));
+  const root = findProjectRoot(projectDirectoryFromArgs(values), false);
   const engine = resolveEngine(projectDirectoryFromArgs(values));
+  if (root && readProjectConfig(root)?.engine.path) writeEngineProps(root, engine);
   const project = join(engine, 'tools', 'Vecxy.Cli', 'Vecxy.Cli.csproj');
   if (!existsSync(project)) fail(new Error(`Vecxy Engine is missing at ${engine}. Run: vecxy setup`));
   const forwarded = [...values];
   if (values[0] === 'new' && !values.includes('--engine')) forwarded.push('--engine', engine);
   const child = spawn(dotnet, ['run', '--project', project, '--', ...forwarded], {
-    stdio: 'inherit', env: { ...process.env, VecxyEnginePath: engine, VECXY_ENGINE_PATH: engine, VECXY_ENGINE_REF: installedRef(engine) }
+    stdio: 'inherit', env: toolEnvironment(engine)
   });
   child.on('exit', (code, signal) => process.exit(signal ? 1 : code ?? 1));
   child.on('error', fail);
+}
+
+function toolEnvironment(engine) {
+  const dotnet = findDotnet();
+  const sdk = dotnet && dotnet !== 'dotnet' ? dirname(dotnet) : null;
+  return { ...process.env,
+    ...(sdk ? { DOTNET_ROOT: sdk, PATH: `${sdk}${delimiter}${process.env.PATH || ''}` } : {}),
+    VecxyEnginePath: engine, VECXY_ENGINE_PATH: engine, VECXY_ENGINE_REF: installedRef(engine) };
 }
 
 function launchSpriteEditor(values) {
@@ -294,7 +310,7 @@ function launchSpriteEditor(values) {
   if (!hasSdk(dotnet)) fail(new Error('The .NET 10 SDK is missing. Run: vecxy setup'));
   const child = spawn(dotnet, ['run', '--project', editor, '--', project], {
     stdio: 'inherit',
-    env: { ...process.env, VecxyEnginePath: engine, VECXY_ENGINE_PATH: engine, VECXY_ENGINE_REF: installedRef(engine) }
+    env: toolEnvironment(engine)
   });
   child.on('exit', (code, signal) => process.exit(signal ? 1 : code ?? 1));
   child.on('error', fail);
@@ -322,6 +338,23 @@ function fail(error) { console.error(`vecxy: ${error.message || error}`); proces
 async function engineCommand(values) {
   const projectOption = takeOption(values, '--project');
   const global = takeFlag(values, '--global');
+  const local = takeOption(values, '--local');
+  const check = takeFlag(values, '--check');
+  if (local) {
+    if (global || check || values.length !== 1 || values[0] !== 'use')
+      throw new Error('Usage: vecxy engine use --local <checkout-or-submodule> [-p <project>]');
+    const project = findProjectRoot(projectOption || process.cwd());
+    const engine = resolve(local);
+    if (!isEngine(engine)) throw new Error(`Not a Vecxy checkout: ${engine}`);
+    configureLocalProject(project, engine);
+    console.log(`Project ${project}\nuses local Vecxy (${engineCommit(engine)})\n${engine}`);
+    return 0;
+  }
+  if (values.length === 1 && values[0] === 'update') {
+    if (global) throw new Error('Use engine install to update a global engine version.');
+    return updateProjectEngine(findProjectRoot(projectOption || process.cwd()), check);
+  }
+  if (check) throw new Error('--check is only supported by vecxy update.');
   if (projectOption && global) throw new Error('Use either --project or --global, not both.');
   if ((values.length === 1 || values.length === 2) && values[0] === 'install') {
     await installEngine(values[1] || defaultEngineRef);
@@ -364,6 +397,48 @@ async function engineCommand(values) {
   throw new Error('Usage: vecxy engine <install|use|current|list> [ref] [--project <directory>|--global]');
 }
 
+function configureLocalProject(project, engine) {
+  const branch = spawnSync('git', ['-C', engine, 'branch', '--show-current'], { encoding: 'utf8' });
+  const ref = branch.status === 0 && branch.stdout.trim() || engineCommit(engine);
+  configureProject(project, ref, engine);
+  const config = { engine: { repository: ENGINE_REPOSITORY, ref,
+    path: relative(project, engine).replaceAll('\\', '/') || '.' } };
+  writeIfChanged(join(project, '.vecxy', 'config.json'), `${JSON.stringify(config, null, 2)}\n`);
+}
+
+function gitText(engine, values) {
+  const result = spawnSync('git', ['-C', engine, ...values], { encoding: 'utf8' });
+  if (result.status !== 0) throw new Error((result.stderr || '').trim() || `git ${values[0]} failed`);
+  return result.stdout.trim();
+}
+
+async function updateProjectEngine(project, check) {
+  const config = readProjectConfig(project);
+  if (!config) throw new Error('Select an engine first: vecxy engine use <ref> or --local <path>');
+  if (!config.engine.path) {
+    if (check) throw new Error('--check currently requires a local checkout.');
+    const engine = await installEngine(config.engine.ref);
+    writeEngineProps(project, engine);
+    return 0;
+  }
+  const engine = resolveEngine(project);
+  if (!check && gitText(engine, ['status', '--porcelain']))
+    throw new Error('Local engine has uncommitted changes. Commit or stash them before updating; no files were changed. Use vecxy update --check to inspect upstream.');
+  const branch = gitText(engine, ['branch', '--show-current']);
+  if (!branch) throw new Error('Local engine is on a detached HEAD. Check out a branch with an upstream before updating.');
+  const remote = gitText(engine, ['config', `branch.${branch}.remote`]);
+  gitText(engine, ['rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{upstream}']);
+  if (remote !== '.') run('git', ['-C', engine, 'fetch', '--prune', remote]);
+  const [ahead, behind] = gitText(engine, ['rev-list', '--left-right', '--count', 'HEAD...@{upstream}']).split(/\s+/).map(Number);
+  console.log(`Local engine ${engine}: ${ahead} ahead, ${behind} behind upstream.`);
+  if (check) return 0;
+  if (ahead && behind) throw new Error('Engine history diverged. Reconcile it manually; automatic update only fast-forwards.');
+  if (behind) run('git', ['-C', engine, 'merge', '--ff-only', '@{upstream}']);
+  writeEngineProps(project, engine);
+  console.log(`Vecxy ${engineCommit(engine)}. A CLI linked from this checkout uses updated code on its next invocation.`);
+  return 0;
+}
+
 function configureProject(project, ref, engine) {
   const settings = join(project, '.vecxy');
   mkdirSync(settings, { recursive: true });
@@ -396,6 +471,11 @@ function resolveEngine(project) {
   const root = project ? findProjectRoot(project, false) : findProjectRoot(process.cwd(), false);
   const config = root && readProjectConfig(root);
   if (config) {
+    if (config.engine.path) {
+      const local = resolve(root, config.engine.path);
+      if (!isEngine(local)) throw new Error(`Local Vecxy Engine is missing at ${local}. Initialize the submodule or select another checkout.`);
+      return local;
+    }
     const selected = engineDirectory(config.engine.ref);
     if (!isEngine(selected)) throw new Error(`Vecxy Engine '${config.engine.ref}' is not installed. Run: vecxy engine install ${config.engine.ref}`);
     return selected;

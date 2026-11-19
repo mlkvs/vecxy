@@ -1,6 +1,6 @@
 {
   "name": "vecxy",
-  "version": "0.1.8",
+  "version": "0.1.9",
   "description": "Vecxy game engine command-line tools",
   "license": "UNLICENSED",
   "type": "module",
@@ -24,5 +24,8 @@
     "dotnet",
     "android",
     "assets"
-  ]
+  ],
+  "scripts": {
+    "test": "node --test"
+  }
 }
