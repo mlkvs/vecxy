@@ -69,6 +69,9 @@ public sealed partial class RigidBody : AComponent
 
     public bool EnableSpeculativeContacts { get; set; }
 
+    /// <summary>Prevents dynamic rotation while preserving translation and collisions.</summary>
+    public bool FreezeRotation { get; set; }
+
     public Vector3 Velocity
     {
         get => _velocity;

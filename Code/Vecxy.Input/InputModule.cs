@@ -44,6 +44,7 @@ public sealed class InputModule :
     private Vector2 _pendingMouseWheelDelta;
     private Vector2 _lastMousePosition;
     private bool _hasMousePosition;
+    private bool _mouseCaptured;
     private bool _initialized;
     private bool _disposed;
     private int? _primaryTouchId;
@@ -92,6 +93,9 @@ public sealed class InputModule :
         if (_initialized)
             return;
 
+        _mouseCaptured = _window.IsCursorCaptured;
+        _hasMousePosition = false;
+        _pendingMouseDelta = Vector2.Zero;
         _window.KeyChanged += OnKeyChanged;
         _window.MouseButtonChanged += OnMouseButtonChanged;
         _window.MouseMoved += OnMouseMoved;
@@ -108,6 +112,7 @@ public sealed class InputModule :
         if (!_initialized)
             return;
 
+        ResetMouseOnCaptureChange();
         _snapshot.MouseDelta = _pendingMouseDelta;
         _snapshot.MouseWheelDelta = _pendingMouseWheelDelta;
         _pendingMouseDelta = Vector2.Zero;
@@ -178,8 +183,21 @@ public sealed class InputModule :
             eventData.IsPressed);
     }
 
+    private void ResetMouseOnCaptureChange()
+    {
+        if (_mouseCaptured == _window.IsCursorCaptured)
+            return;
+
+        _mouseCaptured = _window.IsCursorCaptured;
+        _hasMousePosition = false;
+        _pendingMouseDelta = Vector2.Zero;
+    }
+
     private void OnMouseMoved(IWindow.MouseMoveEvent eventData)
     {
+        // Absolute cursor coordinates and captured relative coordinates have
+        // different origins. Never turn their difference into camera motion.
+        ResetMouseOnCaptureChange();
         var position =
             new Vector2(
                 eventData.X,

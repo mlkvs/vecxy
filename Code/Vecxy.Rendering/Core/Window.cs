@@ -147,6 +147,8 @@ public sealed class Window : IWindow, IClipboard, ITextInputSource
         _windowedPosition = _instance.Position;
 #endif
         _initialized = true;
+        if (IsCursorCaptured)
+            SetCursorCaptured(true);
     }
 
     public void PollEvents() => _instance.DoEvents();
@@ -210,15 +212,19 @@ public sealed class Window : IWindow, IClipboard, ITextInputSource
         }
 
         var targetMode = captured
-            ? cursor.IsSupported(CursorMode.Disabled)
-                ? CursorMode.Disabled
-                : CursorMode.Hidden
+            ? cursor.IsSupported(CursorMode.Raw)
+                ? CursorMode.Raw
+                : cursor.IsSupported(CursorMode.Disabled)
+                    ? CursorMode.Disabled
+                    : CursorMode.Hidden
             : CursorMode.Normal;
 
         if (!cursor.IsSupported(targetMode))
             return;
 
-        cursor.CursorMode = targetMode;
+        // SDL resets its relative-motion accumulator when Raw is assigned.
+        if (cursor.CursorMode != targetMode)
+            cursor.CursorMode = targetMode;
         IsCursorCaptured = captured;
     }
 

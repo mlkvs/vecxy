@@ -16,7 +16,8 @@ internal readonly record struct PhysicsBodyDefinition(
     bool AffectedByGravity,
     float LinearDamping,
     float AngularDamping,
-    bool EnableSpeculativeContacts);
+    bool EnableSpeculativeContacts,
+    bool FreezeRotation);
 
 internal readonly record struct PhysicsShapeDefinition(
     EPhysicsShapeType Type,
@@ -59,7 +60,8 @@ internal static class PhysicsDescriptionFactory
             rigidBody?.AffectedByGravity ?? false,
             rigidBody?.LinearDamping ?? 0.0f,
             rigidBody?.AngularDamping ?? 0.0f,
-            rigidBody?.EnableSpeculativeContacts ?? false);
+            rigidBody?.EnableSpeculativeContacts ?? false,
+            rigidBody?.FreezeRotation ?? false);
     }
 
     public static PhysicsShapeDefinition DescribeShape(

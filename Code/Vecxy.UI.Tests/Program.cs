@@ -21,12 +21,43 @@ WrappedTextKeepsWordsIntact();
 KeyedCollectionRetainsAndOrdersNodes();
 DetachedSubtreeCanBeMountedAgain();
 ShortTouchIsNotCollapsedIntoOneFrame();
+MouseCaptureChangesResetMotionOrigin();
 TextEditingCoreSupportsInsertReplaceAndDelete();
 TextEditingCoreSupportsNavigationAndSelection();
 TextEditingCoreRespectsUnicodeAndMaxLength();
 InputFieldSupportsClipboardAndPasswordSafety();
 WorldSpaceTests.Run();
 Console.WriteLine("All Vecxy.UI checks passed.");
+
+static void MouseCaptureChangesResetMotionOrigin()
+{
+    var window = new TestWindow();
+    using var input = new InputModule(window, new TestInputCaptureState());
+    input.OnInitialize();
+    window.EmitMouse(600, 400);
+    window.EmitMouse(610, 405);
+    input.OnUpdate(1.0f / 60);
+    Check(input.MouseDelta == new System.Numerics.Vector2(10, 5), "Mouse events must accumulate per frame.");
+    window.EmitMouse(620, 410); // Pending absolute movement must also be discarded.
+    window.SetCursorCaptured(true);
+    window.EmitMouse(0, 0);
+    window.EmitMouse(3, -2);
+    input.OnUpdate(1.0f / 60);
+    Check(input.MouseDelta == new System.Numerics.Vector2(3, -2), "Capture must reset the coordinate origin.");
+    input.OnUpdate(1.0f / 60);
+    Check(input.MouseDelta == System.Numerics.Vector2.Zero, "Motion must not repeat on the next frame.");
+    window.SetCursorCaptured(false);
+    input.OnUpdate(1.0f / 60); // Mode change can precede the first mouse event.
+    window.EmitMouse(900, 600);
+    window.EmitMouse(902, 601);
+    input.OnUpdate(1.0f / 60);
+    Check(input.MouseDelta == new System.Numerics.Vector2(2, 1), "Release must reset the coordinate origin.");
+    input.OnShutdown();
+    input.OnInitialize();
+    window.EmitMouse(10, 10);
+    input.OnUpdate(1.0f / 60);
+    Check(input.MouseDelta == System.Numerics.Vector2.Zero, "Reinitialization must clear stale motion.");
+}
 
 static void TextEditingCoreSupportsInsertReplaceAndDelete()
 {
@@ -574,7 +605,7 @@ sealed class TestWindow : IWindow, IClipboard, ITextInputSource
     public int ClientHeight => 100;
     public bool IsRunning { get; private set; }
     public bool IsFullscreen => false;
-    public bool IsCursorCaptured => false;
+    public bool IsCursorCaptured { get; private set; }
     public event Action<int, int>? Resized;
     public event Action<IWindow.KeyEvent>? KeyChanged;
     public event Action<TextInputEvent>? TextInput;
@@ -587,6 +618,7 @@ sealed class TestWindow : IWindow, IClipboard, ITextInputSource
     public event Action<IWindow.MouseWheelEvent>? MouseWheelChanged;
     public event Action<IWindow.TouchEvent>? TouchChanged;
 
+    public void EmitMouse(float x, float y) => MouseMoved?.Invoke(new IWindow.MouseMoveEvent(x, y));
     public void EmitTouch(IWindow.TouchEvent eventData) => TouchChanged?.Invoke(eventData);
     public void Initialize() { IsRunning = true; Resized?.Invoke(Width, Height); }
     public void PollEvents() { }
@@ -595,7 +627,7 @@ sealed class TestWindow : IWindow, IClipboard, ITextInputSource
     public void SwapBuffers() { }
     public void Close() => IsRunning = false;
     public void ToggleFullscreen() { }
-    public void SetCursorCaptured(bool captured) { }
+    public void SetCursorCaptured(bool captured) => IsCursorCaptured = captured;
     public System.Numerics.Vector2 ClientToFramebuffer(System.Numerics.Vector2 position) => position;
     public System.Numerics.Vector2 FramebufferToClient(System.Numerics.Vector2 position) => position;
     public nint GetProcAddress(string name) => 0;

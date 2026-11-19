@@ -767,9 +767,12 @@ public sealed class PhysicsSceneSystem : ASceneSystem
             (shapesChanged ||
              previous is null ||
              previous.Value.Mass != desired.Mass ||
+             previous.Value.FreezeRotation != desired.FreezeRotation ||
              previous.Value.MotionType != desired.MotionType))
         {
             RecalculateMassAndInertia(binding, desired.Mass);
+            if (desired.FreezeRotation)
+                nativeBody.SetMassInertia(JMatrix.Zero, 1.0f / desired.Mass, setAsInverse: true);
         }
 
         nativeBody.SetActivationState(true);
@@ -837,7 +840,12 @@ public sealed class PhysicsSceneSystem : ASceneSystem
                 rigidBody.VelocityVersion;
         }
 
-        if (binding.AppliedAngularVelocityVersion !=
+        if (rigidBody.FreezeRotation && nativeBody.MotionType == MotionType.Dynamic)
+        {
+            nativeBody.AngularVelocity = JVector.Zero;
+            binding.AppliedAngularVelocityVersion = rigidBody.AngularVelocityVersion;
+        }
+        else if (binding.AppliedAngularVelocityVersion !=
             rigidBody.AngularVelocityVersion)
         {
             nativeBody.AngularVelocity =

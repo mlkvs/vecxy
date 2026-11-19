@@ -117,6 +117,8 @@ public sealed partial class RigidBody
             public bool AffectedByGravity { get; set; } = true;
             [Authoring("Linear damping", Min = 0, Max = 1, Order = 3)]
             public float LinearDamping { get; set; }
+            [Authoring("Freeze rotation", Order = 4)]
+            public bool FreezeRotation { get; set; }
         }
         protected override RigidBody Instantiate(IPrototypeContext context)
         {
@@ -129,6 +131,7 @@ public sealed partial class RigidBody
             body.Mass = options.Mass;
             body.AffectedByGravity = options.AffectedByGravity;
             body.LinearDamping = options.LinearDamping;
+            body.FreezeRotation = options.FreezeRotation;
         }
     }
 }
