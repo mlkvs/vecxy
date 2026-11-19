@@ -16,7 +16,7 @@ from . import ensure_id, instance_collection, safe_name
 def workspace():
     if not bpy.data.filepath:raise RuntimeError('Save the .blend before exporting')
     for parent in Path(bpy.data.filepath).resolve().parents:
-        if (parent/'Engine/Vecxy').exists():return parent
+        if any((parent/layout/'Code/Vecxy.Usd').is_dir() for layout in ('Engine/Vecxy','Vendors/Vecxy')):return parent
     return Path(bpy.data.filepath).resolve().parent
 
 
@@ -153,7 +153,8 @@ def export_scene(context):
         temporary=Path(tmp)/'scene.usda';records=native_export(context,objects,temporary)
         finalize(context,temporary,output,records)
     if context.scene.vecxy_usd.cook_after_export:
-        repo=workspace();cook=repo/'Engine/Vecxy/Code/Vecxy.Usd/Tools/cook_usd.py'
+        repo=workspace()
+        cook=next((repo/layout/'Code/Vecxy.Usd/Tools/cook_usd.py' for layout in ('Engine/Vecxy','Vendors/Vecxy') if (repo/layout/'Code/Vecxy.Usd/Tools/cook_usd.py').is_file()),Path('missing-cook_usd.py'))
         assets=next((p for p in output.parents if p.name=='Assets'),None)
         if not cook.exists() or assets is None:raise RuntimeError('Scene was exported. To cook automatically, export inside your Vecxy project Assets directory.')
         result=subprocess.run([python_executable(context),str(cook),str(output),'--assets',str(assets)],capture_output=True,text=True)
