@@ -104,7 +104,9 @@ public static partial class AssetPipeline
         var root = Path.GetFullPath(projectDirectory);
         var output = Path.Combine(root, "Generated", "Assets.g.cs");
         Directory.CreateDirectory(Path.GetDirectoryName(output)!);
-        File.WriteAllText(output, GenerateSource(AssetManifest.Load(Path.Combine(root, "Assets.manifest"))), new UTF8Encoding(false));
+        var source = GenerateSource(AssetManifest.Load(Path.Combine(root, "Assets.manifest")));
+        if (!File.Exists(output) || File.ReadAllText(output) != source)
+            File.WriteAllText(output, source, new UTF8Encoding(false));
         return output;
     }
 

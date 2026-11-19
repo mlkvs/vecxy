@@ -1,6 +1,6 @@
 {
   "name": "vecxy",
-  "version": "0.1.10",
+  "version": "0.1.11",
   "description": "Vecxy game engine command-line tools",
   "license": "UNLICENSED",
   "type": "module",
@@ -9,7 +9,8 @@
   },
   "files": [
     "bin",
-    "README.md"
+    "README.md",
+    "lib"
   ],
   "engines": {
     "node": ">=20"

@@ -116,3 +116,36 @@ cancels startup. Closing the game returns its exit code to vecxy; Ctrl+C termina
 launched process. `--debug` requires dev mode. Only the current desktop platform and
 architecture can be launched; cross-platform packaging remains available via build.
 `-p`, `-o`, `-t` and `-r` work as on build. Game arguments must follow `--`.
+
+
+## Incremental run
+
+`vecxy run` reuses a successful build when source/configuration/resource contents and
+published outputs are unchanged. No asset preparation, VPack packaging or game publish
+runs on that path. The restored project graph scopes engine dependencies; unused editor
+and test projects do not trigger game rebuilds. A validated compiled C# CLI is also launched
+directly, while CLI source/dependency edits fall back to the SDK automatically.
+
+- `vecxy run --rebuild`: force the normal build pipeline.
+- `vecxy run --no-build`: explicitly skip freshness checks.
+
+Cache stamps are local to obj/vecxy-run and separated by project, mode, RID and output.
+They use content hashes, not source timestamps. Missing/corrupt stamps or changed inputs
+fall back to building. Failed builds invalidate prior success, and files edited during
+compilation are not marked as built. A first run after upgrading populates the cache.
+Re-export Blender changes to USD before running; the .blend file itself is not a runtime
+input. Custom build tasks with undeclared external inputs can use --rebuild.
+
+
+Existing asset content updates use a separate runtime-data path: cook stale USD stages,
+validate stable generated handles, repack VPack and copy only resource payloads/manifests.
+No MSBuild, compiler, weaver or publish runs, and DLL/PDB/generated-code timestamps stay
+unchanged. New/renamed/deleted asset identities, changed generated API, code-generating
+formats or embedded resources fall back to building. Unchanged generated asset source is
+no longer rewritten by the asset pipeline.
+
+Optional real-toolchain integration coverage (after setup):
+`VECXY_INTEGRATION_ENGINE=/path/to/Vecxy npm test`.
+It builds a temporary console game, checks unchanged runs, content-only resource refresh,
+new asset API generation and source edits. Ordinary npm tests need no SDK for that optional
+case. Additional scene-cooking/native-window verification is documented in the game QA report.

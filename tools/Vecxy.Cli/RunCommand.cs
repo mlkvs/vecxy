@@ -3,7 +3,7 @@ using System.Diagnostics;
 internal static class RunCommand
 {
     public static async Task<int> RunAsync(string project, string mode, string? platformOption,
-        string? runtimeOption, string? outputOption, bool debug, bool noBuild, string[] arguments)
+        string? runtimeOption, string? outputOption, bool debug, bool noBuild, bool rebuild, string[] arguments)
     {
         var platform = BuildCommand.ResolvePlatform(platformOption);
         var host = BuildCommand.ResolvePlatform(null);
@@ -12,11 +12,33 @@ internal static class RunCommand
         if (debug && mode != "dev")
             throw new ArgumentException("Debugger waiting requires dev mode. Use vecxy run --debug.");
         var output = Path.GetFullPath(outputOption ?? Path.Combine(project, "artifacts", platform, mode));
+        var cache = new RunBuildCache(project, mode, runtimeOption ?? BuildCommand.DefaultRuntime(host), output);
         if (!noBuild)
         {
-            var result = await BuildCommand.RunAsync(project, mode, platform, runtimeOption, output,
-                null, null, null, null, null);
-            if (result != 0) return result;
+            var ready = !rebuild && cache.IsCurrent();
+            if (ready) Console.WriteLine($"Run build is up to date; reusing {mode} output.");
+            if (!ready && !rebuild && cache.CanRefreshAssets())
+            {
+                var before = cache.CaptureInputs();
+                Console.WriteLine("Only runtime assets changed; refreshing packages without compiling code.");
+                ready = await AssetRefreshCommand.RunAsync(project, platform, output);
+                if (ready) SaveCache(before);
+            }
+            if (!ready)
+            {
+                cache.Invalidate();
+                var before = cache.CaptureInputs();
+                var result = await BuildCommand.RunAsync(project, mode, platform, runtimeOption, output,
+                    null, null, null, null, null);
+                if (result != 0) return result;
+                SaveCache(before);
+            }
+        }
+        void SaveCache(Dictionary<string, string> before)
+        {
+            try { cache.Save(before); }
+            catch (Exception error) when (error is IOException or UnauthorizedAccessException)
+            { Console.Error.WriteLine("Run cache could not be saved; the next run will build again."); }
         }
         if (!Directory.Exists(output))
             throw new DirectoryNotFoundException($"Build directory does not exist: {output}. Run vecxy run without --no-build first.");

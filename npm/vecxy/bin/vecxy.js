@@ -7,6 +7,7 @@ import { createHash } from 'node:crypto';
 import { homedir, platform } from 'node:os';
 import { dirname, join, resolve, relative, delimiter } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { cachedRunCli } from '../lib/run-cache.js';
 
 const VERSION = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version;
 const DOTNET_VERSION = '10.0.110';
@@ -54,7 +55,7 @@ Usage:
   vecxy engine current [-p|--project <directory>] [-g|--global]
   vecxy engine list
   vecxy sprite-editor [-p|--project <directory>]
-  vecxy run [dev|release] [--debug|--wait-for-debugger] [--no-build] [-- <game arguments>]
+  vecxy run [dev|release] [--debug|--wait-for-debugger] [--no-build|--rebuild] [-- <game arguments>]
   vecxy build [dev|release] [-p|--project <path>] -t|--platform <linux|windows|android>
   vecxy generate [-p|--project <path>]
   vecxy assets <scan|generate|analyze|validate|packages|pack|prepare>
@@ -313,9 +314,10 @@ function forward(values) {
   if (!existsSync(project)) fail(new Error(`Vecxy Engine is missing at ${engine}. Run: vecxy setup`));
   const forwarded = [...values];
   if (values[0] === 'new' && !values.includes('--engine')) forwarded.push('--engine', engine);
-  const child = spawn(dotnet, ['run', '--project', project, '--', ...forwarded], {
-    stdio: 'inherit', env: toolEnvironment(engine)
-  });
+  const environment = toolEnvironment(engine);
+  const cached = values[0] === 'run' && root ? cachedRunCli(root, engine, environment) : null;
+  const invocation = cached ? [cached, ...forwarded] : ['run', '--project', project, '--', ...forwarded];
+  const child = spawn(dotnet, invocation, { stdio: 'inherit', env: environment });
   child.on('exit', (code, signal) => process.exit(signal ? 1 : code ?? 1));
   child.on('error', fail);
 }
@@ -323,8 +325,9 @@ function forward(values) {
 function toolEnvironment(engine) {
   const dotnet = findDotnet();
   const sdk = dotnet && dotnet !== 'dotnet' ? dirname(dotnet) : null;
+  const architectureRoot = { x64: 'DOTNET_ROOT_X64', arm64: 'DOTNET_ROOT_ARM64', ia32: 'DOTNET_ROOT_X86' }[process.arch];
   return { ...process.env,
-    ...(sdk ? { DOTNET_ROOT: sdk, PATH: `${sdk}${delimiter}${process.env.PATH || ''}` } : {}),
+    ...(sdk ? { DOTNET_ROOT: sdk, ...(architectureRoot ? { [architectureRoot]: sdk } : {}), PATH: `${sdk}${delimiter}${process.env.PATH || ''}` } : {}),
     VecxyEnginePath: engine, VECXY_ENGINE_PATH: engine, VECXY_ENGINE_REF: installedRef(engine) };
 }
 
