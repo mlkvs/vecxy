@@ -130,7 +130,7 @@ internal static class BuildCommand
         if (packageErrors.Count > 0) throw new InvalidDataException(string.Join(Environment.NewLine, packageErrors));
     }
 
-    private static string ResolvePlatform(string? value)
+    internal static string ResolvePlatform(string? value)
     {
         if (string.IsNullOrWhiteSpace(value) || value.Equals("desktop", StringComparison.OrdinalIgnoreCase))
         {
@@ -141,7 +141,7 @@ internal static class BuildCommand
         return value.ToLowerInvariant();
     }
 
-    private static string DefaultRuntime(string platform)
+    internal static string DefaultRuntime(string platform)
     {
         var architecture = RuntimeInformation.OSArchitecture switch
         {

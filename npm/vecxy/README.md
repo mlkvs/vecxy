@@ -28,6 +28,7 @@ vecxy build -t linux
 - `vecxy generate` prepares asset IDs/code, compiles the project and generates the `[Authoring]` catalog for Blender.
 - `vecxy assets scan|generate|analyze|validate|packages|pack|prepare` manages assets.
 - `vecxy build [dev|release] --platform linux|windows|android` creates distributable builds.
+- `vecxy run [dev|release] [--debug] [--no-build]` builds and starts the game; --debug waits for console confirmation after debugger attachment.
 
 The default selection is stored in `~/.vecxy/config.json`. A project-specific
 selection is changed by `engine use` and is stored in `.vecxy/config.json`. Its generated MSBuild
@@ -95,3 +96,23 @@ virtual environment when USD is referenced. Repeated setup skips USD installatio
 the dependency stamp and environment are valid. Blender is only needed for scene editing.
 On Linux, a writable npm prefix (for example --prefix "$HOME/.local", with its bin on PATH)
 avoids requiring root access. Project .gitmodules must reference accessible engine commits.
+
+
+## Build and run
+
+```bash
+vecxy run                 # Build dev (Debug) and launch
+vecxy run --no-build      # Launch the existing dev build
+vecxy run release         # Build and launch Release
+vecxy run --debug         # Debug build, then wait before game initialization
+vecxy run -- --example    # Forward arguments to the game
+```
+
+`--debug` (alias `--wait-for-debugger`) prints the **game process PID**. Attach a managed
+.NET debugger in your IDE, then press Enter in the original terminal. The engine waits
+before creating the desktop application, window or scene. Confirmation is manual: Enter
+also permits startup without a detected debugger and reports that fact. Closed stdin
+cancels startup. Closing the game returns its exit code to vecxy; Ctrl+C terminates the
+launched process. `--debug` requires dev mode. Only the current desktop platform and
+architecture can be launched; cross-platform packaging remains available via build.
+`-p`, `-o`, `-t` and `-r` work as on build. Game arguments must follow `--`.

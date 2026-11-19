@@ -2,7 +2,9 @@ using System.Diagnostics;
 using Vecxy.AssetPipeline;
 using Pipeline = Vecxy.AssetPipeline.AssetPipeline;
 
-var arguments = ExpandShortOptions(args).ToList();
+var separator = Array.IndexOf(args, "--");
+var gameArguments = separator < 0 ? Array.Empty<string>() : args[(separator + 1)..];
+var arguments = ExpandShortOptions(separator < 0 ? args : args[..separator]).ToList();
 
 try
 {
@@ -21,6 +23,22 @@ try
     var aliasOption = GetOption(arguments, "--alias");
     var versionOption = GetOption(arguments, "--version");
     var versionCodeOption = GetOption(arguments, "--version-code");
+    var debug = arguments.Remove("--debug");
+    var waitForDebugger = arguments.Remove("--wait-for-debugger");
+    var noBuild = arguments.Remove("--no-build");
+    if (arguments.Count > 0 && arguments[0] == "run")
+    {
+        if (engineOption is not null || assemblyOption is not null || catalogOption is not null ||
+            formatOption is not null || keystoreOption is not null || aliasOption is not null ||
+            versionOption is not null || versionCodeOption is not null)
+            throw new ArgumentException("Unsupported build-only option for run.");
+        if (arguments.Count > 2 || (arguments.Count == 2 && arguments[1] is not ("dev" or "release")))
+            throw new ArgumentException("Usage: vecxy run [dev|release] [--debug|--wait-for-debugger] [--no-build] [-- <game arguments>]");
+        return await RunCommand.RunAsync(ResolveProject(projectOption), arguments.Count == 2 ? arguments[1] : "dev",
+            platformOption, runtimeOption, outputOption, debug || waitForDebugger, noBuild, gameArguments);
+    }
+    if (debug || waitForDebugger || noBuild || gameArguments.Length > 0)
+        throw new ArgumentException("--debug, --wait-for-debugger, --no-build and game arguments are only supported by run.");
     if (arguments is ["new", var name])
     {
         if (projectOption is not null) throw new ArgumentException("Use --output with 'new'; --project selects an existing project.");
@@ -190,4 +208,4 @@ static string ResolveProject(string? value)
         throw new InvalidOperationException($"No .csproj found in '{path}'. Select a game: --project HardCore.Cultivation");
     throw new InvalidOperationException($"More than one .csproj found in '{path}'. Select one with --project <path>.");
 }
-static void PrintUsage() => Console.WriteLine("Usage: vecxy new <name> [-o|--output <directory>] [-e|--engine <path-to-Engine/Vecxy>]\n       vecxy [-p|--project <game-directory|csproj>] generate\n       vecxy [-p|--project <game-directory|csproj>] assets <scan|generate|analyze|validate|packages|pack|prepare|build> [-t|--platform <windows|linux|android>]\n       vecxy [-p|--project <game-directory|csproj>] packages manifest [-t|--platform <windows|linux|android>]\n       vecxy [-p|--project <game-directory|csproj>] build [dev|release] -t|--platform <linux|windows|android> [-r|--runtime <rid>] [-o|--output <path>]\n       vecxy [-p|--project <game-directory|csproj>] build [dev|release] -t|--platform android [-f|--format <apk|aab|both>] [--version <name>] [--version-code <number>]\n\nAndroid signing: -k|--keystore <path> -a|--alias <name>, with passwords in VECXY_ANDROID_STORE_PASSWORD and optional VECXY_ANDROID_KEY_PASSWORD.\n--project may be omitted when the current directory contains exactly one .csproj.\n'new' creates a project in ./<name> unless --output is specified.");
+static void PrintUsage() => Console.WriteLine("Usage: vecxy run [dev|release] [--debug|--wait-for-debugger] [--no-build] [-- <game arguments>]\n       vecxy new <name> [-o|--output <directory>] [-e|--engine <path-to-Engine/Vecxy>]\n       vecxy [-p|--project <game-directory|csproj>] generate\n       vecxy [-p|--project <game-directory|csproj>] assets <scan|generate|analyze|validate|packages|pack|prepare|build> [-t|--platform <windows|linux|android>]\n       vecxy [-p|--project <game-directory|csproj>] packages manifest [-t|--platform <windows|linux|android>]\n       vecxy [-p|--project <game-directory|csproj>] build [dev|release] -t|--platform <linux|windows|android> [-r|--runtime <rid>] [-o|--output <path>]\n       vecxy [-p|--project <game-directory|csproj>] build [dev|release] -t|--platform android [-f|--format <apk|aab|both>] [--version <name>] [--version-code <number>]\n\nAndroid signing: -k|--keystore <path> -a|--alias <name>, with passwords in VECXY_ANDROID_STORE_PASSWORD and optional VECXY_ANDROID_KEY_PASSWORD.\n--project may be omitted when the current directory contains exactly one .csproj.\n'new' creates a project in ./<name> unless --output is specified.");

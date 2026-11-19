@@ -17,11 +17,12 @@ const localDotnet = join(home, 'dotnet', platform() === 'win32' ? 'dotnet.exe' :
 const androidSdk = resolve(process.env.ANDROID_SDK_ROOT || process.env.ANDROID_HOME || join(home, 'android-sdk'));
 const args = expandShortOptions(process.argv.slice(2));
 
-if (args.includes('--version') || args[0] === 'version') {
+const cliArgs = args.slice(0, args.indexOf('--') < 0 ? args.length : args.indexOf('--'));
+if (cliArgs.includes('--version') || args[0] === 'version') {
   console.log(VERSION);
   process.exit(0);
 }
-if (args.length === 0 || args.includes('--help') || args[0] === 'help') {
+if (args.length === 0 || cliArgs.includes('--help') || args[0] === 'help') {
   printHelp();
   process.exit(0);
 }
@@ -53,6 +54,7 @@ Usage:
   vecxy engine current [-p|--project <directory>] [-g|--global]
   vecxy engine list
   vecxy sprite-editor [-p|--project <directory>]
+  vecxy run [dev|release] [--debug|--wait-for-debugger] [--no-build] [-- <game arguments>]
   vecxy build [dev|release] [-p|--project <path>] -t|--platform <linux|windows|android>
   vecxy generate [-p|--project <path>]
   vecxy assets <scan|generate|analyze|validate|packages|pack|prepare>
@@ -560,6 +562,8 @@ function findProjectRoot(start, required = true) {
 }
 
 function projectDirectoryFromArgs(values) {
+  const separator = values.indexOf('--');
+  if (separator >= 0) values = values.slice(0, separator);
   const index = values.indexOf('--project');
   return index >= 0 && values[index + 1] ? values[index + 1] : process.cwd();
 }
@@ -622,5 +626,6 @@ function expandShortOptions(values) {
     ['-r', '--runtime'], ['-f', '--format'], ['-k', '--keystore'], ['-a', '--alias'],
     ['-y', '--yes'], ['-g', '--global'], ['-h', '--help'], ['-V', '--version']
   ]);
-  return values.map(value => aliases.get(value) || value);
+  const separator = values.indexOf('--');
+  return values.map((value, index) => separator >= 0 && index > separator ? value : aliases.get(value) || value);
 }

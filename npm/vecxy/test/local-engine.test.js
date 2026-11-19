@@ -69,3 +69,11 @@ test('setup detects a USD project and keeps its local engine in dry-run mode',t=
  assert.equal(r.status,0,r.stderr);assert.match(r.stdout,/Would use local Vecxy checkout/);
  assert.match(r.stdout,/Would prepare OpenUSD Python/);assert.equal(readFileSync(join(f.project,'.vecxy/config.json'),'utf8'),before);
 });
+
+test('run forwards debugger flags and preserves game arguments after the separator',t=>{
+ const f=fixture(t), sdk=join(f.home,'dotnet'), captured=join(f.root,'run.json');mkdirSync(sdk);
+ const fake=join(sdk,'dotnet');writeFileSync(fake,`#!${process.execPath}\nimport('node:fs').then(fs=>{if(process.argv.includes('--list-sdks'))console.log('10.0.110 [fake]');else fs.writeFileSync(${JSON.stringify(captured)},JSON.stringify(process.argv.slice(2)));});\n`,{mode:0o755});
+ const r=f.call('run','--debug','--','--help','--version','-p','literal project');
+ assert.equal(r.status,0,r.stderr);const values=JSON.parse(readFileSync(captured));
+ assert.deepEqual(values.slice(values.indexOf('--')+1),['run','--debug','--','--help','--version','-p','literal project']);
+});

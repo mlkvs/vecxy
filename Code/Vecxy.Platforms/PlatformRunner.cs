@@ -14,6 +14,8 @@ public static class PlatformRunner
         ArgumentNullException.ThrowIfNull(application);
         ArgumentNullException.ThrowIfNull(context);
 
+        if (context.Platform == PlatformKind.Desktop && !DesktopDebugGate.WaitIfRequested()) return;
+
         options ??= new Engine.Engine.Options();
         var layers = new List<AAppLayer.IDefinition>();
 
@@ -34,6 +36,7 @@ public static class PlatformRunner
     public static void RunDesktop<TApplication>()
         where TApplication : IVEntry, new()
     {
+        if (!DesktopDebugGate.WaitIfRequested()) return;
         var assetsDirectory = Assembly.GetEntryAssembly()?
             .GetCustomAttributes<AssemblyMetadataAttribute>()
             .FirstOrDefault(attribute => attribute.Key == "VecxyAssetsDirectory")?.Value;
@@ -47,6 +50,7 @@ public static class PlatformRunner
 
     public static void RunDesktopApplication(string[]? args = null)
     {
+        if (!DesktopDebugGate.WaitIfRequested()) return;
         var assetsDirectory = Assembly.GetEntryAssembly()?
             .GetCustomAttributes<AssemblyMetadataAttribute>()
             .FirstOrDefault(attribute => attribute.Key == "VecxyAssetsDirectory")?.Value;
