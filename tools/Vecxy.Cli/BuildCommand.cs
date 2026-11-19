@@ -29,6 +29,10 @@ internal static class BuildCommand
         var output = Path.GetFullPath(outputOption ?? Path.Combine(project, "artifacts", platform, mode.ToLowerInvariant()));
         Directory.CreateDirectory(output);
 
+        // Cook project sources (including USD) before scanning and packaging.
+        var prepared = RunDotnet(["msbuild", projectFile, "-t:VecxyPrepareAssets",
+            "-p:VecxyBuildVPack=false", "-p:Configuration=Debug"]);
+        if (prepared != 0) return prepared;
         Prepare(project);
         var vpackPlatform = platform switch
         {
