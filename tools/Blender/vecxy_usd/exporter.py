@@ -23,9 +23,11 @@ def workspace():
 def python_executable(context):
     configured=context.scene.vecxy_usd.python_path or os.environ.get('VECXY_USD_PYTHON','')
     if configured:return bpy.path.abspath(configured)
-    base=workspace()/'.agents/local/usd-env'
-    for executable in [base/'bin/python',base/'Scripts/python.exe']:
-        if executable.is_file():return str(executable)
+    bases=[parent/'.vecxy/usd-env' for parent in Path(bpy.data.filepath).resolve().parents]
+    bases.append(workspace()/'.agents/local/usd-env')
+    for base in bases:
+        for executable in [base/'bin/python',base/'Scripts/python.exe']:
+            if executable.is_file():return str(executable)
     return shutil.which('python3') or shutil.which('python') or 'python3'
 
 

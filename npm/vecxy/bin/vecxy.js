@@ -117,6 +117,7 @@ async function setup(options) {
     console.log(`Would install .NET SDK ${DOTNET_VERSION} into ${join(home, 'dotnet')}`);
     if (projectConfig?.engine.path) console.log(`Would use local Vecxy checkout ${resolveEngine(project)} without changing its branch or files.`);
     else console.log(`Would install Vecxy Engine ref '${engineRef}' in ${engineDirectory(engineRef)}`);
+    if (usesUsd(project)) console.log('Would prepare OpenUSD Python dependencies in the project .vecxy/usd-env directory.');
     if (android) {
       console.log('Would install JDK 21, the .NET Android workload, Android API/build-tools 36, platform-tools, NDK r28 and CMake.');
       console.log(`Android SDK destination: ${androidSdk}`);
@@ -133,10 +134,37 @@ async function setup(options) {
   if (projectConfig?.engine.path) writeEngineProps(project, installedEngine);
   else if (projectConfig) configureProject(project, engineRef, installedEngine);
   else writeGlobalConfig(engineRef);
+  if (usesUsd(project)) installUsdTools(project, installedEngine);
   if (android) await installAndroid(installedEngine);
   writeEnvironment();
   console.log('\nSetup complete. Restart the terminal or load the environment file shown above, then run: vecxy doctor');
   return doctor(android ? [] : ['--no-android']);
+}
+
+function usesUsd(project) {
+  return !!project && readdirSync(project).filter(x => x.endsWith('.csproj'))
+    .some(file => readFileSync(join(project, file), 'utf8').includes('Vecxy.Usd'));
+}
+
+function installUsdTools(project, engine) {
+  const environment = join(project, '.vecxy', 'usd-env');
+  const python = platform() === 'win32' ? join(environment, 'Scripts', 'python.exe') : join(environment, 'bin', 'python');
+  if (!existsSync(python)) {
+    const candidates = platform() === 'win32' ? [['py', ['-3']], ['python', []], ['python3', []]] : [['python3', []], ['python', []]];
+    const available = candidates.find(([command, prefix]) => spawnSync(command,
+      [...prefix, '-c', 'import sys; sys.exit(0 if sys.version_info >= (3, 10) else 1)'], { stdio: 'ignore' }).status === 0);
+    if (!available) throw new Error('This USD project needs Python 3.10 or newer. Install Python with venv support and rerun vecxy setup --yes --no-android.');
+    run(available[0], [...available[1], '-m', 'venv', environment]);
+  }
+  const requirements = join(engine, 'Code', 'Vecxy.Usd', 'Tools', 'requirements.txt');
+  const expected = createHash('sha256').update(readFileSync(requirements)).digest('hex');
+  const stamp = join(environment, '.vecxy-requirements.sha256');
+  const healthy = spawnSync(python, ['-c', 'from pxr import Usd; from PIL import Image'], { stdio: 'ignore' }).status === 0;
+  if (!healthy || !existsSync(stamp) || readFileSync(stamp, 'utf8').trim() !== expected) {
+    run(python, ['-m', 'pip', 'install', '-r', requirements]);
+    writeFileSync(stamp, `${expected}\n`);
+  }
+  console.log(`✓ OpenUSD Python: ${python}`);
 }
 
 async function installDotnet() {

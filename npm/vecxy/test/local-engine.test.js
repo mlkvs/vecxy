@@ -61,3 +61,11 @@ test('forwarding propagates the selected SDK to nested dotnet commands',t=>{
  const r=f.call('assets','validate');assert.equal(r.status,0,r.stderr);const env=JSON.parse(readFileSync(captured));
  assert.equal(env.root,sdk);assert.ok(env.path.startsWith(sdk));assert.equal(env.engine,f.engine);
 });
+
+test('setup detects a USD project and keeps its local engine in dry-run mode',t=>{
+ const f=fixture(t);writeFileSync(join(f.project,'Game.csproj'),'<Project><Import Project="Vecxy.Usd.targets" /></Project>');
+ const before=readFileSync(join(f.project,'.vecxy/config.json'),'utf8');
+ const r=f.call('setup','--yes','--no-android','--dry-run');
+ assert.equal(r.status,0,r.stderr);assert.match(r.stdout,/Would use local Vecxy checkout/);
+ assert.match(r.stdout,/Would prepare OpenUSD Python/);assert.equal(readFileSync(join(f.project,'.vecxy/config.json'),'utf8'),before);
+});

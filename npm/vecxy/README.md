@@ -44,3 +44,54 @@ computer selects the same ref.
 Common short options are `-p` (`--project`), `-o` (`--output`), `-e`
 (`--engine`), `-t` (`--platform`), `-r` (`--runtime`), `-f` (`--format`),
 `-k` (`--keystore`) and `-a` (`--alias`).
+
+## Developing with a local engine or submodule
+
+Install/link this package from its working checkout, then select the engine in the game directory:
+
+```bash
+npm install --global /path/to/Vendors/Vecxy/npm/vecxy
+cd /path/to/Game
+vecxy engine use --local ../Vendors/Vecxy
+vecxy engine current
+vecxy build
+vecxy update --check
+vecxy update
+```
+
+The relative checkout path is stored in `.vecxy/config.json` as `engine.path`.
+It takes precedence over the shared engine cache; `VECXY_ENGINE_PATH` remains an explicit override.
+The generated, ignored Engine.props is refreshed automatically on CLI commands.
+`setup` preserves a selected local checkout. A linked npm package uses edited JavaScript
+on the next invocation, without publishing or reinstalling it.
+
+`update` (also `engine update`) fetches the current branch's upstream and only fast-forwards.
+It refuses uncommitted changes, detached HEAD and diverged history instead of resetting,
+stashing or overwriting work. `--check` fetches and reports ahead/behind without moving HEAD,
+including when the checkout has local changes. It does not push either repository.
+The parent repository's submodule pointer remains yours to commit.
+
+Run local command tests with `npm test` in this package. The tests use disposable local Git
+repositories and do not access GitHub. Desktop builds run the project's preparation targets,
+including USD cooking, before creating VPack packages.
+
+
+## First build on another computer
+
+Install Git, Node.js 20+ (including npm), and Python 3.10+ with venv support. Then:
+
+```bash
+git clone --recurse-submodules <game-repository>
+cd <game-repository>
+npm install --global ./Vendors/Vecxy/npm/vecxy
+cd Game
+vecxy setup --yes --no-android
+vecxy build
+```
+
+For projects with a local engine path, setup preserves the checkout, installs the exact
+.NET SDK, generates machine-local Engine.props, and creates the project OpenUSD/Pillow
+virtual environment when USD is referenced. Repeated setup skips USD installation when
+the dependency stamp and environment are valid. Blender is only needed for scene editing.
+On Linux, a writable npm prefix (for example --prefix "$HOME/.local", with its bin on PATH)
+avoids requiring root access. Project .gitmodules must reference accessible engine commits.
