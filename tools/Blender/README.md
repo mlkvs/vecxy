@@ -176,3 +176,11 @@ Regression checks:
 ```bash
 blender --background --factory-startup --python tools/Blender/tests/test_level_design.py
 ```
+
+
+Collider fixes in 1.4.1: **Show collider** draws selected outlines in Object and mesh
+Edit Mode. **Colliders through geometry** is enabled by default; turn it off for
+normal depth occlusion. Add explicitly resets its operator action after Remove,
+a newly added collider is fitted to the current object/prototype geometry, and
+repeated Add preserves the values of an existing component. Regression check:
+`VECXY_TEST_CATALOG=/path/to/vecxy.components.json blender --background --factory-startup --python tools/Blender/tests/test_colliders.py`.

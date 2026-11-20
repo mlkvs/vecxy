@@ -1,5 +1,5 @@
 bl_info = {
-    'name': 'Vecxy USD Tools', 'author': 'Vecxy', 'version': (1, 4, 0),
+    'name': 'Vecxy USD Tools', 'author': 'Vecxy', 'version': (1, 4, 1),
     'blender': (5, 2, 0), 'location': '3D View > Sidebar > Vecxy',
     'description': 'Components, collider previews, shared prototypes and referenced USD export',
     'category': 'Import-Export',
@@ -92,6 +92,7 @@ class VECXY_SceneSettings(bpy.types.PropertyGroup):
     editing_selection: StringProperty(default='')
     editing_view_area: StringProperty(default='')
     editing_linked: BoolProperty(default=False)
+    colliders_xray: BoolProperty(name='Colliders through geometry', default=True, description='Keep selected collider outlines visible through solid meshes, including Edit Mode')
     normalized_z_up: BoolProperty(default=True, options={'HIDDEN'})
 
 
@@ -129,6 +130,7 @@ def collection_bounds(col):
     points=[]
     for obj in col.all_objects:
         if obj.type=='MESH':
+            if obj.mode=='EDIT':obj.update_from_editmode()
             points.extend(obj.matrix_world @ Vector(corner) for corner in obj.bound_box)
     return points
 
@@ -164,6 +166,7 @@ class VECXY_OT_fit_collider(bpy.types.Operator):
         for field in schema.CATALOG[component.type_name]['fields']:
             if field['key'] in data:schema.set_param(component,field,data[field['key']])
         if instance_collection(obj) and settings==obj.vecxy:obj.vecxy.override_components=True
+        redraw_viewports(context)
         return {'FINISHED'}
 
 
@@ -352,16 +355,39 @@ class VECXY_OT_finish_edit(bpy.types.Operator):
         return {'FINISHED'}
 
 
+def redraw_viewports(context):
+    for window in context.window_manager.windows:
+        for area in window.screen.areas:
+            if area.type=='VIEW_3D':area.tag_redraw()
+
+
 class VECXY_OT_component(bpy.types.Operator):
     bl_idname='vecxy.component';bl_label='Component';bl_options={'REGISTER','UNDO'}
-    index:IntProperty(default=-1)
+    index:IntProperty(default=-1,options={'SKIP_SAVE'})
     def execute(self,context):
         settings=current_settings(context)
+        if settings is None:
+            self.report({'ERROR'},'Select an object or a prototype source first');return {'CANCELLED'}
         if self.index<0:
-            try:schema.add_component(settings,context.scene.vecxy_usd.selected_component)
+            type_name=context.scene.vecxy_usd.selected_component
+            definition=schema.CATALOG.get(type_name)
+            if definition and any(c.key==definition['key'] for c in settings.components):
+                self.report({'WARNING'},'This component key already exists; edit or remove it first');return {'CANCELLED'}
+            try:
+                schema.add_component(settings,type_name)
+                if type_name in schema.COLLIDERS:
+                    obj=settings_owner(context.object)
+                    editing=context.scene.vecxy_usd.editing
+                    points=collection_bounds(editing) if editing and obj.name in editing.all_objects else local_bounds(obj)
+                    if points:bpy.ops.vecxy.fit_collider()
+                    context.object.vecxy.show_collider=True
             except RuntimeError as error:self.report({'ERROR'},str(error));return {'CANCELLED'}
-        else:settings.components.remove(self.index)
+        else:
+            if self.index>=len(settings.components):
+                self.report({'WARNING'},'The component has already been removed');return {'CANCELLED'}
+            settings.components.remove(self.index)
         if instance_collection(context.object) and settings==context.object.vecxy:settings.override_components=True
+        redraw_viewports(context)
         return {'FINISHED'}
 
 
@@ -483,6 +509,7 @@ class VECXY_PT_tools(bpy.types.Panel):
             settings=current_settings(context)
             inherited=col and not obj.vecxy.edit_defaults
             layout.prop(obj.vecxy,'show_collider')
+            layout.prop(scene,'colliders_xray')
             if inherited:layout.prop(settings,'override_role')
             row=layout.row();row.enabled=not inherited or settings.override_role;row.prop(settings,'role')
             layout.prop(settings,'override_tint')
@@ -524,7 +551,9 @@ class VECXY_PT_tools(bpy.types.Panel):
                         op=row.operator('vecxy.field_help',text='',icon='INFO');op.type_name=comp.type_name;op.key=field['key']
                 if comp.type_name in schema.COLLIDERS:sub.operator('vecxy.fit_collider',text='Fit to model')
             body.prop(scene,'selected_component',text='')
-            body.operator('vecxy.component',text='Add selected component',icon='ADD')
+            # Never inherit a previous Remove button's index from Blender's
+            # last-used operator properties. Add and Remove share this operator.
+            body.operator('vecxy.component',text='Add selected component',icon='ADD').index=-1
         layout.separator();layout.prop(scene,'catalog_path');layout.operator('vecxy.reload_catalog',icon='FILE_REFRESH')
         layout.separator();layout.prop(scene,'export_path');layout.prop(scene,'python_path');layout.prop(scene,'export_prototypes');layout.prop(scene,'cook_after_export')
         layout.operator('vecxy.export_scene',icon='EXPORT')
@@ -534,9 +563,9 @@ def draw_colliders():
     import gpu
     from gpu_extras.batch import batch_for_shader
     context=bpy.context
-    if context.mode!='OBJECT':return
+    if context.mode not in {'OBJECT','EDIT_MESH'}:return
     shader=gpu.shader.from_builtin('UNIFORM_COLOR')
-    gpu.state.blend_set('ALPHA');gpu.state.depth_test_set('LESS_EQUAL');gpu.state.line_width_set(2)
+    gpu.state.blend_set('ALPHA');gpu.state.depth_test_set('NONE' if context.scene.vecxy_usd.colliders_xray else 'LESS_EQUAL');gpu.state.line_width_set(2)
     try:
         drawn=set()
         for obj in context.selected_objects:
