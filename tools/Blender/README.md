@@ -194,3 +194,11 @@ the collider draw callback was installed, leaving the sidebar visible without ou
 checks the real addon_utils enable/disable/re-enable path, not a direct register() call.
 After upgrading from a partially registered 1.4/1.4.1 session, save the file and fully
 restart Blender.
+
+
+Placement-mode fix in 1.4.3: library placement, the library-row plus, copy stamping
+and Move explicitly set all operator action properties. Those transient properties
+use SKIP_SAVE so Blender cannot reuse Move as a later library-placement action.
+`test_placement_modes.py` checks every button with stale cached properties;
+`test_placement_lifecycle.py` is a graphical native-input regression fixture driven
+through move-confirm, move-cancel and library/copy placement sessions.

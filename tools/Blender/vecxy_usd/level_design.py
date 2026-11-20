@@ -146,6 +146,16 @@ class VECXY_LayoutSettings(bpy.types.PropertyGroup):
     snap_gap: FloatProperty(name='Зазор стыковки', default=0, subtype='DISTANCE')
 
 
+def place_button(layout, *, collection_name='', from_selection=False, move_existing=False, **kwargs):
+    # Every button must specify the full action, rather than inheriting Blender's
+    # last-used properties from another button sharing the same operator.
+    operator = layout.operator('vecxy.place_shared', **kwargs)
+    operator.collection_name = collection_name
+    operator.from_selection = from_selection
+    operator.move_existing = move_existing
+    return operator
+
+
 class VECXY_UL_shared_library(bpy.types.UIList):
     def filter_items(self, context, data, propname):
         items = getattr(data, propname)
@@ -160,8 +170,7 @@ class VECXY_UL_shared_library(bpy.types.UIList):
     def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index):
         row = layout.row(align=True)
         row.label(text=item.vecxy.asset_name or item.name, icon='OUTLINER_COLLECTION')
-        op = row.operator('vecxy.place_shared', text='', icon='ADD', emboss=False)
-        op.collection_name = item.name
+        place_button(row, text='', icon='ADD', emboss=False, collection_name=item.name)
 
 
 class VECXY_OT_library_from_selection(bpy.types.Operator):
@@ -208,9 +217,9 @@ class VECXY_OT_place_shared(bpy.types.Operator):
     bl_label = 'Расставить мышью'
     bl_description = 'ЛКМ — поставить копию; R — поворот; Shift — без привязки; Enter/Esc — закончить'
     bl_options = {'REGISTER', 'UNDO', 'BLOCKING'}
-    collection_name: StringProperty(options={'HIDDEN'})
-    from_selection: BoolProperty(default=False, options={'HIDDEN'})
-    move_existing: BoolProperty(default=False, options={'HIDDEN'})
+    collection_name: StringProperty(options={'HIDDEN', 'SKIP_SAVE'})
+    from_selection: BoolProperty(default=False, options={'HIDDEN', 'SKIP_SAVE'})
+    move_existing: BoolProperty(default=False, options={'HIDDEN', 'SKIP_SAVE'})
 
     @classmethod
     def poll(cls, context):
@@ -524,7 +533,7 @@ class VECXY_PT_level_design(bpy.types.Panel):
             col = library_collection(context)
             if col:
                 box.label(text=col.vecxy.asset_name, icon='OUTLINER_COLLECTION')
-                box.operator('vecxy.place_shared', icon='CURSOR')
+                place_button(box, icon='CURSOR', collection_name=col.name)
                 box.operator('vecxy.add_shared_at_cursor', icon='PIVOT_CURSOR')
             else:
                 box.label(text='Выберите прототип в списке')
@@ -533,10 +542,8 @@ class VECXY_PT_level_design(bpy.types.Panel):
         if shared(context.object):
             box.operator('vecxy.library_from_selection', icon='VIEWZOOM')
             row = box.row(align=True)
-            op = row.operator('vecxy.place_shared', text='Копии мышью', icon='DUPLICATE')
-            op.from_selection = True
-            op = row.operator('vecxy.place_shared', text='Переставить', icon='ORIENTATION_GLOBAL')
-            op.move_existing = True
+            place_button(row, text='Копии мышью', icon='DUPLICATE', from_selection=True)
+            place_button(row, text='Переставить', icon='ORIENTATION_GLOBAL', move_existing=True)
         box = layout.box()
         row = box.row(align=True)
         row.prop(settings, 'use_grid')
