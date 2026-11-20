@@ -579,6 +579,16 @@ def remove_abandoned_previews(_dummy):
             bpy.data.objects.remove(obj, do_unlink=True)
 
 
+def cleanup_when_ready():
+    # addon_utils.enable runs register() inside RestrictBlend: bpy.data.objects
+    # is unavailable there, even when a file is already open. Wait for normal
+    # event-loop access instead of leaving the addon only partially registered.
+    if not hasattr(bpy.data, 'objects'):
+        return .1
+    remove_abandoned_previews(None)
+    return None
+
+
 CLASSES = (VECXY_LayoutSettings, VECXY_UL_shared_library, VECXY_OT_library_from_selection,
            VECXY_OT_add_shared_at_cursor, VECXY_OT_place_shared, VECXY_OT_duplicate_grid,
            VECXY_OT_snap_to_active, VECXY_PT_level_design)
@@ -591,10 +601,13 @@ def register():
     bpy.app.handlers.save_pre.append(cancel_placements)
     bpy.app.handlers.load_pre.append(cancel_placements)
     bpy.app.handlers.load_post.append(remove_abandoned_previews)
-    remove_abandoned_previews(None)
+    if not bpy.app.timers.is_registered(cleanup_when_ready):
+        bpy.app.timers.register(cleanup_when_ready, first_interval=.1)
 
 
 def unregister():
+    if bpy.app.timers.is_registered(cleanup_when_ready):
+        bpy.app.timers.unregister(cleanup_when_ready)
     cancel_placements(None)
     for handlers, callback in ((bpy.app.handlers.save_pre, cancel_placements),
                                (bpy.app.handlers.load_pre, cancel_placements),

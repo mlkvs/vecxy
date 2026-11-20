@@ -184,3 +184,13 @@ normal depth occlusion. Add explicitly resets its operator action after Remove,
 a newly added collider is fitted to the current object/prototype geometry, and
 repeated Add preserves the values of an existing component. Regression check:
 `VECXY_TEST_CATALOG=/path/to/vecxy.components.json blender --background --factory-startup --python tools/Blender/tests/test_colliders.py`.
+
+
+Startup fix in 1.4.2: abandoned placement-preview cleanup is deferred until Blender
+permits scene access. Blender's normal addon loader uses RestrictBlend during
+register(); accessing bpy.data.objects there previously stopped registration before
+the collider draw callback was installed, leaving the sidebar visible without outlines.
+`blender --background --factory-startup --python tools/Blender/tests/test_registration.py`
+checks the real addon_utils enable/disable/re-enable path, not a direct register() call.
+After upgrading from a partially registered 1.4/1.4.1 session, save the file and fully
+restart Blender.

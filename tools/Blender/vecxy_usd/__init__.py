@@ -1,5 +1,5 @@
 bl_info = {
-    'name': 'Vecxy USD Tools', 'author': 'Vecxy', 'version': (1, 4, 1),
+    'name': 'Vecxy USD Tools', 'author': 'Vecxy', 'version': (1, 4, 2),
     'blender': (5, 2, 0), 'location': '3D View > Sidebar > Vecxy',
     'description': 'Components, collider previews, shared prototypes and referenced USD export',
     'category': 'Import-Export',
