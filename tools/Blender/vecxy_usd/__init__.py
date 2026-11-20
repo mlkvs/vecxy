@@ -1,5 +1,5 @@
 bl_info = {
-    'name': 'Vecxy USD Tools', 'author': 'Vecxy', 'version': (1, 3, 0),
+    'name': 'Vecxy USD Tools', 'author': 'Vecxy', 'version': (1, 4, 0),
     'blender': (5, 2, 0), 'location': '3D View > Sidebar > Vecxy',
     'description': 'Components, collider previews, shared prototypes and referenced USD export',
     'category': 'Import-Export',
@@ -194,6 +194,10 @@ class VECXY_OT_mark_prototype(bpy.types.Operator):
         col.vecxy.is_prototype=True;col.vecxy.asset_name=col.name.removesuffix('_Prototype')
         if not col.vecxy.export_path:col.vecxy.export_path='//../Assets/Scenes/Prototypes/'+safe_name(col.vecxy.asset_name)+'.usda'
         ensure_id(col.vecxy)
+        # A root's authoring scale stays on the collection instance. Preserve it
+        # as the library default instead of placing unscaled canonical geometry.
+        if '_vecxy_layout_scale' not in col:
+            col['_vecxy_layout_scale'] = tuple(context.object.matrix_world.decompose()[2])
         return {'FINISHED'}
 
 
@@ -619,12 +623,16 @@ def register():
     bpy.types.Scene.vecxy_usd=PointerProperty(type=VECXY_SceneSettings)
     bpy.app.handlers.load_post.append(load_project_catalog)
     load_project_catalog(None)
+    from . import level_design
+    level_design.register()
     if not bpy.app.background:
         _handle=bpy.types.SpaceView3D.draw_handler_add(draw_colliders,(),'WINDOW','POST_VIEW')
         if not bpy.app.timers.is_registered(watch_project_catalog):bpy.app.timers.register(watch_project_catalog,first_interval=1.0,persistent=True)
 
 def unregister():
     global _handle
+    from . import level_design
+    level_design.unregister()
     if bpy.app.timers.is_registered(watch_project_catalog):bpy.app.timers.unregister(watch_project_catalog)
     if load_project_catalog in bpy.app.handlers.load_post:bpy.app.handlers.load_post.remove(load_project_catalog)
     if _handle:bpy.types.SpaceView3D.draw_handler_remove(_handle,'WINDOW');_handle=None

@@ -134,3 +134,45 @@ renderer is suppressed in the game. The XML/CSS document is the same as for Over
 `Cursor image` uses the same generic asset picker (`AssetType = "Texture2D"`);
 choose **None** to clear it. Cursor size is in logical UI pixels, hotspot is top-left.
 The two examples in the Horror scene demonstrate both modes and custom cursors.
+
+
+## Level layout (addon 1.4)
+
+**N → Vecxy → Расстановка уровня** lists every shared prototype in this `.blend`,
+including its unlinked source collection. The search field above the list filters by asset or
+collection name. Click the plus next to an item, or select it and use **Расставить
+мышью**. The mesh follows the mouse, and its geometric support face lands on the
+surface under the cursor; the collection empty's origin is irrelevant. The 3D cursor's
+Z defines a fallback plane when there is no surface under the ray.
+
+- Left click stamps linked copies; R / Shift+R rotates by the configured angle.
+- G toggles the grid, M the geometry-bounds magnet, A surface orientation.
+- Hold Shift to temporarily bypass grid/magnet. Middle mouse and wheel navigate.
+- Enter / Esc ends a stamping session and removes the pending preview; stamped copies
+  remain. Undo reverts the session as one operation. When moving an existing instance,
+  Esc restores its previous transform, while click or Enter accepts the new position.
+- **Копии мышью** preserves the selected instance's scale and local component/tint
+  overrides. **Переставить** positions the existing instance without creating a copy.
+- **Добавить у 3D-курсора** aligns the bottom center of the geometry with the cursor.
+- **Создать ряд / сетку копий** creates linked arrays along local or world axes. Counts
+  include the originals; geometry size plus gap determines spacing, or set a manual
+  step. Multiple selected instances are repeated as one group (maximum 1000 new
+  instances per operation).
+- **Состыковать с активным** moves the other selected objects as a group against the
+  chosen positive/negative face of the active object. Bounds are measured in the
+  active object's orientation when local axes are enabled. The reference stays still.
+
+The library retains the scale used when making a prototype; older files infer it
+from an existing instance. Source pivots and canonical geometry stay unchanged.
+The magnet uses geometry bounds, includes collection instance offsets, nested
+prototypes, evaluated mesh bounds, instance rotation and scale. It is intended for
+modular pieces; it does not weld vertices or change source pivots, collider data,
+shared mesh data, material assignments, or USD reference semantics. Surface alignment
+is optional. The library is local to the current `.blend`, not an external asset browser.
+Saving/loading/disabling the addon cancels pending previews so they are not serialized.
+
+Regression checks:
+
+```bash
+blender --background --factory-startup --python tools/Blender/tests/test_level_design.py
+```
