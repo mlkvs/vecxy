@@ -231,7 +231,7 @@
       "path": "Shaders/Lit.glsl",
       "type": "Shader",
       "name": "Lit",
-      "hash": "e0e4138798a91ea8b235f0fce3793aa8a48a4e1b79d439b2d24837beb753aef7",
+      "hash": "723c40dd239d671188e81451bc03cb24da9e85a251438909701804d3f6cc6c87",
       "dependencies": [],
       "package": "79e6ac0f-5f3f-e20a-2227-c63732e7dd1e"
     },
