@@ -378,6 +378,9 @@ public sealed class UiDocument : IDisposable
         _sourceVersion,
         Root.LayoutVersion,
         Root.VisualVersion,
+        // A viewport resize can change the computed bounds without changing the DOM layout version.
+        _layoutPasses,
+        LayoutScale,
         IsVisible);
 
     internal int RenderVersion => HashCode.Combine(
