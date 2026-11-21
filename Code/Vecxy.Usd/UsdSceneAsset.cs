@@ -68,6 +68,7 @@ public sealed class UsdPrimRecord
 {
     public string Path { get; set; } = "";
     public int Node { get; set; }
+    public bool IsStatic { get; set; }
     public string Role { get; set; } = "";
     public string Prototype { get; set; } = "";
     public string Collider { get; set; } = "";

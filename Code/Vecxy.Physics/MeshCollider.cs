@@ -13,6 +13,8 @@ public sealed class MeshCollider : Collider
 
     internal Geometry? Mesh { get; private set; }
 
+    public bool DoubleSided { get; set; }
+
     public void SetGeometry(ReadOnlySpan<Vector3> vertices, ReadOnlySpan<int> indices)
     {
         if (indices.Length == 0 || indices.Length % 3 != 0)
@@ -33,6 +35,8 @@ public sealed class MeshCollider : Collider
         {
             public Vector3[] Vertices { get; set; } = [];
             public int[] Indices { get; set; } = [];
+            [Authoring("Double sided", Order = 2, Description = "Collide with both faces of each triangle.")]
+            public bool DoubleSided { get; set; }
         }
 
         protected override MeshCollider Instantiate(IPrototypeContext context)
@@ -44,6 +48,7 @@ public sealed class MeshCollider : Collider
         protected override void Configure(MeshCollider collider, Options options)
         {
             collider.SetGeometry(options.Vertices, options.Indices);
+            collider.DoubleSided = options.DoubleSided;
             options.Apply(collider);
         }
     }

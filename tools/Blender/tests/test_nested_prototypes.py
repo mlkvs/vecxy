@@ -9,7 +9,7 @@ from mathutils import Vector
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import vecxy_usd as addon
-from vecxy_usd import collider_mesh, level_design
+from vecxy_usd import collider_mesh, level_design, prototype_preview
 
 addon.register()
 context = bpy.context
@@ -40,6 +40,7 @@ inner = context.object
 inner_source = inner.instance_collection
 inner_source.vecxy.export_path = str(root / 'Assets/Scenes/Prototypes/Ring.usda')
 inner_source.instance_offset = (.25, .5, 0)
+inner_source.vecxy.is_static = True
 inner.location = inner_source.instance_offset
 inner.vecxy.edit_defaults = True
 scene.selected_component = 'Vecxy.Physics.BoxCollider'
@@ -51,34 +52,79 @@ addon.schema.set_param(box, fields['center'], (3, 0, -1))
 inner.vecxy.edit_defaults = False
 base_mesh = inner_source.vecxy.components[0]
 assert bpy.ops.vecxy.override_component(index=0) == {'FINISHED'}
-offset = next(f for f in addon.schema.CATALOG[base_mesh.type_name]['fields'] if f['key'] == 'center')
-addon.schema.set_param(inner.vecxy.components[0], offset, (0, 0, .125))
+mesh_fields = {f['key']: f for f in addon.schema.CATALOG[base_mesh.type_name]['fields']}
+addon.schema.set_param(inner.vecxy.components[0], mesh_fields['center'], (0, 0, .125))
+addon.schema.set_param(inner.vecxy.components[0], mesh_fields['doubleSided'], True)
+inner.vecxy.override_static = True
+assert not inner.vecxy.is_static
 
 collection = bpy.data.collections.new('Assembly')
+collection.vecxy.is_static = True
 context.scene.collection.children.link(collection)
 for owner in list(inner.users_collection):
     owner.objects.unlink(inner)
 collection.objects.link(inner)
 collection.instance_offset = (.5, -.25, 0)
 context.view_layer.update()
-assert bpy.ops.vecxy.prototype_from_collection(collection_name=collection.name) == {'FINISHED'}
+context.scene.cursor.location = (.5, -.25, 0)
+assert bpy.ops.vecxy.prototype_from_collection(collection_name=collection.name, pivot='CURSOR') == {'FINISHED'}
 outer = context.object
 collection.vecxy.export_path = str(root / 'Assets/Scenes/Prototypes/Assembly.usda')
+graph = context.evaluated_depsgraph_get()
+outer_points = level_design.geometry_points(outer, graph)
+assert bpy.ops.vecxy.edit_prototype() == {'FINISHED'}
+assert scene.editing == collection and context.object == inner
+scene.edit_collection_components = False
+assert bpy.ops.vecxy.edit_prototype() == {'FINISHED'}
+assert scene.editing == inner_source and context.object == floor
+assert bpy.ops.vecxy.set_prototype_pivot(editing_source=True, method='ACTIVE') == {'FINISHED'}
+assert tuple(inner_source.instance_offset) == (0, 0, 0)
+assert bpy.ops.vecxy.finish_prototype() == {'FINISHED'}
+assert scene.editing == collection and context.object == inner
+assert not scene.edit_collection_components and inner_source.name not in context.scene.collection.children
+assert bpy.ops.vecxy.finish_prototype() == {'FINISHED'}
+assert scene.editing is None and context.object == outer
+assert collection.name not in context.scene.collection.children
+context.scene.cursor.location = (1.25, -.75, 0)
+assert bpy.ops.vecxy.set_prototype_pivot(editing_source=False, method='CURSOR') == {'FINISHED'}
+assert (outer.matrix_world.translation - context.scene.cursor.location).length < 1e-5
+updated_points = level_design.geometry_points(outer, context.evaluated_depsgraph_get())
+assert all((a - b).length < 1e-5 for a, b in zip(outer_points, updated_points))
+assert next(addon.schema.collider_views(inner_source.vecxy)).collider_center == (0, 0, 0)
+assert addon.schema.values(box)['center'] == {'x': 3.25, 'y': .5, 'z': -1}
+nodes = list(prototype_preview.object_nodes(outer))
+inner_preview = next(node for node in nodes if node.owner == inner)
+preview_shapes = list(addon.schema.collider_views(inner_preview.settings, inner_preview.defaults))
+assert nodes[0].static and not inner_preview.static
+assert len(preview_shapes) == 2 and inner_preview.path == (outer, inner)
+assert 'Mesh Collider (double sided)' in prototype_preview.node_description(inner_preview)
+assert prototype_preview.collider_style(inner_preview, preview_shapes[1]) == (prototype_preview._MOVABLE, False)
+addon.schema.set_param(box, fields['isTrigger'], True)
+trigger = list(addon.schema.collider_views(inner_preview.settings, inner_preview.defaults))[1]
+assert prototype_preview.collider_style(inner_preview, trigger) == (prototype_preview._TRIGGER, True)
+addon.schema.set_param(box, fields['isTrigger'], False)
 collection['_vecxy_layout_scale'] = (.5, 2, 1)
 del collection['_vecxy_placement_scale']
 clone = level_design.create_shared(context, collection)
 assert tuple(clone.scale) == (1, 1, 1)
 clone.rotation_euler.z = .4
+clone.scale = (1.5, .75, 1)
 clone.location = (20, 3, 0)
 context.view_layer.update()
 graph = context.evaluated_depsgraph_get()
 original_points = level_design.geometry_points(clone, graph)
+context.scene.cursor.location = (1.8, .5, 0)
+assert bpy.ops.vecxy.set_prototype_pivot(editing_source=False, method='CURSOR') == {'FINISHED'}
+assert tuple(clone.scale) == (1.5, .75, 1)
+assert all((a - b).length < 1e-5 for a, b in zip(
+    original_points, level_design.geometry_points(clone, context.evaluated_depsgraph_get())))
 level_design.select_only(context, [clone])
 assert bpy.ops.vecxy.detach_prototype() == {'FINISHED'}
 detached = next(child for child in clone.children_recursive if child.type == 'MESH')
 assert detached.data != mesh and not any(child.instance_collection for child in clone.children_recursive)
 assert not clone.instance_collection
 detached_inner = detached.parent
+assert clone.vecxy.is_static and not detached_inner.vecxy.is_static
 shapes = list(addon.schema.collider_views(detached_inner.vecxy))
 assert len(shapes) == 2 and shapes[0].collider_center[2] == .125, shapes
 vertices, indices = collider_mesh.triangles(context.evaluated_depsgraph_get(), obj=detached_inner)
@@ -132,7 +178,10 @@ overrides = json.loads(owner.GetAttribute('vecxy:componentOverrides').Get())
 assert len(components) == 2
 assert len(components[0]['data']['indices']) == 24
 assert overrides[0]['data']['center']['z'] == .125
+assert overrides[0]['data']['doubleSided'] is True
+assert owner.GetAttribute('vecxy:isStatic').Get() is False
+assert owner.GetParent().GetAttribute('vecxy:isStatic').Get() is True
 """
 subprocess.run([scene.python_path, '-c', verification, scene.export_path], check=True)
-print('PASS: nested USD composition, collection offsets, mesh collider geometry and overrides, detached geometry and library filters')
+print('PASS: nested editing, pivots, USD composition, collider/static overrides, detach and library filters')
 addon.unregister()

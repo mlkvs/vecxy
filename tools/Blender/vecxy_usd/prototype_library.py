@@ -1,9 +1,82 @@
 """Create, organize and detach Shared Prototypes."""
 import bpy
-from bpy.props import StringProperty
-from mathutils import Matrix
+from bpy.props import BoolProperty, EnumProperty, StringProperty
+from mathutils import Matrix, Vector
 
 from .level_design import library_collection, select_only, shared
+
+
+_PIVOT_METHODS = [('CURSOR', '3D Cursor', ''), ('ACTIVE', 'Active object', '')]
+
+
+def source_pivot(context, collection, method):
+    if method == 'CURSOR':
+        return context.scene.cursor.location.copy()
+    if context.object and context.object.name in collection.all_objects:
+        return context.object.matrix_world.translation.copy()
+    raise ValueError('Выберите исходный объект внутри коллекции')
+
+
+def move_collider_centers(settings, delta, inherited_keys=()):
+    from . import schema
+
+    if settings.collider != 'NONE':
+        settings.collider_center = Vector(settings.collider_center) - delta
+    for component in settings.components:
+        if component.type_name not in schema.COLLIDERS or component.type_name == schema.MESH_COLLIDER:
+            continue
+        center = next((p for p in component.parameters if p.key == 'center'), None)
+        if component.key in inherited_keys and (center is None or not center.is_override):
+            continue
+        current = Vector(center.vector) if center is not None else Vector()
+        schema.set_param(component, {'key': 'center', 'kind': 'VECTOR3'}, current - delta)
+
+
+def change_pivot(collection, position):
+    delta = position - collection.instance_offset
+    if delta.length_squared == 0:
+        return
+    keys = {component.key for component in collection.vecxy.components}
+    for obj in bpy.data.objects:
+        if obj.instance_type != 'COLLECTION' or obj.instance_collection != collection:
+            continue
+        # M @ T(delta) cancels the offset change for the contents of the instance.
+        obj.location += obj.matrix_basis.to_3x3() @ delta
+        inverse = Matrix.Translation(-delta)
+        for child in obj.children:
+            child.matrix_parent_inverse = inverse @ child.matrix_parent_inverse
+        move_collider_centers(obj.vecxy, delta, keys)
+    move_collider_centers(collection.vecxy, delta)
+    collection.instance_offset = position
+
+
+class VECXY_OT_set_prototype_pivot(bpy.types.Operator):
+    bl_idname = 'vecxy.set_prototype_pivot'
+    bl_label = 'Set Shared Prototype pivot'
+    bl_description = 'Move the prototype pivot while keeping existing instances in place'
+    bl_options = {'REGISTER', 'UNDO'}
+    editing_source: BoolProperty(options={'SKIP_SAVE'})
+    method: EnumProperty(items=_PIVOT_METHODS, default='CURSOR', options={'SKIP_SAVE'})
+
+    def execute(self, context):
+        try:
+            if self.editing_source:
+                collection = context.scene.vecxy_usd.editing
+                if collection is None:
+                    raise ValueError('Откройте исходную коллекцию прототипа')
+                position = source_pivot(context, collection, self.method)
+            else:
+                instance = context.object
+                collection = shared(instance)
+                if collection is None:
+                    raise ValueError('Выберите экземпляр Shared Prototype')
+                position = instance.matrix_world.inverted() @ context.scene.cursor.location + collection.instance_offset
+            change_pivot(collection, position)
+        except (ValueError, ZeroDivisionError) as error:
+            self.report({'ERROR'}, str(error))
+            return {'CANCELLED'}
+        context.view_layer.update()
+        return {'FINISHED'}
 
 
 def available_collection(collection):
@@ -24,6 +97,8 @@ class VECXY_OT_prototype_from_collection(bpy.types.Operator):
     bl_description = 'Создать Shared Prototype из коллекции, включая вложенные экземпляры'
     bl_options = {'REGISTER', 'UNDO'}
     collection_name: StringProperty(name='Коллекция')
+    pivot: EnumProperty(name='Пивот', items=[('COLLECTION', 'Collection offset', ''), *_PIVOT_METHODS],
+                        default='COLLECTION', options={'SKIP_SAVE'})
 
     @classmethod
     def poll(cls, context):
@@ -36,6 +111,7 @@ class VECXY_OT_prototype_from_collection(bpy.types.Operator):
 
     def draw(self, context):
         self.layout.prop_search(self, 'collection_name', bpy.data, 'collections')
+        self.layout.prop(self, 'pivot')
 
     def execute(self, context):
         from . import ensure_id, register_prototype
@@ -47,6 +123,12 @@ class VECXY_OT_prototype_from_collection(bpy.types.Operator):
         if any(member.vecxy.is_prototype for member in col.children_recursive):
             self.report({'ERROR'}, 'Вложенные Shared Prototype должны быть экземплярами коллекций')
             return {'CANCELLED'}
+        if self.pivot != 'COLLECTION':
+            try:
+                change_pivot(col, source_pivot(context, col, self.pivot))
+            except ValueError as error:
+                self.report({'ERROR'}, str(error))
+                return {'CANCELLED'}
         parents = list(dict.fromkeys(scene_parents(context.scene.collection, col)))
         destinations = parents or [context.scene.collection]
         instance = bpy.data.objects.new(col.name + '_Instance', None)
@@ -129,6 +211,8 @@ def flatten_components(settings, defaults):
 
     if not settings.override_role:
         settings.role = defaults.role
+    if not settings.override_static:
+        settings.is_static = defaults.is_static
     if not settings.override_tint and defaults.override_tint:
         settings.override_tint = True
         settings.tint = defaults.tint
@@ -201,7 +285,7 @@ class VECXY_OT_detach_prototype(bpy.types.Operator):
         return {'FINISHED'}
 
 
-CLASSES = (VECXY_OT_prototype_from_collection, VECXY_OT_rename_library_prototype,
+CLASSES = (VECXY_OT_set_prototype_pivot, VECXY_OT_prototype_from_collection, VECXY_OT_rename_library_prototype,
            VECXY_OT_hide_library_prototype, VECXY_OT_detach_prototype)
 
 

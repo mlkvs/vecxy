@@ -124,7 +124,8 @@ def collider_views(settings,base=None):
             return tuple(data[key][axis] for axis in 'xyz') if key in data else default
         yield SimpleNamespace(key=comp.key,collider=COLLIDERS[comp.type_name],collider_center=vector('center',(0,0,0)),
             collider_size=vector('size',(1,1,1)),collider_radius=data.get('radius',.35),
-            collider_height=data.get('height',1.1),collider_axis=data.get('axis','Z'))
+            collider_height=data.get('height',1.1),collider_axis=data.get('axis','Z'),
+            is_trigger=data.get('isTrigger',False))
 
 
 def collider_view(settings,base=None):

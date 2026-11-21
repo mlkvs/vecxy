@@ -13,7 +13,7 @@ TYPES={'collider':Sdf.ValueTypeNames.Token,'colliderAxis':Sdf.ValueTypeNames.Tok
        'colliderSize':Sdf.ValueTypeNames.Float3,'colliderCenter':Sdf.ValueTypeNames.Float3,
        'colliderRadius':Sdf.ValueTypeNames.Float,'colliderHeight':Sdf.ValueTypeNames.Float,
        'friction':Sdf.ValueTypeNames.Float,'restitution':Sdf.ValueTypeNames.Float,
-       'trigger':Sdf.ValueTypeNames.Bool,'role':Sdf.ValueTypeNames.String,
+       'trigger':Sdf.ValueTypeNames.Bool,'role':Sdf.ValueTypeNames.String,'isStatic':Sdf.ValueTypeNames.Bool,
        'components':Sdf.ValueTypeNames.String,'componentOverrides':Sdf.ValueTypeNames.String,'tint':Sdf.ValueTypeNames.Float4,'range':Sdf.ValueTypeNames.Float}
 
 

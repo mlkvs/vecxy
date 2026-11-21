@@ -17,21 +17,32 @@ internal static class PhysicsShapeFactory
         var indices = geometry.Indices;
         // Mirroring a mesh reverses winding, while its front face should stay outside.
         if (transform.GetDeterminant() < 0)
-        {
-            indices = (int[])indices.Clone();
-            for (var i = 0; i < indices.Length; i += 3)
-                (indices[i + 1], indices[i + 2]) = (indices[i + 2], indices[i + 1]);
-        }
+            indices = ReverseWinding(indices);
 
         var mesh = new TriangleMesh(vertices.AsSpan(), indices.AsSpan(), ignoreDegenerated: true);
         var count = mesh.Indices.Length;
         if (count == 0)
             throw new InvalidOperationException("Mesh Collider has no nondegenerate triangles.");
 
-        var shapes = new RigidBodyShape[count];
+        // Keep adjacency independent on each side for Jitter's triangle edge filter.
+        TriangleMesh? backMesh = definition.DoubleSided
+            ? new TriangleMesh(vertices.AsSpan(), ReverseWinding(indices).AsSpan(), ignoreDegenerated: true)
+            : null;
+        var shapes = new RigidBodyShape[count + (backMesh?.Indices.Length ?? 0)];
         for (var i = 0; i < count; i++)
             shapes[i] = new MeshTriangleShape(mesh, i);
+        if (backMesh is not null)
+            for (var i = 0; i < backMesh.Indices.Length; i++)
+                shapes[count + i] = new MeshTriangleShape(backMesh, i);
         return shapes;
+    }
+
+    private static int[] ReverseWinding(int[] indices)
+    {
+        var reversed = (int[])indices.Clone();
+        for (var i = 0; i < reversed.Length; i += 3)
+            (reversed[i + 1], reversed[i + 2]) = (reversed[i + 2], reversed[i + 1]);
+        return reversed;
     }
 
     private sealed class MeshTriangleShape(TriangleMesh mesh, int index) : TriangleShape(mesh, index)

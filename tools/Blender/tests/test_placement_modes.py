@@ -34,8 +34,17 @@ operations.clear()
 ld.VECXY_UL_shared_library.draw_item(None,bpy.context,Layout(),bpy.data,col,0,None,None,0)
 props=operations[0][2]
 assert (props.collection_name,props.from_selection,props.move_existing)==(col.name,False,False)
+pencil=next(props for name,text,props in operations if name=='vecxy.edit_prototype')
+assert pencil.collection_name==col.name
 # These transient actions should not become last-used defaults at all.
 rna=bpy.ops.vecxy.place_shared.get_rna_type()
 assert all(rna.properties[key].is_skip_save for key in ('collection_name','from_selection','move_existing'))
-print('PASS: library, row plus, copy and move buttons reset all cached action properties')
+bpy.data.objects.remove(obj, do_unlink=True)
+bpy.ops.object.empty_add()
+marker=bpy.context.object
+assert bpy.ops.vecxy.edit_prototype(collection_name=pencil.collection_name)=={'FINISHED'}
+assert bpy.context.scene.vecxy_usd.editing==col and bpy.context.object in list(col.all_objects)
+assert bpy.ops.vecxy.finish_prototype()=={'FINISHED'}
+assert bpy.context.object==marker and marker.select_get() and col.name not in bpy.context.scene.collection.children
+print('PASS: placement actions, library edit without an instance, restored original selection')
 vecxy_usd.unregister()

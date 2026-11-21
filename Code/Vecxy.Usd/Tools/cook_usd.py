@@ -318,6 +318,8 @@ class Cooker:
             self.nodes[str(prim.GetPath())] = index
             prototype = str(prim.GetPrototype().GetPath()) if prim.IsInstance() else ''
             record = {'path': str(prim.GetPath()), 'node': index, 'role': str(role), 'prototype': prototype}
+            if prim.GetAttribute('vecxy:isStatic').Get() is True:
+                record['isStatic'] = True
             if collider:
                 size = prim.GetAttribute('vecxy:colliderSize').Get()
                 if size is None and prim.IsA(Geom.Cube):

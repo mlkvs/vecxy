@@ -43,6 +43,7 @@ public sealed class UsdModule(IAssetsManager assets, ISceneInstantiator instanti
             foreach (var record in source.Value.Document.Prims)
             {
                 var node = instance.GetNode(record.Node);
+                node.IsStatic = record.IsStatic;
                 prims.Add(record.Path, node);
                 node.AddComponent(new UsdPrim(record.Path, record.Prototype, record.Role, source.Value.Document.UpAxis));
                 if (record.Role.Length > 0)

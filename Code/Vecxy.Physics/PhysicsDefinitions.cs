@@ -28,13 +28,14 @@ internal readonly record struct PhysicsShapeDefinition(
     float Radius,
     float Height,
     MeshCollider.Geometry? Mesh = null,
-    Matrix4x4 MeshTransform = default)
+    Matrix4x4 MeshTransform = default,
+    bool DoubleSided = false)
 {
     public bool Matches(in PhysicsShapeDefinition other)
     {
         if (this == other)
             return true;
-        if (Mesh is null || !ReferenceEquals(Mesh, other.Mesh))
+        if (Mesh is null || !ReferenceEquals(Mesh, other.Mesh) || DoubleSided != other.DoubleSided)
             return false;
 
         // Removing the body's rotation from the world matrix introduces
@@ -103,7 +104,7 @@ internal static class PhysicsDescriptionFactory
                 * linear
                 * Matrix4x4.CreateFromQuaternion(Quaternion.Conjugate(transform.WorldRotation));
             return new PhysicsShapeDefinition(EPhysicsShapeType.Mesh, default, default, default,
-                0, 0, geometry, meshTransform);
+                0, 0, geometry, meshTransform, mesh.DoubleSided);
         }
 
         var worldScale = transform.WorldScale;

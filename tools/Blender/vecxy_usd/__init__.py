@@ -1,11 +1,12 @@
 bl_info = {
-    'name': 'Vecxy USD Tools', 'author': 'Vecxy', 'version': (1, 5, 0),
+    'name': 'Vecxy USD Tools', 'author': 'Vecxy', 'version': (1, 5, 2),
     'blender': (5, 2, 0), 'location': '3D View > Sidebar > Vecxy',
     'description': 'Components, collider previews, shared prototypes and referenced USD export',
     'category': 'Import-Export',
 }
 
 from pathlib import Path
+import json
 import uuid
 import bpy
 from . import schema
@@ -68,6 +69,8 @@ class VECXY_Settings(bpy.types.PropertyGroup):
     trigger: BoolProperty(name='Trigger', default=False)
     role: StringProperty(name='Gameplay role', description='spawn, entrance, washer or another game marker')
     override_role: BoolProperty(name='Override role', default=False)
+    is_static: BoolProperty(name='Static', description='Treat this object as static in game physics')
+    override_static: BoolProperty(name='Override static', default=False)
     override_tint: BoolProperty(name='Override color tint', default=False)
     tint: FloatVectorProperty(name='Tint', size=4, subtype='COLOR', default=(1,1,1,1), min=0,max=1)
     override_components: BoolProperty(name='Override components', default=False)
@@ -93,8 +96,13 @@ class VECXY_SceneSettings(bpy.types.PropertyGroup):
     editing_layer_state: StringProperty(default='')
     editing_selection: StringProperty(default='')
     editing_view_area: StringProperty(default='')
+    editing_return_view: StringProperty(default='')
     editing_linked: BoolProperty(default=False)
+    editing_stack: StringProperty(default='')
     last_export_error: StringProperty(options={'SKIP_SAVE'})
+    preview_on_hover: BoolProperty(name='Inspect on hover', default=True,
+                                  update=lambda self,context:redraw_viewports(context))
+    show_nested_components: BoolProperty(default=False)
     colliders_xray: BoolProperty(name='Colliders through geometry', default=True, description='Keep selected collider outlines visible through solid meshes, including Edit Mode')
     normalized_z_up: BoolProperty(default=True, options={'HIDDEN'})
 
@@ -296,17 +304,68 @@ def toggle_local_view(context,view,frame=True):
         bpy.ops.view3d.localview(frame_selected=frame)
 
 
+_EDIT_FRAME_FIELDS=('editing_visibility','editing_layer_state','editing_selection',
+                    'editing_view_area','editing_return_view','editing_linked','edit_collection_components')
+
+
+def capture_edit_view(context,view):
+    space=view[1].spaces.active
+    region=space.region_3d
+    return {'local':[o.name for o in context.view_layer.objects if o.local_view_get(space)] if space.local_view else [],
+            'location':list(region.view_location), 'rotation':list(region.view_rotation),
+            'distance':region.view_distance, 'perspective':region.view_perspective,
+            'cameraZoom':region.view_camera_zoom, 'cameraOffset':list(region.view_camera_offset)}
+
+
+def restore_edit_view(context,view,state):
+    if not view or not state:return
+    if local_names:=set(state['local']):
+        members=[o for o in context.view_layer.objects if o.name in local_names and not o.hide_get()]
+        if members:
+            selection=list(context.selected_objects)
+            for obj in selection:obj.select_set(False)
+            for obj in members:obj.select_set(True)
+            toggle_local_view(context,view,False)
+            for obj in members:obj.select_set(False)
+            for obj in selection:obj.select_set(True)
+    region=view[1].spaces.active.region_3d
+    region.view_location=state['location']
+    region.view_rotation=state['rotation']
+    region.view_distance=state['distance']
+    region.view_perspective=state['perspective']
+    region.view_camera_zoom=state['cameraZoom']
+    region.view_camera_offset=state['cameraOffset']
+
+
 class VECXY_OT_edit_prototype(bpy.types.Operator):
     bl_idname='vecxy.edit_prototype';bl_label='Edit original prototype';bl_options={'REGISTER','UNDO'}
+    collection_name:StringProperty(options={'SKIP_SAVE'})
+
     def execute(self,context):
-        import json
         settings=context.scene.vecxy_usd
         if settings.editing_proxy:bpy.ops.vecxy.finish_prototype()
-        if settings.editing:self.report({'ERROR'},'Return to the scene first');return {'CANCELLED'}
-        instance=context.object;col=instance_collection(instance)
-        if not col:self.report({'ERROR'},'Select a prototype instance first');return {'CANCELLED'}
+        previous_active=context.object
+        instance=None if self.collection_name else previous_active
+        col=bpy.data.collections.get(self.collection_name) if self.collection_name else instance_collection(instance)
+        if not col or not col.vecxy.is_prototype:
+            self.report({'ERROR'},'Select a Shared Prototype first');return {'CANCELLED'}
+        stack=json.loads(settings.editing_stack or '[]')
+        if settings.editing:
+            if instance is None or instance.name not in settings.editing.all_objects or col==settings.editing or any(frame['collection']==col.name for frame in stack):
+                self.report({'ERROR'},'Select a nested prototype in the current collection');return {'CANCELLED'}
+            stack.append({'collection':settings.editing.name,
+                          'instance':settings.editing_instance.name if settings.editing_instance else '',
+                          **{field:getattr(settings,field) for field in _EDIT_FRAME_FIELDS}})
+        if not col.all_objects:self.report({'ERROR'},'Prototype collection is empty');return {'CANCELLED'}
         if context.mode!='OBJECT':bpy.ops.object.mode_set(mode='OBJECT')
-        settings.editing_selection=json.dumps({'selected':[o.name for o in context.selected_objects],'active':instance.name,'layer':context.view_layer.active_layer_collection.collection.name})
+        settings.editing_selection=json.dumps({'selected':[o.name for o in context.selected_objects],
+            'active':previous_active.name if previous_active else '',
+            'layer':context.view_layer.active_layer_collection.collection.name})
+        view=viewport(context,settings.editing_view_area) or viewport(context)
+        settings.editing_view_area=json.dumps([view[0].screen.name,view[2]]) if view else ''
+        settings.editing_return_view=json.dumps(capture_edit_view(context,view)) if view else ''
+        if view and view[1].spaces.active.local_view:toggle_local_view(context,view,False)
+        settings.editing_stack=json.dumps(stack)
         settings.editing=col;settings.editing_instance=instance;settings.edit_collection_components=True
         # Expose the existing collection in place in the library hierarchy. Only
         # unlinked collections need a temporary link; no objects or data are copied.
@@ -328,19 +387,16 @@ class VECXY_OT_edit_prototype(bpy.types.Operator):
         for obj in members:obj.select_set(True)
         active=next((o for o in col.all_objects if o.type=='MESH'),next(iter(col.all_objects),None))
         context.view_layer.objects.active=active
-        view=viewport(context)
-        if view:
-            if view[1].spaces.active.local_view:toggle_local_view(context,view,False)
-            toggle_local_view(context,view)
-            settings.editing_view_area=json.dumps([view[0].screen.name,view[2]])
+        if view:toggle_local_view(context,view)
         return {'FINISHED'}
 
 
 class VECXY_OT_finish_edit(bpy.types.Operator):
     bl_idname='vecxy.finish_prototype';bl_label='Return to scene';bl_options={'REGISTER','UNDO'}
     def execute(self,context):
-        import json
         settings=context.scene.vecxy_usd;proxy=settings.editing_proxy;was_proxy=proxy is not None
+        view=viewport(context,settings.editing_view_area) if settings.editing_view_area else None
+        return_view=json.loads(settings.editing_return_view or '{}')
         if context.mode!='OBJECT' and context.object:bpy.ops.object.mode_set(mode='OBJECT')
         # Older saved files may still contain temporary edit copies. Transfer their
         # object transforms back once, retaining the shared mesh edits, then remove
@@ -358,7 +414,6 @@ class VECXY_OT_finish_edit(bpy.types.Operator):
             for copy,_ in pairs:bpy.data.objects.remove(copy,do_unlink=True)
             bpy.data.collections.remove(proxy)
         else:
-            view=viewport(context,settings.editing_view_area) if settings.editing_view_area else None
             if view and view[1].spaces.active.local_view:toggle_local_view(context,view,False)
             context.view_layer.objects.active=None
             for name,hidden in json.loads(settings.editing_visibility or '{}').items():
@@ -373,7 +428,8 @@ class VECXY_OT_finish_edit(bpy.types.Operator):
                 context.scene.collection.children.unlink(settings.editing)
         instance=settings.editing_instance
         selection=json.loads(settings.editing_selection or '{}')
-        old_layer=bpy.data.collections.get(selection.get('layer',''))
+        layer_name=selection.get('layer','')
+        old_layer=context.scene.collection if layer_name==context.scene.collection.name else bpy.data.collections.get(layer_name)
         old_path=layer_path(context.view_layer.layer_collection,old_layer) if old_layer else None
         if old_path:context.view_layer.active_layer_collection=old_path[-1]
         for name in selection.get('selected',[]):
@@ -382,9 +438,20 @@ class VECXY_OT_finish_edit(bpy.types.Operator):
         if instance and instance.name in context.view_layer.objects:
             if was_proxy:instance.hide_set(settings.editing_hidden)
             instance.select_set(True);context.view_layer.objects.active=instance
+        elif previous_active:=context.view_layer.objects.get(selection.get('active','')):
+            context.view_layer.objects.active=previous_active
         settings.editing=None;settings.editing_proxy=None;settings.editing_instance=None
         settings.editing_matrix='';settings.editing_visibility='';settings.editing_layer_state=''
         settings.editing_selection='';settings.editing_view_area='';settings.editing_linked=False
+        settings.editing_return_view=''
+        stack=json.loads(settings.editing_stack or '[]')
+        if stack:
+            parent=stack.pop()
+            settings.editing=bpy.data.collections.get(parent['collection'])
+            settings.editing_instance=bpy.data.objects.get(parent['instance'])
+            for field in _EDIT_FRAME_FIELDS:setattr(settings,field,parent[field])
+        settings.editing_stack=json.dumps(stack) if stack else ''
+        restore_edit_view(context,view,return_view)
         return {'FINISHED'}
 
 
@@ -448,7 +515,7 @@ class VECXY_OT_override_component(bpy.types.Operator):
 class VECXY_OT_reset(bpy.types.Operator):
     bl_idname='vecxy.reset_overrides';bl_label='Reset instance overrides';bl_options={'REGISTER','UNDO'}
     def execute(self,context):
-        s=context.object.vecxy;s.override_collider=False;s.override_role=False;s.override_components=False;s.override_tint=False;s.components.clear()
+        s=context.object.vecxy;s.override_collider=False;s.override_role=False;s.override_static=False;s.override_components=False;s.override_tint=False;s.components.clear()
         return {'FINISHED'}
 
 
@@ -492,9 +559,11 @@ class VECXY_OT_export_scene(bpy.types.Operator):
 
 class VECXY_OT_export_prototype(bpy.types.Operator):
     bl_idname='vecxy.export_prototype';bl_label='Export this prototype USD'
+    use_editing:BoolProperty(options={'SKIP_SAVE'})
     def execute(self,context):
         from .exporter import export_prototype
-        col=instance_collection(context.object) or context.scene.vecxy_usd.editing
+        editing=context.scene.vecxy_usd.editing
+        col=editing if self.use_editing else instance_collection(context.object) or editing
         if not col:self.report({'ERROR'},'Select a prototype instance');return {'CANCELLED'}
         try:export_prototype(context,col)
         except Exception as error:self.report({'ERROR'},remember_export_error(context,error));return {'CANCELLED'}
@@ -557,11 +626,17 @@ class VECXY_PT_tools(bpy.types.Panel):
     bl_label='Vecxy USD';bl_idname='VECXY_PT_tools';bl_space_type='VIEW_3D';bl_region_type='UI';bl_category='Vecxy'
     def draw(self,context):
         layout=self.layout;scene=context.scene.vecxy_usd
+        layout.prop(scene,'preview_on_hover')
         if scene.editing:
-            layout.label(text='Editing: '+scene.editing.vecxy.asset_name)
+            trail=[bpy.data.collections.get(frame['collection']) for frame in json.loads(scene.editing_stack or '[]')]
+            layout.label(text=' / '.join(col.vecxy.asset_name for col in [*trail,scene.editing] if col))
             layout.prop(scene,'edit_collection_components')
-            layout.operator('vecxy.finish_prototype',icon='LOOP_BACK')
-            layout.operator('vecxy.export_prototype',icon='EXPORT')
+            layout.operator('vecxy.finish_prototype',text='Back to parent prototype' if trail else 'Return to scene',icon='LOOP_BACK')
+            layout.operator('vecxy.export_prototype',icon='EXPORT').use_editing=True
+            row=layout.row(align=True)
+            for method,label in (('CURSOR','Pivot at cursor'),('ACTIVE','Pivot at active')):
+                op=row.operator('vecxy.set_prototype_pivot',text=label)
+                op.editing_source=True;op.method=method
         obj=settings_owner(context.object)
         if obj:
             if obj!=context.object:layout.label(text='Components on: '+obj.name,icon='OBJECT_DATA')
@@ -570,20 +645,29 @@ class VECXY_PT_tools(bpy.types.Panel):
                 layout.label(text='Shared model: '+col.vecxy.asset_name,icon='OUTLINER_COLLECTION')
                 layout.label(text='Instance: '+obj.name)
                 layout.operator('vecxy.create_instance',text='Create linked copy')
-                layout.operator('vecxy.edit_prototype',text='Edit original prototype')
+                layout.operator('vecxy.edit_prototype',text='Edit original prototype').collection_name=''
+                op=layout.operator('vecxy.set_prototype_pivot',text='Set prototype pivot at cursor',icon='PIVOT_CURSOR')
+                op.editing_source=False;op.method='CURSOR'
                 layout.prop(obj.vecxy,'edit_defaults')
                 if obj.vecxy.edit_defaults:
                     layout.prop(col.vecxy,'asset_name');layout.prop(col.vecxy,'export_path')
                 else:
                     layout.operator('vecxy.reset_overrides')
-                layout.operator('vecxy.export_prototype',icon='EXPORT')
+                layout.operator('vecxy.export_prototype',icon='EXPORT').use_editing=False
             elif not scene.editing:layout.operator('vecxy.mark_prototype',icon='OUTLINER_COLLECTION')
             settings=current_settings(context)
             inherited=col and settings==obj.vecxy
             layout.prop(obj.vecxy,'show_collider')
             layout.prop(scene,'colliders_xray')
+            if col:prototype_preview.draw_nested_info(layout,obj,scene)
             if inherited:layout.prop(settings,'override_role')
             row=layout.row();row.enabled=not inherited or settings.override_role;row.prop(settings,'role')
+            if inherited:
+                layout.prop(settings,'override_static')
+            row=layout.row()
+            row.enabled=not inherited or settings.override_static
+            static_settings=col.vecxy if inherited and not settings.override_static else settings
+            row.prop(static_settings,'is_static')
             layout.prop(settings,'override_tint')
             if settings.override_tint:layout.prop(settings,'tint')
             box=layout.box();box.label(text='Components')
@@ -647,57 +731,10 @@ def collider_frame(context, obj):
     return obj, obj.matrix_world
 
 
-def draw_colliders():
-    import gpu
-    from gpu_extras.batch import batch_for_shader
-    from . import collider_mesh, collider_edit
-
-    context=bpy.context
-    if context.mode not in {'OBJECT','EDIT_MESH'}:return
-    shader=gpu.shader.from_builtin('UNIFORM_COLOR')
-    gpu.state.blend_set('ALPHA')
-    gpu.state.depth_test_set('NONE' if context.scene.vecxy_usd.colliders_xray else 'LESS_EQUAL')
-    gpu.state.line_width_set(2)
-    try:
-        drawn=set()
-        for selected in context.selected_objects:
-            obj=settings_owner(selected)
-            if not obj.vecxy.show_collider:continue
-            owner,matrix=collider_frame(context,obj)
-            if owner in drawn:continue
-            drawn.add(owner)
-            col=instance_collection(obj) if owner==obj else None
-            mesh=None
-            shapes=schema.collider_views(col.vecxy) if col and obj.vecxy.edit_defaults else schema.collider_views(owner.vecxy,col.vecxy if col else None)
-            for settings in shapes:
-                center=Vector(settings.collider_center)
-                if settings.collider=='MESH':
-                    if mesh is None:
-                        vertices, indices = collider_mesh.triangles(context.evaluated_depsgraph_get(),
-                            obj=obj,collection=owner if owner!=obj else None)
-                        edges = {tuple(sorted((i,j))) for a,b,c in zip(indices[::3],indices[1::3],indices[2::3])
-                                 for i,j in ((a,b),(b,c),(c,a))}
-                        mesh=[vertices[index] for edge in edges for index in edge]
-                    points=[matrix@(center+point) for point in mesh]
-                else:
-                    points=[matrix@(center+point) for point in collider_edit.outline(settings)]
-                if points:
-                    batch=batch_for_shader(shader,'LINES',{'pos':points})
-                    shader.bind()
-                    color=(1,.7,.2,1) if collider_edit.is_editing(owner,settings.key) else (.15,1,.45,.85)
-                    shader.uniform_float('color',color)
-                    batch.draw(shader)
-    finally:
-        gpu.state.line_width_set(1)
-        gpu.state.depth_test_set('NONE')
-        gpu.state.blend_set('NONE')
-
-
-from . import collider_edit
+from . import collider_edit, prototype_preview
 
 
 CLASSES=(collider_edit.VECXY_OT_edit_collider,VECXY_Parameter,VECXY_Component,VECXY_Settings,VECXY_SceneSettings,VECXY_OT_fit_collider,VECXY_OT_mark_prototype,VECXY_OT_create_instance,VECXY_OT_edit_prototype,VECXY_OT_finish_edit,VECXY_OT_component,VECXY_OT_override_component,VECXY_OT_reset,VECXY_OT_choose_asset,VECXY_OT_field_help,VECXY_OT_reload_catalog,VECXY_OT_export_scene,VECXY_OT_export_prototype,VECXY_OT_show_export_report,VECXY_PT_tools)
-_handle=None
 _catalog_stamp=None
 
 def catalog_stamp():
@@ -732,7 +769,6 @@ def load_project_catalog(dummy):
 
 
 def register():
-    global _handle
     for cls in CLASSES:bpy.utils.register_class(cls)
     bpy.types.Object.vecxy=PointerProperty(type=VECXY_Settings)
     bpy.types.Collection.vecxy=PointerProperty(type=VECXY_Settings)
@@ -744,13 +780,13 @@ def register():
     from . import level_design, prototype_library
     level_design.register()
     prototype_library.register()
+    prototype_preview.register()
     if not bpy.app.background:
-        _handle=bpy.types.SpaceView3D.draw_handler_add(draw_colliders,(),'WINDOW','POST_VIEW')
         if not bpy.app.timers.is_registered(watch_project_catalog):bpy.app.timers.register(watch_project_catalog,first_interval=1.0,persistent=True)
 
 def unregister():
-    global _handle
     from . import level_design, prototype_library
+    prototype_preview.unregister()
     prototype_library.unregister()
     level_design.unregister()
     collider_edit.cancel_edit(None)
@@ -758,6 +794,5 @@ def unregister():
     bpy.app.handlers.load_pre.remove(collider_edit.cancel_edit)
     if bpy.app.timers.is_registered(watch_project_catalog):bpy.app.timers.unregister(watch_project_catalog)
     if load_project_catalog in bpy.app.handlers.load_post:bpy.app.handlers.load_post.remove(load_project_catalog)
-    if _handle:bpy.types.SpaceView3D.draw_handler_remove(_handle,'WINDOW');_handle=None
     del bpy.types.Scene.vecxy_usd;del bpy.types.Collection.vecxy;del bpy.types.Object.vecxy
     for cls in reversed(CLASSES):bpy.utils.unregister_class(cls)

@@ -22,7 +22,7 @@ assert level_design.cleanup_when_ready() is None
 assert 'Abandoned test preview' not in bpy.data.objects
 assert ordinary.name in bpy.data.objects
 if not bpy.app.background:
-    assert module._handle is not None, 'Collider draw callback must be installed after startup'
+    assert len(module.prototype_preview._handles) == 2, 'Viewport draw callbacks must be installed after startup'
 addon_utils.disable('vecxy_usd', default_set=False)
 assert not bpy.app.timers.is_registered(level_design.cleanup_when_ready)
 assert not hasattr(bpy.types.Scene,'vecxy_layout')

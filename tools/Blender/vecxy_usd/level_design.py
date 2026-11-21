@@ -226,6 +226,7 @@ class VECXY_UL_shared_library(bpy.types.UIList):
         row = layout.row(align=True)
         row.label(text=item.vecxy.asset_name or item.name, icon='OUTLINER_COLLECTION')
         place_button(row, text='', icon='ADD', emboss=False, collection_name=item.name)
+        row.operator('vecxy.edit_prototype', text='', icon='GREASEPENCIL', emboss=False).collection_name = item.name
 
 
 class VECXY_OT_library_from_selection(bpy.types.Operator):

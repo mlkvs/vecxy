@@ -64,6 +64,8 @@ def metadata(settings,instance=False,mesh_source=None,base=None):
     value={}
     if not instance or settings.override_role:
         value['role']=settings.role
+    if not instance or settings.override_static:
+        value['isStatic']=settings.is_static
     if settings.override_tint:value['tint']=list(settings.tint)
     if instance:
         value['componentOverrides']=json.dumps(components(settings,mesh_source,base),separators=(',',':'))
@@ -151,9 +153,14 @@ def finalize(context,input_path,output,records,root_settings=None,collection_off
     print(result.stdout.strip())
 
 
+def finish_prototype_edits(context):
+    while context.scene.vecxy_usd.editing:
+        if bpy.ops.vecxy.finish_prototype()!={'FINISHED'}:
+            raise RuntimeError('Return to the scene before exporting')
+
+
 def export_prototype(context,col):
-    if context.scene.vecxy_usd.editing:
-        bpy.ops.vecxy.finish_prototype()
+    finish_prototype_edits(context)
     if not col.vecxy.is_prototype:raise RuntimeError('Collection is not marked as a Vecxy prototype')
     export_prototypes(context,[col],refresh=True)
     return resolved_path(col.vecxy.export_path)
@@ -203,6 +210,7 @@ def write_prototype(context,col):
 
 
 def export_scene(context):
+    finish_prototype_edits(context)
     output=resolved_path(context.scene.vecxy_usd.export_path);output.parent.mkdir(parents=True,exist_ok=True)
     source_objects={o for col in bpy.data.collections if col.vecxy.is_prototype or col.vecxy.is_edit_proxy for o in col.all_objects}
     objects=[o for o in context.scene.objects if o not in source_objects and not o.hide_render]
