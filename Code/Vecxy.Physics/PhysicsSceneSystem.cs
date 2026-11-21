@@ -224,48 +224,31 @@ public sealed class PhysicsSceneSystem : ASceneSystem
         }
 
         var normalizedDirection = Vector3.Normalize(direction);
-        var jOrigin = PhysicsShapeFactory.ToJVector(origin);
-        var jDirection = PhysicsShapeFactory.ToJVector(normalizedDirection);
-        var found = false;
-        var nearestDistance = maxDistance;
-
-        foreach (var bodyBinding in runtime.BodiesByObject.Values)
+        var found = runtime.World.DynamicTree.RayCast(
+            PhysicsShapeFactory.ToJVector(origin),
+            PhysicsShapeFactory.ToJVector(normalizedDirection),
+            maxDistance,
+            candidate => candidate is RigidBodyShape shape &&
+                runtime.CollidersByShapeId.TryGetValue(shape.ShapeId, out var binding) &&
+                !ReferenceEquals(binding.Body.SceneObject, ignoreSceneObject),
+            result => result.Lambda >= 0.0f,
+            out var proxy,
+            out var normal,
+            out var distance);
+        if (!found || proxy is not RigidBodyShape nativeShape)
         {
-            if (ReferenceEquals(
-                    bodyBinding.SceneObject,
-                    ignoreSceneObject))
-            {
-                continue;
-            }
-
-            foreach (var colliderBinding in bodyBinding.Colliders.Values)
-            {
-                var shape = colliderBinding.NativeShape;
-                if (shape is null ||
-                    !shape.RayCast(
-                        jOrigin,
-                        jDirection,
-                        out var normal,
-                        out var distance) ||
-                    distance < 0.0f ||
-                    distance > nearestDistance)
-                {
-                    continue;
-                }
-
-                nearestDistance = distance;
-                hit = new PhysicsRaycastHit(
-                    bodyBinding.SceneObject,
-                    colliderBinding.Collider,
-                    bodyBinding.RigidBody,
-                    origin + normalizedDirection * distance,
-                    PhysicsShapeFactory.ToVector3(normal),
-                    distance);
-                found = true;
-            }
+            return false;
         }
 
-        return found;
+        var colliderBinding = runtime.CollidersByShapeId[nativeShape.ShapeId];
+        hit = new PhysicsRaycastHit(
+            colliderBinding.Body.SceneObject,
+            colliderBinding.Collider,
+            colliderBinding.Body.RigidBody,
+            origin + normalizedDirection * distance,
+            PhysicsShapeFactory.ToVector3(normal),
+            distance);
+        return true;
     }
 
     public void Shutdown()
@@ -574,6 +557,7 @@ public sealed class PhysicsSceneSystem : ASceneSystem
 
         EnsureNativeBody(runtime, binding);
 
+        var desired = PhysicsDescriptionFactory.DescribeBody(sceneObject, binding.RigidBody);
         var shapesChanged = false;
         foreach (var colliderBinding in binding.Colliders.Values)
         {
@@ -582,6 +566,9 @@ public sealed class PhysicsSceneSystem : ASceneSystem
 
             try
             {
+                if (colliderBinding.Collider is MeshCollider && desired.MotionType == MotionType.Dynamic)
+                    throw new InvalidOperationException("Mesh Collider requires a static or kinematic body.");
+
                 shapesChanged |= SynchronizeShape(
                     runtime,
                     binding,
@@ -606,7 +593,7 @@ public sealed class PhysicsSceneSystem : ASceneSystem
         var hasNativeShape = false;
         foreach (var colliderBinding in binding.Colliders.Values)
         {
-            if (colliderBinding.NativeShape is null)
+            if (colliderBinding.NativeShapes.Length == 0)
                 continue;
 
             hasNativeShape = true;
@@ -618,10 +605,6 @@ public sealed class PhysicsSceneSystem : ASceneSystem
             DestroyNativeBody(runtime, binding);
             return;
         }
-
-        var desired = PhysicsDescriptionFactory.DescribeBody(
-            sceneObject,
-            binding.RigidBody);
 
         ApplyBodyDefinition(
             binding,
@@ -648,10 +631,10 @@ public sealed class PhysicsSceneSystem : ASceneSystem
 
         var desired = PhysicsDescriptionFactory.DescribeShape(
             colliderBinding.Collider,
-            bodyBinding.SceneObject.Transform.WorldScale);
+            bodyBinding.SceneObject.Transform);
 
-        if (colliderBinding.NativeShape is not null &&
-            colliderBinding.AppliedDefinition == desired)
+        if (colliderBinding.NativeShapes.Length != 0 &&
+            colliderBinding.AppliedDefinition is { } applied && applied.Matches(desired))
         {
             var triggerChanged =
                 colliderBinding.AppliedIsTrigger !=
@@ -668,17 +651,15 @@ public sealed class PhysicsSceneSystem : ASceneSystem
 
         RemoveNativeShape(runtime, bodyBinding, colliderBinding);
 
-        var shape = PhysicsShapeFactory.Create(desired);
-        bodyBinding.NativeBody!.AddShape(
-            shape,
-            MassInertiaUpdateMode.Preserve);
+        var shapes = PhysicsShapeFactory.CreateShapes(desired);
+        colliderBinding.NativeShapes = shapes;
+        bodyBinding.NativeBody!.AddShapes(shapes, MassInertiaUpdateMode.Preserve);
+        foreach (var shape in shapes)
+            runtime.CollidersByShapeId.Add(shape.ShapeId, colliderBinding);
 
-        colliderBinding.NativeShape = shape;
         colliderBinding.AppliedDefinition = desired;
-        colliderBinding.AppliedIsTrigger =
-            colliderBinding.Collider.IsTrigger;
+        colliderBinding.AppliedIsTrigger = colliderBinding.Collider.IsTrigger;
         bodyBinding.InertiaDirty = true;
-        runtime.CollidersByShapeId.Add(shape.ShapeId, colliderBinding);
         return true;
     }
 
@@ -728,20 +709,17 @@ public sealed class PhysicsSceneSystem : ASceneSystem
         BodyBinding bodyBinding,
         ColliderBinding colliderBinding)
     {
-        var shape = colliderBinding.NativeShape;
-        if (shape is null)
+        if (colliderBinding.NativeShapes.Length == 0)
             return;
 
-        runtime.CollidersByShapeId.Remove(shape.ShapeId);
-
-        if (bodyBinding.NativeBody is not null)
+        foreach (var shape in colliderBinding.NativeShapes)
         {
-            bodyBinding.NativeBody.RemoveShape(
-                shape,
-                MassInertiaUpdateMode.Preserve);
+            runtime.CollidersByShapeId.Remove(shape.ShapeId);
+            if (bodyBinding.NativeBody is { } nativeBody && shape.RigidBody == nativeBody)
+                nativeBody.RemoveShape(shape, MassInertiaUpdateMode.Preserve);
         }
 
-        colliderBinding.NativeShape = null;
+        colliderBinding.NativeShapes = [];
         colliderBinding.AppliedDefinition = null;
         colliderBinding.AppliedIsTrigger = null;
         bodyBinding.InertiaDirty = true;
@@ -784,10 +762,8 @@ public sealed class PhysicsSceneSystem : ASceneSystem
     {
         var nativeBody = binding.NativeBody!;
         var triggerShapes = binding.Colliders.Values
-            .Where(collider =>
-                collider.Collider.IsTrigger &&
-                collider.NativeShape is not null)
-            .Select(collider => collider.NativeShape!)
+            .Where(collider => collider.Collider.IsTrigger)
+            .SelectMany(collider => collider.NativeShapes)
             .ToArray();
 
         var solidShapeCount =
@@ -1286,7 +1262,7 @@ public sealed class PhysicsSceneSystem : ASceneSystem
         public long Id { get; } = id;
         public BodyBinding Body { get; } = body;
         public Collider Collider { get; } = collider;
-        public RigidBodyShape? NativeShape { get; set; }
+        public RigidBodyShape[] NativeShapes { get; set; } = [];
         public PhysicsShapeDefinition? AppliedDefinition { get; set; }
         public bool? AppliedIsTrigger { get; set; }
         public bool HasSyncError { get; set; }
@@ -1354,6 +1330,8 @@ public sealed class PhysicsSceneSystem : ASceneSystem
     private sealed class NarrowPhaseFilter(
         SceneRuntime runtime) : INarrowPhaseFilter
     {
+        private readonly TriangleEdgeCollisionFilter _triangleEdges = new();
+
         public bool Filter(
             RigidBodyShape shapeA,
             RigidBodyShape shapeB,
@@ -1379,6 +1357,10 @@ public sealed class PhysicsSceneSystem : ASceneSystem
             {
                 return false;
             }
+
+            if ((shapeA is TriangleShape || shapeB is TriangleShape) &&
+                !_triangleEdges.Filter(shapeA, shapeB, ref pointA, ref pointB, ref normal, ref penetration))
+                return false;
 
             var pair = new ColliderPair(colliderA, colliderB);
             var isTrigger =

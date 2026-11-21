@@ -38,33 +38,43 @@ def resolved_path(path):
     return result
 
 
-def components(settings):
-    from . import schema
+def components(settings, mesh_source=None, base=None):
+    from . import collider_mesh, schema
     result=[]
+    geometry=None
+    inherited_meshes={c.key for c in base.components if c.type_name==schema.MESH_COLLIDER and c.enabled} if base else set()
     for comp in settings.components:
         if not comp.key or comp.type_name not in schema.CATALOG:raise RuntimeError('Build and reload the component catalog: '+comp.type_name)
         data=schema.values(comp,include_defaults=False)
+        if comp.enabled and comp.type_name == schema.MESH_COLLIDER and comp.key not in inherited_meshes:
+            if geometry is None:
+                vertices, indices = collider_mesh.triangles(**mesh_source)
+                if not indices:
+                    owner = mesh_source.get('obj') or mesh_source['collection']
+                    raise RuntimeError(f'{owner.name}: Mesh Collider requires nondegenerate mesh geometry')
+                geometry = {'vertices': [dict(zip('xyz', vertex)) for vertex in vertices],
+                            'indices': indices}
+            data.update(geometry)
         result.append({'key':comp.key,'type':comp.type_name,'enabled':comp.enabled,'data':data})
     if len({c['key'] for c in result})!=len(result):raise RuntimeError('Component override keys must be unique')
     return result
 
 
-def metadata(settings,instance=False,defaults=None):
+def metadata(settings,instance=False,mesh_source=None,base=None):
     value={}
     if not instance or settings.override_role:
         value['role']=settings.role
     if settings.override_tint:value['tint']=list(settings.tint)
     if instance:
-        value['componentOverrides']=json.dumps(components(settings),separators=(',',':'))
+        value['componentOverrides']=json.dumps(components(settings,mesh_source,base),separators=(',',':'))
     elif not instance:
-        value['components']=json.dumps(components(settings),separators=(',',':'))
+        value['components']=json.dumps(components(settings,mesh_source),separators=(',',':'))
     return value
 
 
-def tag_objects(objects):
-    records={};old={}
+def tag_objects(objects, depsgraph, old):
+    records={}
     for obj in objects:
-        old[obj]={k:obj[k] for k in obj.keys() if k.startswith('vecxy:')}
         # Remove obsolete migration attributes; the finalizer authors current UI values.
         for key in list(old[obj]):del obj[key]
         key=ensure_id(obj.vecxy)
@@ -72,22 +82,24 @@ def tag_objects(objects):
         if key in records:obj.vecxy.identifier='';key=ensure_id(obj.vecxy)
         obj['vecxy:id']=key
         col=instance_collection(obj)
-        record={'settings':metadata(obj.vecxy,bool(col),col.vecxy if col else None)}
+        record={'settings':metadata(obj.vecxy,bool(col),{'depsgraph':depsgraph,'obj':obj},col.vecxy if col else None)}
         if col:record['prototype']=str(resolved_path(col.vecxy.export_path))
         if obj.type=='LIGHT' and 'vecxy:range' in old[obj]:record['settings']['range']=float(old[obj]['vecxy:range'])
         records[key]=record
-    return records,old
+    return records
 
 
 def native_export(context,objects,temporary):
     selected=list(context.selected_objects);active=context.view_layer.objects.active
     hidden={o:(o.hide_get(),o.hide_render) for o in objects}
     if context.mode!='OBJECT':bpy.ops.object.mode_set(mode='OBJECT')
-    records,old=tag_objects(objects)
+    old={obj:{k:obj[k] for k in obj.keys() if k.startswith('vecxy:')} for obj in objects}
     try:
-        for obj in context.scene.objects:obj.select_set(False)
+        for obj in selected:obj.select_set(False)
         for obj in objects:obj.hide_set(False);obj.hide_render=False;obj.select_set(True)
         if objects:context.view_layer.objects.active=objects[0]
+        context.view_layer.update()
+        records=tag_objects(objects,context.evaluated_depsgraph_get(),old)
         bpy.ops.wm.usd_export(filepath=str(temporary),check_existing=False,selected_objects_only=True,
             export_animation=False,use_instancing=True,export_materials=True,
             generate_preview_surface=True,generate_materialx_network=False,export_uvmaps=True,
@@ -105,7 +117,7 @@ def native_export(context,objects,temporary):
     return records
 
 
-def finalize(context,input_path,output,records,root_settings=None):
+def finalize(context,input_path,output,records,root_settings=None,collection_offset=None):
     # Blender's USD exporter omits Image Texture interpolation. Preserve the
     # connected base-color node's setting alongside the native export.
     filters={}
@@ -127,7 +139,8 @@ def finalize(context,input_path,output,records,root_settings=None):
             links=node.inputs['Base Color'].links
             if links and links[0].from_node.type=='TEX_IMAGE':
                 filters[material.name]=links[0].from_node.interpolation
-    manifest={'input':str(input_path),'output':str(output),'objects':records,'root':root_settings or {},'textureFilters':filters,'textureSources':texture_sources}
+    manifest={'input':str(input_path),'output':str(output),'objects':records,'root':root_settings or {},
+              'collectionOffset':collection_offset,'textureFilters':filters,'textureSources':texture_sources}
     descriptor=input_path.with_suffix('.json');descriptor.write_text(json.dumps(manifest),encoding='utf8')
     result=subprocess.run([python_executable(context),str(Path(__file__).with_name('finalize_usd.py')),str(descriptor)],capture_output=True,text=True)
     if result.returncode:
@@ -142,6 +155,36 @@ def export_prototype(context,col):
     if context.scene.vecxy_usd.editing:
         bpy.ops.vecxy.finish_prototype()
     if not col.vecxy.is_prototype:raise RuntimeError('Collection is not marked as a Vecxy prototype')
+    export_prototypes(context,[col],refresh=True)
+    return resolved_path(col.vecxy.export_path)
+
+
+def export_prototypes(context, prototypes, refresh):
+    visiting, exported, paths = set(), set(), {}
+
+    def visit(col):
+        if col in visiting:
+            raise RuntimeError(f'Cyclic Shared Prototype reference: {col.name}')
+        if col in exported:
+            return
+        path=resolved_path(col.vecxy.export_path)
+        if path in paths:
+            raise RuntimeError(f'{paths[path].name} and {col.name} use the same USD export path: {path}')
+        paths[path]=col
+        visiting.add(col)
+        children={nested for obj in col.all_objects if (nested:=instance_collection(obj))}
+        for child in sorted(children,key=lambda c:c.name):
+            visit(child)
+        if refresh or not path.is_file():
+            write_prototype(context,col)
+        visiting.remove(col)
+        exported.add(col)
+
+    for col in sorted(prototypes,key=lambda c:c.name):
+        visit(col)
+
+
+def write_prototype(context,col):
     path=resolved_path(col.vecxy.export_path);path.parent.mkdir(parents=True,exist_ok=True)
     linked=col.name in context.scene.collection.children
     if not linked:context.scene.collection.children.link(col)
@@ -152,10 +195,11 @@ def export_prototype(context,col):
         with tempfile.TemporaryDirectory(prefix='usd-prototype-',dir=temp_root) as tmp:
             temporary=Path(tmp)/'prototype.usda'
             records=native_export(context,objects,temporary)
-            finalize(context,temporary,path,records,metadata(col.vecxy))
+            finalize(context,temporary,path,records,metadata(col.vecxy,mesh_source={
+                'depsgraph':context.evaluated_depsgraph_get(),'collection':col}),
+                collection_offset=list(col.instance_offset))
     finally:
         if not linked and col.name in context.scene.collection.children:context.scene.collection.children.unlink(col)
-    return path
 
 
 def export_scene(context):
@@ -163,8 +207,7 @@ def export_scene(context):
     source_objects={o for col in bpy.data.collections if col.vecxy.is_prototype or col.vecxy.is_edit_proxy for o in col.all_objects}
     objects=[o for o in context.scene.objects if o not in source_objects and not o.hide_render]
     prototypes={instance_collection(o) for o in objects if instance_collection(o)}
-    for col in sorted(prototypes,key=lambda c:c.name):
-        if context.scene.vecxy_usd.export_prototypes or not resolved_path(col.vecxy.export_path).exists():export_prototype(context,col)
+    export_prototypes(context,prototypes,refresh=context.scene.vecxy_usd.export_prototypes)
     temp_root=workspace()/'.agents/local';temp_root.mkdir(parents=True,exist_ok=True)
     with tempfile.TemporaryDirectory(prefix='usd-scene-',dir=temp_root) as tmp:
         temporary=Path(tmp)/'scene.usda';records=native_export(context,objects,temporary)

@@ -1,14 +1,30 @@
 """Shared-prototype layout tools. Placement uses geometry, never the empty's origin."""
 import math
 import uuid
+from functools import lru_cache
+from zlib import crc32
 
 import bpy
-from bpy.props import BoolProperty, EnumProperty, FloatProperty, FloatVectorProperty, IntProperty, PointerProperty, StringProperty
+from bpy.props import BoolProperty, BoolVectorProperty, EnumProperty, FloatProperty, FloatVectorProperty, IntProperty, PointerProperty, StringProperty
 from mathutils import Matrix, Quaternion, Vector
 from bpy_extras import view3d_utils
 
 _ACTIVE = set()
 _AXES = [('X', 'X', ''), ('Y', 'Y', ''), ('Z', 'Z', '')]
+
+
+def category_items(_settings, _context):
+    categories = sorted({c.vecxy.library_category.strip() for c in bpy.data.collections
+                         if c.vecxy.is_prototype and not c.vecxy.library_hidden and c.vecxy.library_category.strip()},
+                        key=str.casefold)
+    # Blender retains pointers to the strings of dynamically generated enum entries.
+    return _category_items(tuple(categories))
+
+
+@lru_cache(maxsize=None)
+def _category_items(categories):
+    return [('ALL', 'Все категории', '', 0), ('UNCATEGORIZED', 'Без категории', '', 1),
+            *((f'CATEGORY:{name}', name, '', 2 + (crc32(name.encode()) & 0x3fffffff)) for name in categories)]
 
 
 def shared(obj):
@@ -17,8 +33,25 @@ def shared(obj):
 
 
 def library_collection(context):
-    index = context.scene.vecxy_layout.library_index
-    return bpy.data.collections[index] if 0 <= index < len(bpy.data.collections) and bpy.data.collections[index].vecxy.is_prototype else None
+    settings = context.scene.vecxy_layout
+    index = settings.library_index
+    if 0 <= index < len(bpy.data.collections):
+        col = bpy.data.collections[index]
+        if visible_in_library(col, settings):
+            return col
+    return None
+
+
+def visible_in_library(col, settings):
+    if not col.vecxy.is_prototype or col.vecxy.library_hidden:
+        return False
+    category = col.vecxy.library_category.strip()
+    selected = settings.library_category
+    if selected not in {'ALL', '', 'CATEGORY:' + category} and not (selected == 'UNCATEGORIZED' and not category):
+        return False
+    terms = settings.library_search.casefold().split()
+    searchable = f'{col.vecxy.asset_name} {col.name} {category}'.casefold()
+    return all(term in searchable for term in terms)
 
 
 def geometry_parts(obj, matrix=None, seen=None):
@@ -102,17 +135,34 @@ def create_shared(context, col, source=None):
     obj.vecxy.edit_defaults = False
     obj.pop('_vecxy_layout_preview', None)
     target.objects.link(obj)
-    if source:
-        obj.matrix_world = source.matrix_world.copy()
-    else:
-        scale = col.get('_vecxy_layout_scale')
+    if source is None:
+        scale = col.get('_vecxy_placement_scale')
         if scale is None:
-            # Older .blend files predate saved library defaults. Infer size from
-            # an existing placed instance without rewriting the source asset.
-            example = next((o for o in context.scene.objects if o != obj and shared(o) == col), None)
-            scale = example.matrix_world.decompose()[2] if example else (1, 1, 1)
+            # A legacy saved scale can predate Apply Scale on the prototype.
+            # Keep a consistent authored placement size in existing scenes.
+            scales = [o.scale.copy() for o in context.scene.objects
+                      if o != obj and not o.get('_vecxy_layout_preview') and shared(o) == col]
+            scale = scales[0] if scales and all((s - scales[0]).length < 1e-5 for s in scales) else (1, 1, 1)
         obj.scale = scale
     return obj
+
+
+def set_rotation(obj, rotation):
+    mode = obj.rotation_mode
+    if mode == 'QUATERNION':
+        obj.rotation_quaternion = rotation
+    elif mode == 'AXIS_ANGLE':
+        axis, angle = rotation.to_axis_angle()
+        obj.rotation_axis_angle = (angle, *axis)
+    else:
+        obj.rotation_euler = rotation.to_euler(mode, obj.rotation_euler)
+
+
+def translate_world(obj, delta):
+    if obj.parent is None:
+        obj.location += delta
+    else:
+        obj.matrix_world.translation += delta
 
 
 def select_only(context, objects):
@@ -126,7 +176,8 @@ def select_only(context, objects):
 
 class VECXY_LayoutSettings(bpy.types.PropertyGroup):
     library_index: IntProperty(default=0)
-    library_search: StringProperty(name='Поиск прототипа', default='')
+    library_search: StringProperty(name='Поиск прототипа', default='', options={'TEXTEDIT_UPDATE'})
+    library_category: EnumProperty(name='Категория', items=category_items)
     grid: FloatProperty(name='Шаг сетки', default=.25, min=.001, subtype='DISTANCE')
     use_grid: BoolProperty(name='Сетка', default=True)
     use_magnet: BoolProperty(name='Магнит по геометрии', default=True)
@@ -140,6 +191,8 @@ class VECXY_LayoutSettings(bpy.types.PropertyGroup):
     use_dimensions: BoolProperty(name='Шаг по размеру геометрии', default=True)
     array_gap: FloatVectorProperty(name='Зазор', size=3, default=(0, 0, 0), subtype='TRANSLATION')
     array_step: FloatVectorProperty(name='Шаг', size=3, default=(2, 2, 2), subtype='TRANSLATION')
+    reverse_axes: BoolVectorProperty(name='В обратную сторону', size=3, default=(False, False, False),
+                                    description='Инвертировать направление ряда отдельно по X, Y и Z')
     local_axes: BoolProperty(name='Локальные оси активного', default=True)
     snap_axis: EnumProperty(name='Ось стыковки', items=_AXES, default='X')
     snap_side: EnumProperty(name='Сторона', items=[('POSITIVE', '+', ''), ('NEGATIVE', '−', '')])
@@ -159,10 +212,12 @@ def place_button(layout, *, collection_name='', from_selection=False, move_exist
 class VECXY_UL_shared_library(bpy.types.UIList):
     def filter_items(self, context, data, propname):
         items = getattr(data, propname)
-        needle = context.scene.vecxy_layout.library_search.casefold().strip()
-        flags = [self.bitflag_filter_item if col.vecxy.is_prototype and
-                 (not needle or needle in (col.vecxy.asset_name + ' ' + col.name).casefold()) else 0 for col in items]
-        return flags, []
+        settings = context.scene.vecxy_layout
+        flags = [self.bitflag_filter_item if visible_in_library(col, settings) else 0 for col in items]
+        order = bpy.types.UI_UL_list.sort_items_helper(
+            [(i, (item.vecxy.library_category.casefold(), item.vecxy.asset_name.casefold()))
+             for i, item in enumerate(items)], lambda item: item[1])
+        return flags, order
 
     def draw_filter(self, context, layout):
         pass  # The always-visible search field belongs to the library panel.
@@ -176,14 +231,19 @@ class VECXY_UL_shared_library(bpy.types.UIList):
 class VECXY_OT_library_from_selection(bpy.types.Operator):
     bl_idname = 'vecxy.library_from_selection'
     bl_label = 'Найти выбранный в библиотеке'
-    bl_options = {'REGISTER'}
+    bl_options = {'REGISTER', 'UNDO'}
 
     @classmethod
     def poll(cls, context):
         return bool(shared(context.object))
 
     def execute(self, context):
-        context.scene.vecxy_layout.library_index = list(bpy.data.collections).index(shared(context.object))
+        col = shared(context.object)
+        settings = context.scene.vecxy_layout
+        col.vecxy.library_hidden = False
+        settings.library_search = ''
+        settings.library_category = 'ALL'
+        settings.library_index = list(bpy.data.collections).index(col)
         return {'FINISHED'}
 
 
@@ -201,7 +261,7 @@ class VECXY_OT_add_shared_at_cursor(bpy.types.Operator):
         try:
             obj = create_shared(context, library_collection(context))
             context.view_layer.update()
-            points = geometry_points(obj, context.evaluated_depsgraph_get(), Matrix.Identity(4))
+            points = geometry_points(obj, context.evaluated_depsgraph_get(), Matrix.Identity(4)) or [Vector()]
             obj.location = support_location(points, obj.matrix_world.to_3x3(), context.scene.cursor.location, Vector((0, 0, 1)))
             select_only(context, [obj])
         except ValueError as error:
@@ -243,25 +303,40 @@ class VECXY_OT_place_shared(bpy.types.Operator):
         self._preview = None
         self._handle = None
         self._valid = False
+        self._hover = None
+        self._locked = None
+        self._direct_pose = False
         self._original_matrix = source.matrix_world.copy() if source else None
         try:
             placement_collection(context)
             depsgraph = context.evaluated_depsgraph_get()
             excluded = {source} if self.move_existing else set()
-            self._surfaces = [(inst.object.original, inst.matrix_world.copy()) for inst in depsgraph.object_instances
+            self._surfaces = [(inst.parent.original if inst.parent else inst.object.original,
+                               inst.object.original, inst.matrix_world.copy()) for inst in depsgraph.object_instances
                               if inst.object.type == 'MESH' and inst.show_self and inst.object.original not in excluded
                               and (inst.parent is None or inst.parent.original not in excluded)]
-            self._targets = [bounds(points) for obj in context.visible_objects if obj not in excluded and
-                             (shared(obj) or obj.type == 'MESH')
-                             if (points := geometry_points(obj, depsgraph))]
+            self._target_bounds = [bounds(points) for obj in context.visible_objects if obj not in excluded and
+                                   (shared(obj) or obj.type == 'MESH') and (points := geometry_points(obj, depsgraph))]
             self._preview = source if self.move_existing else create_shared(context, col, source)
             if not self.move_existing:
                 self._preview['_vecxy_layout_preview'] = True
             context.view_layer.update()
-            self._points = geometry_points(self._preview, context.evaluated_depsgraph_get(), Matrix.Identity(4))
-            bounds(self._points)  # Reject an empty prototype before entering a modal tool.
+            self._points = geometry_points(self._preview, context.evaluated_depsgraph_get(), Matrix.Identity(4)) or [Vector()]
             _, self._base_rotation, self._scale = self._preview.matrix_world.decompose()
-            self._angle = 0.0
+            self._direct_pose = (self._preview.parent is None and not self._preview.constraints and
+                                 self._preview.delta_location.length_squared == 0 and
+                                 tuple(self._preview.delta_rotation_euler) == (0, 0, 0) and
+                                 tuple(self._preview.delta_rotation_quaternion) == (1, 0, 0, 0) and
+                                 tuple(self._preview.delta_scale) == (1, 1, 1) and
+                                 all(self._preview.scale))
+            if self._direct_pose:
+                self._scale = self._preview.scale.copy()
+                basis = self._preview.matrix_world.to_3x3() @ Matrix.Diagonal(Vector(tuple(1 / s for s in self._scale)))
+                self._base_rotation = basis.to_quaternion()
+                self._original_pose = (self._preview.location.copy(), self._preview.rotation_euler.copy(),
+                                       self._preview.rotation_quaternion.copy(), tuple(self._preview.rotation_axis_angle))
+            self._twist = Quaternion()
+            self._rotation_axis = 2
             select_only(context, [self._preview])
             self._handle = bpy.types.SpaceView3D.draw_handler_add(self.draw_preview, (), 'WINDOW', 'POST_VIEW')
             _ACTIVE.add(self)
@@ -277,7 +352,7 @@ class VECXY_OT_place_shared(bpy.types.Operator):
     def ray_hit(self, context, origin, direction):
         closest = None
         depsgraph = context.evaluated_depsgraph_get()
-        for mesh, matrix in self._surfaces:
+        for owner, mesh, matrix in self._surfaces:
             inv = matrix.inverted_safe()
             local_direction = inv.to_3x3() @ direction
             if local_direction.length_squared < 1e-12:
@@ -293,20 +368,31 @@ class VECXY_OT_place_shared(bpy.types.Operator):
             world_normal.normalize()
             if world_normal.dot(direction) > 0:
                 world_normal.negate()
-            closest = distance, point, world_normal
-        return (closest[1], closest[2]) if closest else None
+            closest = distance, point, world_normal, owner
+        return closest[1:] if closest else None
 
     def update_preview(self, context, event):
         x, y = event.mouse_x - self._region.x, event.mouse_y - self._region.y
         self._valid = 0 <= x < self._region.width and 0 <= y < self._region.height
         if not self._valid:
+            self._hover = None
             return
         settings = context.scene.vecxy_layout
         origin = view3d_utils.region_2d_to_origin_3d(self._region, self._view, (x, y))
         direction = view3d_utils.region_2d_to_vector_3d(self._region, self._view, (x, y))
-        hit = self.ray_hit(context, origin, direction)
-        if hit:
-            point, normal = hit
+        if not self._locked:
+            self._hover = self.ray_hit(context, origin, direction)
+        if self._locked:
+            anchor, normal, target = self._locked
+            rate = direction.dot(normal)
+            distance = (anchor - origin).dot(normal) / rate if abs(rate) > 1e-6 else -1
+            if distance < 0:
+                self._valid = False
+                self._area.tag_redraw()
+                return
+            point = origin + direction * distance
+        elif self._hover:
+            point, normal, target = self._hover
         elif abs(direction.z) > 1e-6:
             distance = (context.scene.cursor.location.z - origin.z) / direction.z
             if distance < 0:
@@ -327,20 +413,32 @@ class VECXY_OT_place_shared(bpy.types.Operator):
             point = snapped
         if settings.align_surface:
             base_up = self._base_rotation @ Vector((0, 0, 1))
-            rotation = Quaternion(normal, self._angle) @ base_up.rotation_difference(normal) @ self._base_rotation
+            rotation = base_up.rotation_difference(normal) @ self._base_rotation @ self._twist
         else:
-            rotation = Quaternion(Vector((0, 0, 1)), self._angle) @ self._base_rotation
+            rotation = self._base_rotation @ self._twist
         basis = Matrix.LocRotScale(Vector(), rotation, self._scale)
         location = support_location(self._points, basis.to_3x3(), point, normal)
         location += normal * settings.surface_offset
         matrix = Matrix.Translation(location) @ basis
         if settings.use_magnet and not event.shift:
-            delta = magnet_offset([matrix @ p for p in self._points], self._targets, settings.magnet_distance)
+            placed = [matrix @ p for p in self._points]
+            if self._locked:
+                frame, inverse, reference = self._locked_magnet
+                delta = frame @ magnet_offset([inverse @ p for p in placed], reference, settings.magnet_distance)
+            else:
+                delta = magnet_offset(placed, self._target_bounds, settings.magnet_distance)
             # Keep the contact plane and surface offset intact while snapping edges.
             delta -= normal * delta.dot(normal)
             matrix.translation += delta
-        self._preview.matrix_world = matrix
-        self._area.header_text_set('Vecxy: ЛКМ — поставить | R / Shift+R — поворот | G — сетка | M — магнит | A — поверхность | Shift — без привязки | Enter / Esc — готово')
+        if self._direct_pose:
+            self._preview.location = matrix.translation
+            set_rotation(self._preview, rotation)
+        else:
+            self._preview.matrix_world = matrix
+        locked = f'Цель: {target.name}' if self._locked else 'T — закрепить грань под курсором'
+        axis = 'XYZ'[self._rotation_axis]
+        self._area.header_text_set(f'ЛКМ — поставить | {locked} | R — поворот ({axis}, X/Y/Z) | '
+                                   'G — сетка | M — магнит | A — ориентация | Shift — без привязки | Enter / Esc — выход')
         self._area.tag_redraw()
 
     def modal(self, context, event):
@@ -357,13 +455,27 @@ class VECXY_OT_place_shared(bpy.types.Operator):
                 return {'FINISHED'}
             copy = create_shared(context, shared(self._preview), self._preview)
             self._placed.append(copy)
-            self._targets.append(bounds([copy.matrix_world @ p for p in self._points]))
-            self._surfaces.extend(geometry_parts(copy))
+            context.view_layer.update()
+            self._target_bounds.append(bounds([copy.matrix_world @ p for p in self._points]))
+            self._surfaces.extend((copy, mesh, matrix) for mesh, matrix in geometry_parts(copy))
             return {'RUNNING_MODAL'}
         if event.value == 'PRESS':
             settings = context.scene.vecxy_layout
             if event.type == 'R':
-                self._angle += settings.rotation_step * (-1 if event.shift else 1)
+                axis = Vector(tuple(int(i == self._rotation_axis) for i in range(3)))
+                angle = settings.rotation_step * (-1 if event.shift else 1)
+                self._twist = (self._twist @ Quaternion(axis, angle)).normalized()
+            elif event.type in {'X', 'Y', 'Z'}:
+                self._rotation_axis = 'XYZ'.index(event.type)
+            elif event.type == 'T':
+                self._locked = None if self._locked else self._hover
+                if self._locked:
+                    target = self._locked[2]
+                    frame = target.matrix_world.to_quaternion().to_matrix()
+                    inverse = frame.transposed()
+                    points = geometry_points(target, context.evaluated_depsgraph_get())
+                    reference = [bounds([inverse @ point for point in points])] if points else []
+                    self._locked_magnet = frame, inverse, reference
             elif event.type == 'G':
                 settings.use_grid = not settings.use_grid
             elif event.type == 'M':
@@ -403,7 +515,11 @@ class VECXY_OT_place_shared(bpy.types.Operator):
         if self._preview is not None:
             if self.move_existing:
                 if cancel:
-                    self._preview.matrix_world = self._original_matrix
+                    if self._direct_pose:
+                        obj = self._preview
+                        obj.location, obj.rotation_euler, obj.rotation_quaternion, obj.rotation_axis_angle = self._original_pose
+                    else:
+                        self._preview.matrix_world = self._original_matrix
             else:
                 bpy.data.objects.remove(self._preview, do_unlink=True)
             self._preview = None
@@ -442,8 +558,14 @@ class VECXY_OT_duplicate_grid(bpy.types.Operator):
         inverse = frame.inverted()
         depsgraph = context.evaluated_depsgraph_get()
         try:
-            low, high = bounds([inverse @ point for obj in sources for point in geometry_points(obj, depsgraph)])
-            step = high - low + Vector(settings.array_gap) if settings.use_dimensions else Vector(settings.array_step)
+            if settings.use_dimensions:
+                low, high = bounds([inverse @ point for obj in sources for point in geometry_points(obj, depsgraph)])
+                step = high - low + Vector(settings.array_gap)
+            else:
+                step = Vector(settings.array_step)
+            for i, reverse in enumerate(settings.reverse_axes):
+                if reverse:
+                    step[i] *= -1
             if any(counts[i] > 1 and abs(step[i]) < 1e-6 for i in range(3)):
                 raise ValueError('Шаг копий по используемой оси не может быть нулевым')
             placement_collection(context)
@@ -459,7 +581,7 @@ class VECXY_OT_duplicate_grid(bpy.types.Operator):
                     delta = frame.to_3x3() @ Vector((x * step.x, y * step.y, z * step.z))
                     for source in sources:
                         obj = create_shared(context, shared(source), source)
-                        obj.matrix_world.translation += delta
+                        translate_world(obj, delta)
                         copies.append(obj)
         select_only(context, copies)
         self.report({'INFO'}, f'Создано экземпляров: {len(copies)}')
@@ -501,7 +623,7 @@ class VECXY_OT_snap_to_active(bpy.types.Operator):
         delta[axis] = (target_high[axis] + settings.snap_gap - low[axis] if settings.snap_side == 'POSITIVE'
                        else target_low[axis] - settings.snap_gap - high[axis])
         for obj in roots:
-            obj.matrix_world.translation += frame.to_3x3() @ delta
+            translate_world(obj, frame.to_3x3() @ delta)
         return {'FINISHED'}
 
 
@@ -527,12 +649,17 @@ class VECXY_PT_level_design(bpy.types.Panel):
             return
         box = layout.box()
         box.label(text='Библиотека Shared Prototype', icon='ASSET_MANAGER')
+        box.operator('vecxy.prototype_from_collection', icon='OUTLINER_COLLECTION')
         if any(c.vecxy.is_prototype for c in bpy.data.collections):
             box.prop(settings, 'library_search', text='', icon='VIEWZOOM')
+            box.prop(settings, 'library_category', text='')
             box.template_list('VECXY_UL_shared_library', '', bpy.data, 'collections', settings, 'library_index', rows=4)
             col = library_collection(context)
             if col:
-                box.label(text=col.vecxy.asset_name, icon='OUTLINER_COLLECTION')
+                row=box.row(align=True)
+                row.operator('vecxy.rename_library_prototype', icon='GREASEPENCIL')
+                row.operator('vecxy.hide_library_prototype', icon='X')
+                box.prop(col.vecxy, 'library_category')
                 place_button(box, icon='CURSOR', collection_name=col.name)
                 box.operator('vecxy.add_shared_at_cursor', icon='PIVOT_CURSOR')
             else:
@@ -540,10 +667,14 @@ class VECXY_PT_level_design(bpy.types.Panel):
         else:
             box.label(text='Создайте Make shared prototype')
         if shared(context.object):
-            box.operator('vecxy.library_from_selection', icon='VIEWZOOM')
+            if shared(context.object).vecxy.library_hidden:
+                box.operator('vecxy.library_from_selection', text='Вернуть в библиотеку', icon='ADD')
+            else:
+                box.operator('vecxy.library_from_selection', icon='VIEWZOOM')
             row = box.row(align=True)
             place_button(row, text='Копии мышью', icon='DUPLICATE', from_selection=True)
             place_button(row, text='Переставить', icon='ORIENTATION_GLOBAL', move_existing=True)
+            box.operator('vecxy.detach_prototype', icon='UNLINKED')
         box = layout.box()
         row = box.row(align=True)
         row.prop(settings, 'use_grid')
@@ -554,12 +685,15 @@ class VECXY_PT_level_design(bpy.types.Panel):
         box.prop(settings, 'align_surface')
         box.prop(settings, 'surface_offset')
         box.prop(settings, 'rotation_step')
-        box.label(text='Пивот не меняется. Shift — без привязки.', icon='INFO')
+        box.label(text='T — закрепить грань, X/Y/Z — ось поворота, Shift — без привязки.', icon='INFO')
         box = layout.box()
         box.label(text='Ряд / сетка связанных копий', icon='MOD_ARRAY')
         row = box.row(align=True)
         for axis in 'xyz':
             row.prop(settings, 'count_' + axis)
+        row = box.row(align=True)
+        for i, axis in enumerate('XYZ'):
+            row.prop(settings, 'reverse_axes', index=i, text=f'−{axis}', toggle=True)
         box.prop(settings, 'local_axes')
         box.prop(settings, 'use_dimensions')
         box.prop(settings, 'array_gap' if settings.use_dimensions else 'array_step')

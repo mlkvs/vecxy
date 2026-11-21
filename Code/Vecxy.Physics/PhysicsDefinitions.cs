@@ -7,7 +7,8 @@ internal enum EPhysicsShapeType : byte
 {
     Box,
     Sphere,
-    Capsule
+    Capsule,
+    Mesh
 }
 
 internal readonly record struct PhysicsBodyDefinition(
@@ -25,7 +26,31 @@ internal readonly record struct PhysicsShapeDefinition(
     Quaternion Rotation,
     Vector3 Size,
     float Radius,
-    float Height);
+    float Height,
+    MeshCollider.Geometry? Mesh = null,
+    Matrix4x4 MeshTransform = default)
+{
+    public bool Matches(in PhysicsShapeDefinition other)
+    {
+        if (this == other)
+            return true;
+        if (Mesh is null || !ReferenceEquals(Mesh, other.Mesh))
+            return false;
+
+        // Removing the body's rotation from the world matrix introduces
+        // roundoff when a kinematic mesh rotates without changing its shape.
+        for (var row = 0; row < 4; row++)
+        for (var column = 0; column < 3; column++)
+        {
+            var current = MeshTransform[row, column];
+            var next = other.MeshTransform[row, column];
+            var tolerance = 1e-6f * Math.Max(1, Math.Max(Math.Abs(current), Math.Abs(next)));
+            if (!float.IsFinite(next) || Math.Abs(current - next) > tolerance)
+                return false;
+        }
+        return true;
+    }
+}
 
 internal readonly record struct PhysicsPose(
     Vector3 Position,
@@ -66,8 +91,22 @@ internal static class PhysicsDescriptionFactory
 
     public static PhysicsShapeDefinition DescribeShape(
         Collider collider,
-        Vector3 worldScale)
+        Transform transform)
     {
+        if (collider is MeshCollider mesh)
+        {
+            var geometry = mesh.Mesh ?? throw new InvalidOperationException("Mesh Collider has no geometry.");
+            var linear = transform.WorldMatrix;
+            linear.Translation = Vector3.Zero;
+            var meshTransform = Matrix4x4.CreateFromQuaternion(mesh.Rotation)
+                * Matrix4x4.CreateTranslation(mesh.Center)
+                * linear
+                * Matrix4x4.CreateFromQuaternion(Quaternion.Conjugate(transform.WorldRotation));
+            return new PhysicsShapeDefinition(EPhysicsShapeType.Mesh, default, default, default,
+                0, 0, geometry, meshTransform);
+        }
+
+        var worldScale = transform.WorldScale;
         var scale = new Vector3(
             Math.Abs(worldScale.X),
             Math.Abs(worldScale.Y),

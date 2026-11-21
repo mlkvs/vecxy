@@ -61,17 +61,23 @@ assert bpy.ops.vecxy.finish_prototype()=={'FINISHED'}
 assert addon.effective_collider(instance).collider=='BOX'
 assert len(instance.vecxy.components)==0
 assert s.colliders_xray
-# An existing component is not silently reset by a repeated Add.
+# Each Add gets a distinct key and leaves the existing component unchanged.
 instance.vecxy.edit_defaults=True
 component=col.vecxy.components[0]
 field=next(f for f in addon.schema.CATALOG[component.type_name]['fields'] if f['key']=='size')
 addon.schema.set_param(component,field,(4,5,6))
-assert bpy.ops.vecxy.component(index=-1)=={'CANCELLED'}
-assert addon.schema.collider_view(col.vecxy).collider_size==(4,5,6)
+assert bpy.ops.vecxy.component(index=-1)=={'FINISHED'}
+shapes=list(addon.schema.collider_views(col.vecxy))
+assert len(shapes)==2 and shapes[0].key!=shapes[1].key
+assert shapes[0].collider_size==(4,5,6) and shapes[1].collider_size==(2,2,2)
+from vecxy_usd.collider_edit import resized
+change=resized(shapes[0],axis=0,sign=-1,distance=2)
+assert tuple(change['size'])==(6,5,6)
+assert change['center'].x==shapes[0].collider_center[0]-1
 # Empty markers still allow a manually sized collider without an auto-fit failure.
 bpy.ops.object.empty_add()
 empty=bpy.context.object
 assert bpy.ops.vecxy.component(index=-1)=={'FINISHED'}
 assert addon.effective_collider(empty).collider=='BOX'
-print('PASS: repeated source collider removal/addition, fitted bounds, explicit Add UI action, Edit Mode owner, inherited collider and preserved existing values')
+print('PASS: collider fitting, repeated additions, distinct keys, inherited values and fixed opposite face when resizing')
 addon.unregister()

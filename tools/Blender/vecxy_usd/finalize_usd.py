@@ -122,6 +122,18 @@ def run(manifest):
     if not root:
         root=stage.GetPrimAtPath('/Scene');stage.SetDefaultPrim(root)
     apply_settings(root,manifest['root'])
+    offset=manifest.get('collectionOffset')
+    if offset and any(offset):
+        # An external reference uses the instance's own root transform.
+        # Apply the collection origin to the referenced content below it.
+        for child in root.GetChildren():
+            xform=UsdGeom.Xformable(child)
+            if not xform:
+                continue
+            order=xform.GetOrderedXformOps()
+            shift=xform.AddTranslateOp(opSuffix='vecxyCollectionOffset')
+            shift.Set(Gf.Vec3d(*(-v for v in offset)))
+            xform.SetXformOpOrder([shift,*order],resetXformStack=xform.GetResetXformStack())
     # Drop unused Blender-internal prototypes once scene instances use external assets.
     internal=stage.GetPrimAtPath('/Scene/prototypes')
     if internal:

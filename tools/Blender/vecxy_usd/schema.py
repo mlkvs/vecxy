@@ -6,6 +6,8 @@ import bpy
 
 CATALOG={};ENUM_ITEMS={};COMPONENT_ITEMS=[]
 COLLIDERS={'Vecxy.Physics.BoxCollider':'BOX','Vecxy.Physics.SphereCollider':'SPHERE','Vecxy.Physics.CapsuleCollider':'CAPSULE'}
+MESH_COLLIDER = 'Vecxy.Physics.MeshCollider'
+COLLIDERS[MESH_COLLIDER] = 'MESH'
 
 
 def catalog_path(context):
@@ -104,21 +106,29 @@ def upgrade_legacy(settings):
     settings.collider='NONE';settings.override_collider=False
 
 
-def collider_view(settings,base=None):
-    components={c.key:c for c in base.components} if base else {}
-    components.update({c.key:c for c in settings.components})
-    for key,comp in components.items():
+def effective_components(settings, base=None):
+    defaults = {c.key: c for c in base.components} if base else {}
+    local = {c.key: c for c in settings.components}
+    for key, comp in (defaults | local).items():
+        inherited = defaults.get(key)
+        data = values(inherited) if inherited is not None else {}
+        if key in local:
+            data.update(values(comp, include_defaults=inherited is None))
+        yield comp, data
+
+
+def collider_views(settings,base=None):
+    for comp,data in effective_components(settings,base):
         if comp.type_name not in COLLIDERS or not comp.enabled:continue
-        data={}
-        if base:
-            inherited=next((c for c in base.components if c.key==key),None)
-            if inherited:data=values(inherited)
-        data.update(values(comp,include_defaults=base is None or key not in {c.key for c in settings.components}))
-        vector=lambda key,default:tuple(data.get(key,dict(zip('xyz',default))).values())
-        return SimpleNamespace(collider=COLLIDERS[comp.type_name],collider_center=vector('center',(0,0,0)),
+        def vector(key,default):
+            return tuple(data[key][axis] for axis in 'xyz') if key in data else default
+        yield SimpleNamespace(key=comp.key,collider=COLLIDERS[comp.type_name],collider_center=vector('center',(0,0,0)),
             collider_size=vector('size',(1,1,1)),collider_radius=data.get('radius',.35),
             collider_height=data.get('height',1.1),collider_axis=data.get('axis','Z'))
-    return SimpleNamespace(collider='NONE')
+
+
+def collider_view(settings,base=None):
+    return next(collider_views(settings,base), SimpleNamespace(collider='NONE'))
 
 
 def ensure_fields(component,overrides=False):
