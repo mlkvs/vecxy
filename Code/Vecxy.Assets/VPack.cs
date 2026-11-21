@@ -86,6 +86,8 @@ public static class VPackWriter
     {
         if (!output.CanSeek || !output.CanWrite) throw new ArgumentException("VPack output must be writable and seekable.", nameof(output));
         if (compression.BlockSize <= 0) throw new ArgumentOutOfRangeException(nameof(compression), "Block size must be positive.");
+        var duplicate = assets.GroupBy(x => x.Id).FirstOrDefault(x => x.Count() > 1);
+        if (duplicate is not null) throw new InvalidDataException($"VPack asset id {duplicate.Key.Value:D} is used by {duplicate.Count()} assets. Each asset needs its own id.");
         var blocks = BuildBlocks(assets, compression.BlockSize);
         var encoded = new List<(byte[] Data, int RawSize, VPackCompressionAlgorithm Codec)>(blocks.Count);
         foreach (var block in blocks)
@@ -202,7 +204,12 @@ public sealed class VPackReader : IAsyncDisposable
             if (asset.BlockIndex < 0 || asset.BlockIndex >= blocks.Length || asset.Offset < 0 ||
                 asset.UncompressedSize < 0 || asset.Offset > blocks[asset.BlockIndex].UncompressedSize - asset.UncompressedSize)
                 throw new InvalidDataException($"Invalid VPack index entry for asset {asset.Id}.");
-        _assets = entries.ToFrozenDictionary(x => x.Id);
+        try { _assets = entries.ToFrozenDictionary(x => x.Id); }
+        catch (ArgumentException)
+        {
+            var id = entries.GroupBy(x => x.Id).First(x => x.Count() > 1).Key;
+            throw new InvalidDataException($"VPack package {package} lists asset id {id.Value:D} more than once.");
+        }
     }
 
     public static async Task<VPackReader> OpenAsync(Stream stream, CancellationToken cancellationToken = default)

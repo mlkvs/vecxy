@@ -141,6 +141,7 @@ try
            customSkybox.Assets.All(x => x.Source != "Engine" || !x.Path.StartsWith("SkyBox/", StringComparison.OrdinalIgnoreCase)),
         "custom skybox keeps renderer but excludes default content");
 
+    TestIdenticalCopyKeepsDistinctIds();
     await TestPackages(root);
     TestRemoteConfiguration(root);
     await TestBinaryFormat();
@@ -407,6 +408,30 @@ static string RemoteManifest(string version, PackageId id, long size, string has
             }
         }
     }, AssetManifest.SerializerOptions);
+
+static void TestIdenticalCopyKeepsDistinctIds()
+{
+    var project = Path.Combine(Path.GetTempPath(), "vecxy-asset-copy", Guid.NewGuid().ToString("N"));
+    try
+    {
+        var textures = Path.Combine(project, "Assets", "Textures");
+        Directory.CreateDirectory(textures);
+        File.WriteAllBytes(Path.Combine(textures, "floor.png"), [9, 8, 7, 6]);
+        var id = AssetPipeline.Scan(project).Assets.Single().Id;
+        var prototypes = Path.Combine(project, "Assets", "Prototypes", "Textures");
+        Directory.CreateDirectory(prototypes);
+        File.WriteAllBytes(Path.Combine(prototypes, "floor.png"), [9, 8, 7, 6]);
+        var copied = AssetPipeline.Scan(project);
+        Assert(copied.Assets.Single(x => x.Path == "Textures/floor.png").Id == id, "byte-identical copy keeps the original asset id");
+        Assert(copied.Assets.Single(x => x.Path == "Prototypes/Textures/floor.png").Id != id, "byte-identical copy gets its own id");
+        var manifestPath = Path.Combine(project, "Assets.manifest");
+        var copyId = copied.Assets.Single(x => x.Path == "Prototypes/Textures/floor.png").Id;
+        File.WriteAllText(manifestPath, File.ReadAllText(manifestPath).Replace(copyId.ToString("D"), id.ToString("D")));
+        var healed = AssetPipeline.Scan(project);
+        Assert(healed.Assets.Select(x => x.Id).Distinct().Count() == healed.Assets.Count, "scan splits an id stored on two files");
+    }
+    finally { Directory.Delete(project, recursive: true); }
+}
 
 static async Task TestBinaryFormat()
 {

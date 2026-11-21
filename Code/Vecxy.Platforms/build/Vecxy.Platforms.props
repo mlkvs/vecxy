@@ -80,7 +80,19 @@
     BeforeTargets="PrepareForBuild"
     Condition="'$(VecxySkipAssetPipeline)' != 'true' and '$(VecxyBuildVPack)' != 'true' and Exists('$(MSBuildProjectDirectory)\Assets') and Exists('$(VecxyCliProject)')">
     <Message Text="Vecxy: preparing assets for $(MSBuildProjectName)" Importance="high" />
-    <Exec Command="dotnet run --project &quot;$(VecxyCliProject)&quot; -- --project &quot;$(MSBuildProjectDirectory)&quot; assets prepare" />
+    <Delete Files="$(MSBuildProjectDirectory)\obj\vecxy.asset-errors.txt" Condition="Exists('$(MSBuildProjectDirectory)\obj\vecxy.asset-errors.txt')" />
+    <Exec Command="dotnet run --project &quot;$(VecxyCliProject)&quot; -- --project &quot;$(MSBuildProjectDirectory)&quot; assets prepare" IgnoreExitCode="true">
+      <Output TaskParameter="ExitCode" PropertyName="_VecxyPrepareExitCode" />
+    </Exec>
+    <ReadLinesFromFile File="$(MSBuildProjectDirectory)\obj\vecxy.asset-errors.txt" Condition="Exists('$(MSBuildProjectDirectory)\obj\vecxy.asset-errors.txt')">
+      <Output TaskParameter="Lines" ItemName="_VecxyPrepareError" />
+    </ReadLinesFromFile>
+    <!-- One error: the Error task stops after the first batched failure, and the terminal logger would hide the rest. -->
+    <PropertyGroup>
+      <_VecxyPrepareErrorText>@(_VecxyPrepareError, '%0a')</_VecxyPrepareErrorText>
+    </PropertyGroup>
+    <Error Condition="'$(_VecxyPrepareErrorText)' != ''" Text="$(_VecxyPrepareErrorText)" />
+    <Error Condition="'$(_VecxyPrepareExitCode)' != '0' and '$(_VecxyPrepareErrorText)' == ''" Text="vecxy assets prepare failed with exit code $(_VecxyPrepareExitCode). The build logger hides that command's output. Run 'vecxy assets prepare' in the game directory to see the cause." />
   </Target>
 
   <!-- Release builds from an IDE use the same production package stage as the
@@ -94,7 +106,18 @@
     Condition="'$(VecxySkipAssetPipeline)' != 'true' and '$(VecxyBuildVPack)' == 'true' and Exists('$(MSBuildProjectDirectory)\Assets') and Exists('$(VecxyCliProject)')">
     <Error Condition="'$(_VecxyVPackPlatform)' == ''" Text="Vecxy VPack does not support the current build platform. Set VecxyBuildVPack=false or select windows, linux, or android." />
     <Message Text="Vecxy: building $(_VecxyVPackPlatform) VPack packages for $(MSBuildProjectName)" Importance="high" />
-    <Exec Command="dotnet run --project &quot;$(VecxyCliProject)&quot; -p:UseArtifactsOutput=true -p:ArtifactsPath=&quot;$(VecxyCliArtifactsPath)&quot; -- --project &quot;$(MSBuildProjectDirectory)&quot; assets pack --platform $(_VecxyVPackPlatform)" />
+    <Delete Files="$(MSBuildProjectDirectory)\obj\vecxy.asset-errors.txt" Condition="Exists('$(MSBuildProjectDirectory)\obj\vecxy.asset-errors.txt')" />
+    <Exec Command="dotnet run --project &quot;$(VecxyCliProject)&quot; -p:UseArtifactsOutput=true -p:ArtifactsPath=&quot;$(VecxyCliArtifactsPath)&quot; -- --project &quot;$(MSBuildProjectDirectory)&quot; assets pack --platform $(_VecxyVPackPlatform)" IgnoreExitCode="true">
+      <Output TaskParameter="ExitCode" PropertyName="_VecxyPackExitCode" />
+    </Exec>
+    <ReadLinesFromFile File="$(MSBuildProjectDirectory)\obj\vecxy.asset-errors.txt" Condition="Exists('$(MSBuildProjectDirectory)\obj\vecxy.asset-errors.txt')">
+      <Output TaskParameter="Lines" ItemName="_VecxyPackError" />
+    </ReadLinesFromFile>
+    <PropertyGroup>
+      <_VecxyPackErrorText>@(_VecxyPackError, '%0a')</_VecxyPackErrorText>
+    </PropertyGroup>
+    <Error Condition="'$(_VecxyPackErrorText)' != ''" Text="$(_VecxyPackErrorText)" />
+    <Error Condition="'$(_VecxyPackExitCode)' != '0' and '$(_VecxyPackErrorText)' == ''" Text="vecxy assets pack failed with exit code $(_VecxyPackExitCode). The build logger hides that command's output. Run 'vecxy assets pack' in the game directory to see the cause." />
     <ItemGroup Condition="'$(VecxyPlatform)' == 'Android'">
       <AndroidAsset Remove="$(MSBuildProjectDirectory)\Assets\**\*" />
       <AndroidAsset Remove="$(VecxyPackagesDirectory)\**\*" />

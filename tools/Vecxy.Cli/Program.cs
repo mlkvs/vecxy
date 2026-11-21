@@ -122,7 +122,8 @@ try
 }
 catch (Exception exception)
 {
-    Console.Error.WriteLine($"BUILD FAILED\n\n{exception.Message}");
+    var message = string.Join(" ", exception.Message.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries));
+    Console.Error.WriteLine($"BUILD FAILED\n\n{message}");
     return 1;
 }
 
@@ -131,9 +132,8 @@ static int Validate(string project)
     var missing = Pipeline.Validate(project);
     var manifest = Vecxy.Assets.AssetManifest.Load(Path.Combine(project, "Assets.manifest"));
     var packageErrors = VPackPipeline.ValidatePackageDependencies(manifest);
-    var result = ReportMissing(missing);
-    foreach (var error in packageErrors) Console.Error.WriteLine($"\n{error}");
-    return result != 0 || packageErrors.Count > 0 ? 1 : 0;
+    AssetValidationReport.Report(project, missing, packageErrors);
+    return missing.Count > 0 || packageErrors.Count > 0 ? 1 : 0;
 }
 static int ListPackages(string project)
 {
@@ -165,22 +165,10 @@ static int Prepare(string project)
     var manifest = Pipeline.Scan(project);
     Pipeline.Generate(project);
     var references = Pipeline.Analyze(project);
-    var result = ReportMissing(Pipeline.Validate(project, references));
+    var missing = Pipeline.Validate(project, references);
     var packageErrors = VPackPipeline.ValidatePackageDependencies(manifest);
-    foreach (var error in packageErrors) Console.Error.WriteLine($"\n{error}");
-    return result != 0 || packageErrors.Count > 0 ? 1 : 0;
-}
-static int ReportMissing(IReadOnlyList<Vecxy.AssetPipeline.MissingAsset> missing)
-{
-    if (missing.Count == 0) { Console.WriteLine("Asset validation succeeded."); return 0; }
-    Console.Error.WriteLine("BUILD FAILED");
-    foreach (var item in missing)
-    {
-        Console.Error.WriteLine($"\nMissing Asset:\n{item.Asset.Id:D}\n{item.Asset.Path}\n\nReferences:");
-        foreach (var reference in item.References) Console.Error.WriteLine($"{reference.File}:{reference.Line}");
-        if (item.References.Count == 0) Console.Error.WriteLine("(none)");
-    }
-    return 1;
+    AssetValidationReport.Report(project, missing, packageErrors);
+    return missing.Count > 0 || packageErrors.Count > 0 ? 1 : 0;
 }
 static string? GetOption(List<string> values, string name)
 {

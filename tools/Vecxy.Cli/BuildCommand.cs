@@ -125,9 +125,9 @@ internal static class BuildCommand
         Pipeline.Generate(project);
         var references = Pipeline.Analyze(project);
         var missing = Pipeline.Validate(project, references);
-        if (missing.Count > 0) throw new InvalidDataException($"Asset validation failed: {missing.Count} missing asset(s).");
         var packageErrors = VPackPipeline.ValidatePackageDependencies(manifest);
-        if (packageErrors.Count > 0) throw new InvalidDataException(string.Join(Environment.NewLine, packageErrors));
+        if (missing.Count > 0 || packageErrors.Count > 0)
+            throw new InvalidDataException(AssetValidationReport.Summarize(missing, packageErrors));
     }
 
     internal static string ResolvePlatform(string? value)

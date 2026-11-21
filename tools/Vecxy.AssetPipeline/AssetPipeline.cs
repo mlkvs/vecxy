@@ -84,10 +84,14 @@ public static partial class AssetPipeline
             var kind = Classify(file);
             var hash = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(file))).ToLowerInvariant();
             AssetManifestEntry? match = oldByPath.GetValueOrDefault(SourceKey(source, relative));
+            // A path match can still point at an id already given to another file when a
+            // previous scan copied that id onto a byte-identical asset. Mint a new one.
+            if (match is not null && claimed.Contains(match.Id)) match = null;
             if (match is null && oldByHash.TryGetValue(hash, out var candidates))
                 match = candidates.FirstOrDefault(x =>
                     string.Equals(x.Source, source, StringComparison.OrdinalIgnoreCase) &&
-                    !claimed.Contains(x.Id));
+                    !claimed.Contains(x.Id) &&
+                    !File.Exists(Path.Combine(assetsDirectory, x.Path.Replace('/', Path.DirectorySeparatorChar))));
             var id = match?.Id ?? Guid.NewGuid();
             claimed.Add(id);
             entries.Add(new AssetManifestEntry

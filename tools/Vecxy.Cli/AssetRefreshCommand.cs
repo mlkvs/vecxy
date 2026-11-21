@@ -37,7 +37,7 @@ internal static class AssetRefreshCommand
         var missing = Pipeline.Validate(project, Pipeline.Analyze(project));
         var packageErrors = VPackPipeline.ValidatePackageDependencies(manifest);
         if (missing.Count > 0 || packageErrors.Count > 0)
-            throw new InvalidDataException("Asset validation failed. The game was not started.");
+            throw new InvalidDataException(AssetValidationReport.Summarize(missing, packageErrors));
         var target = platform == "windows" ? Vecxy.Assets.VPackPlatform.Windows : Vecxy.Assets.VPackPlatform.Linux;
         await VPackPipeline.BuildAsync(project, target);
         var packages = Path.Combine(project, "Build", target.ToString());
