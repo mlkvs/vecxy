@@ -1,5 +1,5 @@
 bl_info = {
-    'name': 'Vecxy USD Tools', 'author': 'Vecxy', 'version': (1, 4, 3),
+    'name': 'Vecxy USD Tools', 'author': 'Vecxy', 'version': (1, 4, 4),
     'blender': (5, 2, 0), 'location': '3D View > Sidebar > Vecxy',
     'description': 'Components, collider previews, shared prototypes and referenced USD export',
     'category': 'Import-Export',
@@ -92,6 +92,7 @@ class VECXY_SceneSettings(bpy.types.PropertyGroup):
     editing_selection: StringProperty(default='')
     editing_view_area: StringProperty(default='')
     editing_linked: BoolProperty(default=False)
+    last_export_error: StringProperty(options={'SKIP_SAVE'})
     colliders_xray: BoolProperty(name='Colliders through geometry', default=True, description='Keep selected collider outlines visible through solid meshes, including Edit Mode')
     normalized_z_up: BoolProperty(default=True, options={'HIDDEN'})
 
@@ -411,12 +412,41 @@ class VECXY_OT_reset(bpy.types.Operator):
         return {'FINISHED'}
 
 
+EXPORT_REPORT_NAME='Vecxy Export Report'
+
+
+def remember_export_error(context,error):
+    details=str(error)
+    context.scene.vecxy_usd.last_export_error=details
+    report=bpy.data.texts.get(EXPORT_REPORT_NAME) or bpy.data.texts.new(EXPORT_REPORT_NAME)
+    report.clear()
+    report.write('Blender file: '+bpy.data.filepath+'\n\n'+details+'\n')
+    return details
+
+
+class VECXY_OT_show_export_report(bpy.types.Operator):
+    bl_idname='vecxy.show_export_report';bl_label='Подробности ошибки экспорта'
+    def invoke(self,context,event):
+        return context.window_manager.invoke_props_dialog(self,width=900)
+    def draw(self,context):
+        import textwrap
+        lines=[]
+        for line in context.scene.vecxy_usd.last_export_error.splitlines():
+            lines.extend(textwrap.wrap(line,width=110,break_on_hyphens=False) or [''])
+        for line in lines[:34]:self.layout.label(text=line)
+        if len(lines)>34:self.layout.label(text='…')
+        self.layout.separator()
+        self.layout.label(text='Полный отчёт для копирования: Text Editor → '+EXPORT_REPORT_NAME,icon='TEXT')
+    def execute(self,context):return {'FINISHED'}
+
+
 class VECXY_OT_export_scene(bpy.types.Operator):
     bl_idname='vecxy.export_scene';bl_label='Export scene USD'
     def execute(self,context):
         from .exporter import export_scene
         try:export_scene(context)
-        except Exception as error:self.report({'ERROR'},str(error));return {'CANCELLED'}
+        except Exception as error:self.report({'ERROR'},remember_export_error(context,error));return {'CANCELLED'}
+        context.scene.vecxy_usd.last_export_error=''
         self.report({'INFO'},'Vecxy scene exported');return {'FINISHED'}
 
 
@@ -427,7 +457,8 @@ class VECXY_OT_export_prototype(bpy.types.Operator):
         col=instance_collection(context.object) or context.scene.vecxy_usd.editing
         if not col:self.report({'ERROR'},'Select a prototype instance');return {'CANCELLED'}
         try:export_prototype(context,col)
-        except Exception as error:self.report({'ERROR'},str(error));return {'CANCELLED'}
+        except Exception as error:self.report({'ERROR'},remember_export_error(context,error));return {'CANCELLED'}
+        context.scene.vecxy_usd.last_export_error=''
         self.report({'INFO'},'Only the prototype asset was updated');return {'FINISHED'}
 
 
@@ -557,6 +588,9 @@ class VECXY_PT_tools(bpy.types.Panel):
         layout.separator();layout.prop(scene,'catalog_path');layout.operator('vecxy.reload_catalog',icon='FILE_REFRESH')
         layout.separator();layout.prop(scene,'export_path');layout.prop(scene,'python_path');layout.prop(scene,'export_prototypes');layout.prop(scene,'cook_after_export')
         layout.operator('vecxy.export_scene',icon='EXPORT')
+        if scene.last_export_error:
+            box=layout.box();box.label(text='USD export failed',icon='ERROR')
+            box.operator('vecxy.show_export_report',icon='TEXT')
 
 
 def draw_colliders():
@@ -609,7 +643,7 @@ def draw_colliders():
     finally:gpu.state.line_width_set(1);gpu.state.depth_test_set('NONE');gpu.state.blend_set('NONE')
 
 
-CLASSES=(VECXY_Parameter,VECXY_Component,VECXY_Settings,VECXY_SceneSettings,VECXY_OT_fit_collider,VECXY_OT_mark_prototype,VECXY_OT_create_instance,VECXY_OT_edit_prototype,VECXY_OT_finish_edit,VECXY_OT_component,VECXY_OT_override_component,VECXY_OT_reset,VECXY_OT_choose_asset,VECXY_OT_field_help,VECXY_OT_reload_catalog,VECXY_OT_export_scene,VECXY_OT_export_prototype,VECXY_PT_tools)
+CLASSES=(VECXY_Parameter,VECXY_Component,VECXY_Settings,VECXY_SceneSettings,VECXY_OT_fit_collider,VECXY_OT_mark_prototype,VECXY_OT_create_instance,VECXY_OT_edit_prototype,VECXY_OT_finish_edit,VECXY_OT_component,VECXY_OT_override_component,VECXY_OT_reset,VECXY_OT_choose_asset,VECXY_OT_field_help,VECXY_OT_reload_catalog,VECXY_OT_export_scene,VECXY_OT_export_prototype,VECXY_OT_show_export_report,VECXY_PT_tools)
 _handle=None
 _catalog_stamp=None
 

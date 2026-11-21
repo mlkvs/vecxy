@@ -202,3 +202,21 @@ use SKIP_SAVE so Blender cannot reuse Move as a later library-placement action.
 `test_placement_modes.py` checks every button with stale cached properties;
 `test_placement_lifecycle.py` is a graphical native-input regression fixture driven
 through move-confirm, move-cancel and library/copy placement sessions.
+
+
+USD texture fixes in 1.4.4: relocation snapshots asset paths before changing any USD
+properties. Composed material references can alias the same underlying property;
+re-reading them after rewriting a path previously looked for an output texture in
+the native staging directory. Export no longer fails on these shared materials.
+
+Missing-file errors now include the export destination, searched absolute path, USD
+property/layer, Blender material, image node, original image path and object users.
+The sidebar offers **Подробности ошибки экспорта** after a failure; the complete,
+copyable report is in **Text Editor → Vecxy Export Report**. Error text is preserved,
+and the OpenUSD/Pillow setup hint is shown only for a missing Python dependency.
+Unused image datablocks are not treated as required assets: relocation follows the
+asset attributes actually emitted by the native USD exporter.
+
+Regression checks: run `tests/test_finalize_usd.py` with Python containing usd-core;
+run `tests/test_export_reports.py` with Blender in background/factory mode. Both take
+`VECXY_TEST_OUTPUT` pointing to a disposable test directory.

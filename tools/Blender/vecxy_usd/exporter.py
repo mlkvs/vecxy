@@ -109,17 +109,32 @@ def finalize(context,input_path,output,records,root_settings=None):
     # Blender's USD exporter omits Image Texture interpolation. Preserve the
     # connected base-color node's setting alongside the native export.
     filters={}
+    texture_sources=[]
     for material in bpy.data.materials:
         if not material.use_nodes:continue
         for node in material.node_tree.nodes:
+            if node.type=='TEX_IMAGE' and node.image:
+                image=node.image
+                # The native USD exporter sanitizes names into USD identifiers.
+                import re
+                texture_sources.append({'material':material.name,'node':node.name,
+                    'usdNode':re.sub(r'[^A-Za-z0-9_]', '_', node.name),
+                    'image':image.name,'path':image.filepath,
+                    'absolute':bpy.path.abspath(image.filepath,library=image.library),
+                    'objects':[obj.name for obj in bpy.data.objects
+                        if any(slot.material==material for slot in obj.material_slots)]})
             if node.type!='BSDF_PRINCIPLED':continue
             links=node.inputs['Base Color'].links
             if links and links[0].from_node.type=='TEX_IMAGE':
                 filters[material.name]=links[0].from_node.interpolation
-    manifest={'input':str(input_path),'output':str(output),'objects':records,'root':root_settings or {},'textureFilters':filters}
+    manifest={'input':str(input_path),'output':str(output),'objects':records,'root':root_settings or {},'textureFilters':filters,'textureSources':texture_sources}
     descriptor=input_path.with_suffix('.json');descriptor.write_text(json.dumps(manifest),encoding='utf8')
     result=subprocess.run([python_executable(context),str(Path(__file__).with_name('finalize_usd.py')),str(descriptor)],capture_output=True,text=True)
-    if result.returncode:raise RuntimeError((result.stderr or result.stdout)[-1500:]+'\nSet OpenUSD Python to a Python with usd-core and Pillow installed.')
+    if result.returncode:
+        details=(result.stderr or result.stdout).strip()
+        if 'No module named' in details and any(name in details for name in ("'pxr'", "'PIL'")):
+            details+='\nSet OpenUSD Python to a Python with usd-core and Pillow installed.'
+        raise RuntimeError(details)
     print(result.stdout.strip())
 
 
