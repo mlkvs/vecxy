@@ -6,9 +6,11 @@ namespace Vecxy.Rendering;
 public sealed class SceneRenderTarget : IRenderTarget, IDisposable
 {
     private readonly GraphicsDevice _device;
+    private readonly bool _sampleDepth;
     private uint _framebuffer;
     private Texture? _colorTexture;
     private uint _depthRenderbuffer;
+    private Texture? _depthTexture;
     private bool _disposed;
 
     public int Width { get; private set; }
@@ -16,9 +18,10 @@ public sealed class SceneRenderTarget : IRenderTarget, IDisposable
     public Texture ColorTexture => _colorTexture ??
         throw new InvalidOperationException("Render target is not initialized.");
 
-    internal SceneRenderTarget(GraphicsDevice device)
+    internal SceneRenderTarget(GraphicsDevice device, bool sampleDepth = false)
     {
         _device = device;
+        _sampleDepth = sampleDepth;
     }
 
     public void EnsureSize(int width, int height)
@@ -56,6 +59,24 @@ public sealed class SceneRenderTarget : IRenderTarget, IDisposable
         ColorTexture.Bind(slot, TextureSamplerState.PointClamp);
     }
 
+    internal void BindDepthTexture(uint slot)
+    {
+        var depth = _depthTexture ?? throw new InvalidOperationException("The target has no sampled depth texture.");
+        depth.Bind(slot, TextureSamplerState.PointClamp);
+    }
+
+    internal void CopyDepthTo(SceneRenderTarget destination)
+    {
+        if (destination.Width != Width || destination.Height != Height)
+            throw new ArgumentException("Depth targets must have the same size.", nameof(destination));
+
+        var gl = _device.GL;
+        gl.BindFramebuffer(FramebufferTarget.ReadFramebuffer, _framebuffer);
+        gl.BindFramebuffer(FramebufferTarget.DrawFramebuffer, destination._framebuffer);
+        gl.BlitFramebuffer(0, 0, Width, Height, 0, 0, Width, Height,
+            ClearBufferMask.DepthBufferBit, BlitFramebufferFilter.Nearest);
+    }
+
     public void Present()
     {
     }
@@ -68,7 +89,7 @@ public sealed class SceneRenderTarget : IRenderTarget, IDisposable
 
         _framebuffer = gl.GenFramebuffer();
         var colorHandle = gl.GenTexture();
-        _depthRenderbuffer = gl.GenRenderbuffer();
+        _colorTexture = new Texture(_device, colorHandle);
 
         gl.BindFramebuffer(FramebufferTarget.Framebuffer, _framebuffer);
 
@@ -106,17 +127,25 @@ public sealed class SceneRenderTarget : IRenderTarget, IDisposable
             colorHandle,
             0);
 
-        gl.BindRenderbuffer(RenderbufferTarget.Renderbuffer, _depthRenderbuffer);
-        gl.RenderbufferStorage(
-            RenderbufferTarget.Renderbuffer,
-            InternalFormat.DepthComponent24,
-            (uint)width,
-            (uint)height);
-        gl.FramebufferRenderbuffer(
-            FramebufferTarget.Framebuffer,
-            FramebufferAttachment.DepthAttachment,
-            RenderbufferTarget.Renderbuffer,
-            _depthRenderbuffer);
+        if (_sampleDepth)
+        {
+            var handle = gl.GenTexture();
+            _depthTexture = new Texture(_device, handle);
+            _depthTexture.Bind(0, TextureSamplerState.PointClamp);
+            gl.TexImage2D(TextureTarget.Texture2D, 0, InternalFormat.DepthComponent24,
+                (uint)width, (uint)height, 0, PixelFormat.DepthComponent, PixelType.UnsignedInt, null);
+            gl.FramebufferTexture2D(FramebufferTarget.Framebuffer, FramebufferAttachment.DepthAttachment,
+                TextureTarget.Texture2D, handle, 0);
+        }
+        else
+        {
+            _depthRenderbuffer = gl.GenRenderbuffer();
+            gl.BindRenderbuffer(RenderbufferTarget.Renderbuffer, _depthRenderbuffer);
+            gl.RenderbufferStorage(RenderbufferTarget.Renderbuffer, InternalFormat.DepthComponent24,
+                (uint)width, (uint)height);
+            gl.FramebufferRenderbuffer(FramebufferTarget.Framebuffer, FramebufferAttachment.DepthAttachment,
+                RenderbufferTarget.Renderbuffer, _depthRenderbuffer);
+        }
 
         var status = gl.CheckFramebufferStatus(FramebufferTarget.Framebuffer);
         gl.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
@@ -124,9 +153,10 @@ public sealed class SceneRenderTarget : IRenderTarget, IDisposable
         gl.BindRenderbuffer(RenderbufferTarget.Renderbuffer, 0);
 
         if (status != GLEnum.FramebufferComplete)
+        {
+            DisposeHandles();
             throw new InvalidOperationException($"Scene framebuffer is incomplete: {status}.");
-
-        _colorTexture = new Texture(_device, colorHandle);
+        }
 
         Width = width;
         Height = height;
@@ -142,6 +172,8 @@ public sealed class SceneRenderTarget : IRenderTarget, IDisposable
             _depthRenderbuffer = 0;
         }
 
+        _depthTexture?.Dispose();
+        _depthTexture = null;
         _colorTexture?.Dispose();
         _colorTexture = null;
 

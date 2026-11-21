@@ -183,6 +183,7 @@ public sealed class RenderingModule(
     private AssetRef<ShaderAsset>? _skyboxShader;
     private AssetRef<ShaderAsset>? _copyPostShader;
     private SceneRenderTarget? _sceneTarget;
+    private OutlineRenderer? _outlineRenderer;
     private SceneRenderTarget? _postProcessTargetA;
     private SceneRenderTarget? _postProcessTargetB;
     private SceneRenderTarget? _presentedSceneTarget;
@@ -1047,7 +1048,7 @@ public sealed class RenderingModule(
 
         DrawSprites(scene, viewProjection);
 
-        DrawMeshRenderers(scene, camera, viewProjection, lighting);
+        DrawMeshRenderers(scene, camera, viewProjection, lighting, _sceneTarget);
         DrawWorld(new RenderWorldContext(scene, camera, viewProjection, renderWidth, renderHeight));
 
         PresentScene(
@@ -1102,7 +1103,7 @@ public sealed class RenderingModule(
 
         DrawSprites(scene, viewProjection);
 
-        DrawMeshRenderers(scene, camera, viewProjection, lighting);
+        DrawMeshRenderers(scene, camera, viewProjection, lighting, target);
         DrawWorld(new RenderWorldContext(scene, camera, viewProjection, target.Width, target.Height));
     }
 
@@ -1514,7 +1515,8 @@ public sealed class RenderingModule(
         SceneInstance scene,
         Camera camera,
         Matrix4x4 viewProjection,
-        SceneLighting lighting)
+        SceneLighting lighting,
+        SceneRenderTarget target)
     {
         CollectMeshRenderers(scene);
         if (_meshRenderers.Count == 0)
@@ -1530,6 +1532,11 @@ public sealed class RenderingModule(
         }
 
         DrawDecals(scene, camera, viewProjection, lighting);
+        if (!Wireframe && _fullscreenQuad is { } quad)
+        {
+            _outlineRenderer ??= new OutlineRenderer(assets, device, shaders, textures, statistics, DrawMeshGeometry);
+            _outlineRenderer.Draw(scene, target, quad, viewProjection, _meshRenderers);
+        }
 
         _meshRenderers.Sort((left, right) =>
             Vector3.DistanceSquared(
@@ -1947,6 +1954,8 @@ public sealed class RenderingModule(
         _skyboxShader = null;
         _copyPostShader?.Dispose();
         _copyPostShader = null;
+        _outlineRenderer?.Dispose();
+        _outlineRenderer = null;
         _sceneTarget?.Dispose();
         _sceneTarget = null;
         _postProcessTargetA?.Dispose();
