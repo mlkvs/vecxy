@@ -62,6 +62,12 @@ uniform vec2 uTextureOffset;
 uniform vec4 uColor;
 uniform vec4 uTint;
 uniform float uAlphaCutoff;
+uniform int uDecalEnabled;
+uniform sampler2D uDecalTexture;
+uniform mat4 uWorldToDecal;
+uniform vec3 uDecalNormal;
+uniform float uDecalFacing;
+uniform float uDecalOpacity;
 uniform vec3 uAmbientSkyColor;
 uniform vec3 uAmbientGroundColor;
 uniform float uSpecularStrength;
@@ -239,23 +245,43 @@ vec3 evaluateDirectLight(
 
 void main()
 {
+    bool decal = uDecalEnabled != 0;
     vec2 uv = vTexCoord * uTextureTiling + uTextureOffset;
-    vec4 textureColor = texture(uTexture, uv);
+    vec4 textureColor;
+    vec4 tint;
+    if (decal)
+    {
+        vec3 surfaceNormal = normalize(cross(dFdx(vWorldPosition), dFdy(vWorldPosition)));
+        vec3 projected = (uWorldToDecal * vec4(vWorldPosition, 1.0)).xyz;
+        if (dot(surfaceNormal, uDecalNormal) < uDecalFacing ||
+            any(greaterThan(abs(projected), vec3(0.5))))
+            discard;
+        textureColor = texture(uDecalTexture, vec2(projected.x + 0.5, 0.5 - projected.y));
+        tint = vec4(1.0, 1.0, 1.0, uDecalOpacity);
+    }
+    else
+    {
+        textureColor = texture(uTexture, uv);
+        tint = uColor * uTint;
+    }
 
-    if (textureColor.a * uColor.a * uTint.a < uAlphaCutoff)
+    float alpha = textureColor.a * tint.a;
+    if (alpha < (decal ? 0.001 : uAlphaCutoff))
         discard;
 
-    vec3 baseColor = pow(textureColor.rgb, vec3(2.2)) * uColor.rgb * uTint.rgb;
-    float metallic = clamp(uMetallicFactor, 0.0, 1.0);
-    float roughness = clamp(uRoughnessFactor, 0.04, 1.0);
-    if (uHasMetallicRoughnessTexture >= 0.5)
+    vec3 baseColor = pow(textureColor.rgb, vec3(2.2)) * tint.rgb;
+    float metallic = decal ? 0.0 : clamp(uMetallicFactor, 0.0, 1.0);
+    float roughness = decal ? 0.85 : clamp(uRoughnessFactor, 0.04, 1.0);
+    if (!decal && uHasMetallicRoughnessTexture >= 0.5)
     {
         vec4 mr = texture(uMetallicRoughnessTexture, uv);
         metallic *= mr.b;
         roughness *= mr.g;
         roughness = clamp(roughness, 0.04, 1.0);
     }
-    vec3 normal = applyNormalMap(normalize(vNormal), uv);
+    vec3 normal = normalize(vNormal);
+    if (!decal)
+        normal = applyNormalMap(normal, uv);
     if (!gl_FrontFacing)
         normal = -normal;
 
@@ -352,7 +378,7 @@ void main()
         mix(vec3(0.04), baseColor, metallic)) * (1.0 - roughness) * uSpecularStrength * 4.0;
     vec3 indirectDiffuse = baseColor * ambientLighting * (1.0 - metallic);
     vec3 litColor =
-        (indirectDiffuse + directLighting + environmentSpecular + uEmissiveColor.rgb) *
+        (indirectDiffuse + directLighting + environmentSpecular + (decal ? vec3(0.0) : uEmissiveColor.rgb)) *
         uExposure;
     vec3 mapped = vec3(1.0) - exp(-litColor);
     vec3 gammaCorrected = pow(mapped, vec3(1.0 / 2.2));
@@ -428,5 +454,5 @@ void main()
 
     oColor = vec4(
         gammaCorrected,
-        textureColor.a * uColor.a * uTint.a);
+        alpha);
 }

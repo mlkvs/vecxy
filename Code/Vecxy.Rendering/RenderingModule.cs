@@ -176,6 +176,7 @@ public sealed class RenderingModule(
     private readonly HashSet<IRenderTarget> _presentedTargets = [];
     private readonly List<Camera> _activeCameras = [];
     private readonly List<MeshRenderer> _meshRenderers = [];
+    private readonly List<Decal> _decals = [];
     private readonly List<SpriteRenderer> _spriteRenderers = [];
     private AssetRef<ShaderAsset>? _litShader;
     private AssetRef<ShaderAsset>? _spriteShader;
@@ -1382,22 +1383,7 @@ public sealed class RenderingModule(
                 materials.Bind(renderer.Material);
 
             ApplyLighting(shader, camera, lighting);
-            if (renderer is SkinnedMeshRenderer skinnedRenderer)
-            {
-                shader.Set("uSkinningEnabled", 1);
-                shader.Set("uBones[0]", skinnedRenderer.BoneMatrixSpan);
-            }
-            else
-            {
-                shader.Set("uSkinningEnabled", 0);
-            }
-            shader.Set("uModel", modelTransform);
-            shader.Set(
-                "uTransform",
-                modelTransform * viewProjection);
-
-            renderer.Mesh.Draw();
-            statistics.RecordDraw();
+            DrawMeshGeometry(renderer, shader, modelTransform, viewProjection);
         }
         catch (Exception exception)
         {
@@ -1405,6 +1391,23 @@ public sealed class RenderingModule(
                 exception,
                 $"Could not render '{renderer.SceneObject?.Name ?? "destroyed object"}'.");
         }
+    }
+
+    private void DrawMeshGeometry(MeshRenderer renderer, Shader shader, Matrix4x4 model, Matrix4x4 viewProjection)
+    {
+        if (renderer is SkinnedMeshRenderer skinned)
+        {
+            shader.Set("uSkinningEnabled", 1);
+            shader.Set("uBones[0]", skinned.BoneMatrixSpan);
+        }
+        else
+        {
+            shader.Set("uSkinningEnabled", 0);
+        }
+        shader.Set("uModel", model);
+        shader.Set("uTransform", model * viewProjection);
+        renderer.Mesh.Draw();
+        statistics.RecordDraw();
     }
 
     private void DrawSprites(
@@ -1526,6 +1529,8 @@ public sealed class RenderingModule(
             Draw(renderer, camera, viewProjection, lighting);
         }
 
+        DrawDecals(scene, camera, viewProjection, lighting);
+
         _meshRenderers.Sort((left, right) =>
             Vector3.DistanceSquared(
                     right.Transform.WorldPosition,
@@ -1539,6 +1544,80 @@ public sealed class RenderingModule(
                 continue;
             Draw(renderer, camera, viewProjection, lighting);
         }
+    }
+
+    private void DrawDecals(SceneInstance scene, Camera camera, Matrix4x4 viewProjection, SceneLighting lighting)
+    {
+        if (_litShader is not { HasError: false } || Wireframe)
+            return;
+
+        _decals.Clear();
+        foreach (var obj in scene.Objects)
+            if (obj.IsActive)
+                obj.GetComponents(_decals);
+        _decals.RemoveAll(static decal => !decal.IsActive || decal.Opacity <= 0 || decal.Texture is not { HasError: false });
+        if (_decals.Count == 0)
+            return;
+        _decals.Sort(static (left, right) =>
+        {
+            var order = left.Order.CompareTo(right.Order);
+            return order != 0 ? order : left.SceneObject!.Id.CompareTo(right.SceneObject!.Id);
+        });
+
+        var shader = shaders.Get(_litShader);
+        if (ReferenceEquals(shader, shaders.GetFallback()))
+            return;
+        var gl = device.GL;
+        shader.Bind();
+        ApplyLighting(shader, camera, lighting);
+        shader.Set("uDecalEnabled", 1);
+        shader.Set("uDecalTexture", 0);
+        gl.DepthFunc(DepthFunction.Equal);
+        gl.DepthMask(false);
+        gl.Enable(EnableCap.Blend);
+        gl.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha);
+        try
+        {
+            foreach (var decal in _decals)
+            {
+                var projector = Matrix4x4.CreateScale(decal.Size) * decal.Transform.WorldMatrix;
+                if (!Matrix4x4.Invert(projector, out var inverse))
+                    continue;
+                var normal = Vector3.Normalize(new Vector3(inverse.M13, inverse.M23, inverse.M33));
+                if (!float.IsFinite(normal.X))
+                    continue;
+                shader.Set("uWorldToDecal", inverse);
+                shader.Set("uDecalNormal", normal);
+                shader.Set("uDecalFacing", MathF.Cos(decal.MaxSurfaceAngle * (MathF.PI / 180)));
+                shader.Set("uDecalOpacity", decal.Opacity);
+                textures.Get(decal.Texture!).Bind(0, TextureSamplerState.LinearClamp);
+                foreach (var renderer in _meshRenderers)
+                {
+                    if (!renderer.ReceiveDecals || GetEffectiveRenderPhase(renderer) != ERenderPhase.Opaque)
+                        continue;
+                    var model = renderer.Transform.WorldMatrix;
+                    if (renderer is SkinnedMeshRenderer || OverlapsDecal(renderer.Mesh, model * inverse))
+                        DrawMeshGeometry(renderer, shader, model, viewProjection);
+                }
+            }
+        }
+        finally
+        {
+            shader.Set("uDecalEnabled", 0);
+            gl.DepthFunc(DepthFunction.Less);
+            gl.DepthMask(true);
+            gl.Disable(EnableCap.Blend);
+        }
+    }
+
+    private static bool OverlapsDecal(Mesh mesh, Matrix4x4 meshToDecal)
+    {
+        var half = mesh.BoundsSize * 0.5f;
+        var extent = Vector3.Abs(Vector3.TransformNormal(new Vector3(half.X, 0, 0), meshToDecal))
+            + Vector3.Abs(Vector3.TransformNormal(new Vector3(0, half.Y, 0), meshToDecal))
+            + Vector3.Abs(Vector3.TransformNormal(new Vector3(0, 0, half.Z), meshToDecal));
+        var edge = Vector3.Abs(Vector3.Transform(mesh.BoundsCenter, meshToDecal)) - extent;
+        return edge.X <= .5f && edge.Y <= .5f && edge.Z <= .5f;
     }
 
     private void CollectSpriteRenderers(SceneInstance scene)

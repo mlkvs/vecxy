@@ -102,20 +102,35 @@ def run(manifest):
     layer.Export(str(temporary))
     stage=Usd.Stage.Open(str(temporary));layer=stage.GetRootLayer()
     # References must remain composition arcs; do not flatten the scene.
-    tagged=[p.GetPath() for p in stage.Traverse() if p.GetAttribute('vecxy:id').HasValue()]
+    # Authored children of an instance can be hidden by native USD instanceability.
+    # Read the layer's tags directly and process parents before their attachments.
+    tagged=[]
+    branches=set()
+    def collect_tag(path):
+        if path.IsPropertyPath() and path.name=='vecxy:id':
+            attr=layer.GetAttributeAtPath(path)
+            if attr and attr.default in manifest['objects']:
+                owner=path.GetPrimPath()
+                tagged.append(owner)
+                branches.update(owner.GetPrefixes())
+    layer.Traverse(Sdf.Path.absoluteRootPath,collect_tag)
+    tagged.sort(key=lambda path:path.pathElementCount)
     for path in tagged:
         prim=stage.GetPrimAtPath(path)
-        if not prim or prim.IsInstanceProxy():continue
+        if not prim or prim.IsInstanceProxy() or prim.IsAbstract():continue
         record=manifest['objects'].get(prim.GetAttribute('vecxy:id').Get())
         if not record:continue
         if 'prototype' in record:
             asset=Path(record['prototype'])
             if not asset.is_file():raise ValueError('Prototype asset has not been exported: '+str(asset))
-            for child in list(prim.GetChildren()):stage.RemovePrim(child.GetPath())
+            prim.SetInstanceable(False)
+            attachments=[child.GetPath() for child in prim.GetChildren() if child.GetPath() in branches]
+            for child in list(prim.GetChildren()):
+                if child.GetPath() not in attachments:stage.RemovePrim(child.GetPath())
             prim.GetReferences().ClearReferences()
             prim.GetReferences().AddReference(Path(os.path.relpath(asset,output.parent)).as_posix())
             # Relative references resolve against the final output location, not the staging layer.
-            prim.SetInstanceable(True)
+            prim.SetInstanceable(not attachments)
         apply_settings(prim,record['settings'])
         prim.RemoveProperty('vecxy:id')
     root=stage.GetDefaultPrim()

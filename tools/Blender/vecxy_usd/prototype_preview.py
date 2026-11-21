@@ -89,20 +89,24 @@ def same_matrix(first, second):
     return all((a - b).length_squared < 1e-10 for a, b in zip(first, second))
 
 
+def resolve_hit_owner(context, depsgraph, obj, matrix):
+    obj = obj.original
+    if context.view_layer.objects.get(obj.name) == obj and same_matrix(obj.matrix_world, matrix):
+        return obj
+    for instance in depsgraph.object_instances:
+        if (instance.is_instance and instance.object.original == obj and instance.parent
+                and same_matrix(instance.matrix_world, matrix)):
+            return instance.parent.original
+    return obj
+
+
 def hit_root(context, mouse):
     direction = view3d_utils.region_2d_to_vector_3d(context.region, context.region_data, mouse)
     origin = view3d_utils.region_2d_to_origin_3d(context.region, context.region_data, mouse, clamp=10000)
     depsgraph = context.evaluated_depsgraph_get()
     hit, _, _, _, obj, matrix = context.scene.ray_cast(depsgraph, origin, direction)
     if hit:
-        obj = obj.original
-        if context.view_layer.objects.get(obj.name) == obj and same_matrix(obj.matrix_world, matrix):
-            return obj, obj, matrix
-        for instance in depsgraph.object_instances:
-            if (instance.is_instance and instance.object.original == obj and instance.parent
-                    and shared(instance.parent.original) and same_matrix(instance.matrix_world, matrix)):
-                return instance.parent.original, obj, matrix
-        return obj, obj, matrix
+        return resolve_hit_owner(context, depsgraph, obj, matrix), obj.original, matrix
     # A prototype can consist entirely of markers or empty collider objects.
     nearby = []
     for obj in context.visible_objects:

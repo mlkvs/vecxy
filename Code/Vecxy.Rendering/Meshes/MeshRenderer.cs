@@ -10,6 +10,7 @@ public class MeshRenderer : AComponent, ILocalBoundsProvider
 
     public ERenderPhase Phase { get; set; } =
         ERenderPhase.Opaque;
+    public bool ReceiveDecals { get; set; } = true;
 
     public bool IsConfigured =>
         _mesh is not null &&

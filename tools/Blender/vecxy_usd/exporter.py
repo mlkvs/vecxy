@@ -196,7 +196,7 @@ def write_prototype(context,col):
     linked=col.name in context.scene.collection.children
     if not linked:context.scene.collection.children.link(col)
     try:
-        objects=list(col.all_objects)
+        objects=[o for o in col.all_objects if not o.get('_vecxy_decal_preview')]
         if not objects:raise RuntimeError('Prototype collection is empty')
         temp_root=workspace()/'.agents/local';temp_root.mkdir(parents=True,exist_ok=True)
         with tempfile.TemporaryDirectory(prefix='usd-prototype-',dir=temp_root) as tmp:
@@ -213,7 +213,8 @@ def export_scene(context):
     finish_prototype_edits(context)
     output=resolved_path(context.scene.vecxy_usd.export_path);output.parent.mkdir(parents=True,exist_ok=True)
     source_objects={o for col in bpy.data.collections if col.vecxy.is_prototype or col.vecxy.is_edit_proxy for o in col.all_objects}
-    objects=[o for o in context.scene.objects if o not in source_objects and not o.hide_render]
+    objects=[o for o in context.scene.objects if o not in source_objects and not o.hide_render
+             and not o.get('_vecxy_decal_preview')]
     prototypes={instance_collection(o) for o in objects if instance_collection(o)}
     export_prototypes(context,prototypes,refresh=context.scene.vecxy_usd.export_prototypes)
     temp_root=workspace()/'.agents/local';temp_root.mkdir(parents=True,exist_ok=True)
