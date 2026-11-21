@@ -20,9 +20,16 @@ uniform sampler2D uMask;
 uniform DEPTH_PRECISION sampler2D uMaskDepth;
 uniform DEPTH_PRECISION sampler2D uSceneDepth;
 uniform vec4 uColor;
+uniform vec4 uOccludedColor;
 uniform float uThickness;
-uniform int uThroughWalls;
+uniform int uMode;
 out vec4 oColor;
+
+// Keep in sync with Vecxy.Rendering.OutlineMode.
+const int VisibleOnly = 0;
+const int Always = 1;
+const int OccludedOnly = 2;
+const int VisibleAndOccluded = 3;
 
 void main()
 {
@@ -31,10 +38,11 @@ void main()
         discard;
 
     ivec2 size = textureSize(uMask, 0);
-    float centerDepth = uThroughWalls != 0 ? 1.0 : texelFetch(uSceneDepth, pixel, 0).r;
+    float centerDepth = uMode == Always ? 1.0 : texelFetch(uSceneDepth, pixel, 0).r;
     float radius = uThickness + 1.0;
     int extent = int(ceil(radius));
     float coverage = 0.0;
+    float occludedCoverage = 0.0;
     const float depthTolerance = 0.000001;
     for (int y = -extent; y <= extent; ++y)
     {
@@ -50,15 +58,25 @@ void main()
                 continue;
             if (texelFetch(uMask, samplePixel, 0).r <= 0.5)
                 continue;
-            if (uThroughWalls == 0)
+            bool occluded = false;
+            if (uMode != Always)
             {
                 float depth = texelFetch(uMaskDepth, samplePixel, 0).r;
                 float sampleSceneDepth = texelFetch(uSceneDepth, samplePixel, 0).r;
-                if (depth > min(centerDepth, sampleSceneDepth) + depthTolerance)
-                    continue;
+                occluded = depth > min(centerDepth, sampleSceneDepth) + depthTolerance;
             }
 
-            coverage = max(coverage, clamp(radius - sqrt(distanceSquared), 0.0, 1.0));
+            if ((uMode == VisibleOnly && occluded) || (uMode == OccludedOnly && !occluded))
+                continue;
+
+            float sampleCoverage = clamp(radius - sqrt(distanceSquared), 0.0, 1.0);
+            if (uMode == VisibleAndOccluded && occluded)
+            {
+                occludedCoverage = max(occludedCoverage, sampleCoverage);
+                continue;
+            }
+
+            coverage = max(coverage, sampleCoverage);
             if (coverage == 1.0)
             {
                 oColor = uColor;
@@ -67,7 +85,11 @@ void main()
         }
     }
 
-    if (coverage <= 0.0)
+    float visibleAlpha = uColor.a * coverage;
+    // Visible samples take precedence where dilated edges overlap.
+    float occludedAlpha = uOccludedColor.a * max(occludedCoverage - coverage, 0.0);
+    float alpha = visibleAlpha + occludedAlpha;
+    if (alpha <= 0.0)
         discard;
-    oColor = vec4(uColor.rgb, uColor.a * coverage);
+    oColor = vec4((uColor.rgb * visibleAlpha + uOccludedColor.rgb * occludedAlpha) / alpha, alpha);
 }

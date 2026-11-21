@@ -27,7 +27,8 @@ internal sealed class OutlineRenderer(
         foreach (var obj in scene.Objects)
             if (obj.IsActive)
                 obj.GetComponents(_outlines);
-        _outlines.RemoveAll(static outline => !outline.IsActive || outline.Thickness <= 0 || outline.Opacity <= 0);
+        _outlines.RemoveAll(static outline => !outline.IsActive || outline.Thickness <= 0 ||
+            outline.Opacity <= 0 && (outline.Mode != OutlineMode.VisibleAndOccluded || outline.OccludedOpacity <= 0));
         if (_outlines.Count == 0)
             return;
         _outlines.Sort(static (a, b) =>
@@ -49,7 +50,7 @@ internal sealed class OutlineRenderer(
         {
             _mask ??= new SceneRenderTarget(device, sampleDepth: true);
             _mask.EnsureSize(target.Width, target.Height);
-            var needsDepth = _outlines.Exists(static outline => !outline.ThroughWalls);
+            var needsDepth = _outlines.Exists(static outline => outline.Mode != OutlineMode.Always);
             if (needsDepth)
             {
                 _depth ??= new SceneRenderTarget(device, sampleDepth: true);
@@ -93,14 +94,16 @@ internal sealed class OutlineRenderer(
                     compositeShader.Bind();
                     _mask.BindColorTexture(0);
                     _mask.BindDepthTexture(1);
-                    if (!outline.ThroughWalls)
+                    var usesSceneDepth = outline.Mode != OutlineMode.Always;
+                    if (usesSceneDepth)
                         _depth!.BindDepthTexture(2);
                     compositeShader.Set("uMask", 0);
                     compositeShader.Set("uMaskDepth", 1);
-                    compositeShader.Set("uSceneDepth", outline.ThroughWalls ? 1 : 2);
+                    compositeShader.Set("uSceneDepth", usesSceneDepth ? 2 : 1);
                     compositeShader.Set("uColor", new Vector4(outline.Color, outline.Opacity));
+                    compositeShader.Set("uOccludedColor", new Vector4(outline.OccludedColor, outline.OccludedOpacity));
                     compositeShader.Set("uThickness", outline.Thickness);
-                    compositeShader.Set("uThroughWalls", outline.ThroughWalls ? 1 : 0);
+                    compositeShader.Set("uMode", (int)outline.Mode);
                     quad.Draw();
                     statistics.RecordDraw();
                 }

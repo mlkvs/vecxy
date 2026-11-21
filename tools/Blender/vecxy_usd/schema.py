@@ -91,6 +91,7 @@ def add_component(settings,type_name,override=False,key=None):
 
 
 def upgrade_legacy(settings):
+    upgrade_outline_mode(settings)
     if settings.collider=='NONE':return
     type_name=next((t for t,k in COLLIDERS.items() if k==settings.collider),None)
     if type_name not in CATALOG:return
@@ -104,6 +105,27 @@ def upgrade_legacy(settings):
             if field['key'] in data:set_param(component,field,data[field['key']])
         if settings.override_collider:settings.override_components=True
     settings.collider='NONE';settings.override_collider=False
+
+
+def upgrade_outline_mode(settings):
+    outline_type = 'Vecxy.Rendering.Outline'
+    definition = CATALOG.get(outline_type)
+    if not definition:
+        return
+    mode = next((field for field in definition['fields'] if field['key'] == 'mode'), None)
+    if not mode:
+        return
+    for component in settings.components:
+        if component.type_name != outline_type:
+            continue
+        for index, parameter in enumerate(component.parameters):
+            if parameter.key != 'throughWalls':
+                continue
+            has_mode = any(p.key == 'mode' and p.is_override for p in component.parameters)
+            if parameter.is_override and not has_mode:
+                set_param(component, mode, 'Always' if parameter.boolean else 'VisibleOnly')
+            component.parameters.remove(index)
+            break
 
 
 def effective_components(settings, base=None):
