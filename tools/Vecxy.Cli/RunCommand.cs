@@ -29,7 +29,7 @@ internal static class RunCommand
                 cache.Invalidate();
                 var before = cache.CaptureInputs();
                 var result = await BuildCommand.RunAsync(project, mode, platform, runtimeOption, output,
-                    null, null, null, null, null);
+                    null, null, null, null, null, reuseRestore: !rebuild);
                 if (result != 0) return result;
                 SaveCache(before);
             }

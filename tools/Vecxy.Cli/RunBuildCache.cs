@@ -13,6 +13,8 @@ internal sealed class RunBuildCache(string project, string mode, string runtime,
     private string Stamp => Path.Combine(project, "obj", "vecxy-run", HashText(_profile) + ".json");
     private sealed record Snapshot(string Profile, Dictionary<string, string> Inputs, Dictionary<string, string> Outputs,
         string? ToolAssembly, Dictionary<string, string>? ToolInputs, Dictionary<string, string> ToolOutputs);
+    private sealed record ToolSnapshot(string ToolAssembly, Dictionary<string, string>? ToolInputs,
+        Dictionary<string, string> ToolOutputs);
 
     public bool IsCurrent()
     {
@@ -102,7 +104,8 @@ internal sealed class RunBuildCache(string project, string mode, string runtime,
             if ((name.StartsWith("VECXY_", StringComparison.OrdinalIgnoreCase) || name.StartsWith("Vecxy", StringComparison.OrdinalIgnoreCase) ||
                 name.StartsWith("NUGET_", StringComparison.OrdinalIgnoreCase) ||
                 name is "DOTNET_ROOT" or "DOTNET_ROOT_X64" or "DOTNET_ROOT_ARM64" or "DOTNET_ROOT_X86" or "MSBuildSDKsPath" or "Configuration" or "DefineConstants" or "CI") &&
-                name != "VECXY_WAIT_FOR_DEBUGGER") result["env:" + name] = HashText(variable.Value?.ToString() ?? "");
+                name is not ("VECXY_WAIT_FOR_DEBUGGER" or "VECXY_CLI_BOOTSTRAP"))
+                result["env:" + name] = HashText(variable.Value?.ToString() ?? "");
         }
         return result;
 
@@ -231,6 +234,43 @@ internal sealed class RunBuildCache(string project, string mode, string runtime,
                 !Path.GetExtension(path).StartsWith(".blend", StringComparison.OrdinalIgnoreCase) && Path.GetFileName(path) != "vecxy.components.json")
                 .Select(Path.GetFileName).Order(StringComparer.Ordinal)));
         return inputs;
+    }
+
+    public static void RecordCompiledTool()
+    {
+        var engine = Environment.GetEnvironmentVariable("VECXY_ENGINE_PATH");
+        if (string.IsNullOrEmpty(engine) ||
+            !long.TryParse(Environment.GetEnvironmentVariable("VECXY_CLI_BOOTSTRAP"), out var epoch))
+            return;
+
+        try
+        {
+            var start = DateTimeOffset.FromUnixTimeMilliseconds(epoch).UtcDateTime;
+            var tool = Path.Combine(engine, "tools", "Vecxy.Cli");
+            var assembly = typeof(RunBuildCache).Assembly.Location;
+            var cache = new RunBuildCache(tool, "tool", "", tool);
+            var inputs = cache.CaptureToolInputs();
+            if (inputs is null || inputs.Keys.Any(path => Path.IsPathRooted(path) && File.Exists(path) &&
+                !path.EndsWith(".nuget.dgspec.json", StringComparison.Ordinal) && File.GetLastWriteTimeUtc(path) >= start))
+                return;
+
+            var outputs = Directory.GetFiles(Path.GetDirectoryName(assembly)!, "*", SearchOption.AllDirectories)
+                .ToDictionary(path => Path.GetFullPath(path), FileHash, StringComparer.Ordinal);
+            var path = Path.Combine(tool, "obj", "vecxy-tool.json");
+            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+            var temporary = path + "." + Guid.NewGuid().ToString("N");
+            try
+            {
+                File.WriteAllText(temporary, JsonSerializer.Serialize(new ToolSnapshot(assembly, inputs, outputs)));
+                File.Move(temporary, path, overwrite: true);
+            }
+            finally { if (File.Exists(temporary)) File.Delete(temporary); }
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException or JsonException or
+            System.Xml.XmlException or ArgumentOutOfRangeException)
+        {
+            // Starting the CLI must not depend on being able to write a cache.
+        }
     }
 
     public void Invalidate() { if (File.Exists(Stamp)) File.Delete(Stamp); }

@@ -2,6 +2,7 @@ using System.Diagnostics;
 using Vecxy.AssetPipeline;
 using Pipeline = Vecxy.AssetPipeline.AssetPipeline;
 
+RunBuildCache.RecordCompiledTool();
 var separator = Array.IndexOf(args, "--");
 var gameArguments = separator < 0 ? Array.Empty<string>() : args[(separator + 1)..];
 var arguments = ExpandShortOptions(separator < 0 ? args : args[..separator]).ToList();

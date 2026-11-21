@@ -8,6 +8,7 @@ import { homedir, platform } from 'node:os';
 import { dirname, join, resolve, relative, delimiter } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { cachedRunCli } from '../lib/run-cache.js';
+import { canReuseCliRestore } from '../lib/restore-cache.js';
 
 const VERSION = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version;
 const DOTNET_VERSION = '10.0.110';
@@ -315,8 +316,19 @@ function forward(values) {
   const forwarded = [...values];
   if (values[0] === 'new' && !values.includes('--engine')) forwarded.push('--engine', engine);
   const environment = toolEnvironment(engine);
-  const cached = values[0] === 'run' && root ? cachedRunCli(root, engine, environment) : null;
-  const invocation = cached ? [cached, ...forwarded] : ['run', '--project', project, '--', ...forwarded];
+  delete environment.VECXY_CLI_BOOTSTRAP;
+  const cached = cachedRunCli(root, engine, environment);
+  let invocation;
+  if (cached) {
+    invocation = [cached, ...forwarded];
+  } else {
+    console.log('Preparing Vecxy CLI...');
+    const started = Date.now();
+    const reuse = canReuseCliRestore(dotnet, project, environment);
+    if (!reuse) console.log('Restoring CLI dependencies if needed...');
+    invocation = ['run', ...(reuse ? ['--no-restore'] : []), '--project', project, '--', ...forwarded];
+    environment.VECXY_CLI_BOOTSTRAP = String(started);
+  }
   const child = spawn(dotnet, invocation, { stdio: 'inherit', env: environment });
   child.on('exit', (code, signal) => process.exit(signal ? 1 : code ?? 1));
   child.on('error', fail);

@@ -18,22 +18,22 @@ function currentValue(key, environment) {
   return existsSync(key) && statSync(key).isFile() ? hash(readFileSync(key)) : '<missing>';
 }
 
-// The SDK still compiles changed CLI sources. A successful run build records the
-// exact CLI binary, dependencies and inputs, allowing unchanged CLI invocations
-// to avoid starting MSBuild just to execute that same binary.
+// Reuse the validated CLI snapshot, or a snapshot from an earlier game build.
 export function cachedRunCli(project, engine, environment) {
-  const directory = join(project, 'obj', 'vecxy-run');
-  if (!existsSync(directory)) return null;
-  for (const name of readdirSync(directory).filter(name => name.endsWith('.json'))) {
+  const snapshots = [join(engine, 'tools', 'Vecxy.Cli', 'obj', 'vecxy-tool.json')];
+  const directory = project && join(project, 'obj', 'vecxy-run');
+  if (directory && existsSync(directory))
+    snapshots.push(...readdirSync(directory).filter(name => name.endsWith('.json')).map(name => join(directory, name)));
+  for (const path of snapshots) {
     try {
-      const snapshot = JSON.parse(readFileSync(join(directory, name), 'utf8'));
+      const snapshot = JSON.parse(readFileSync(path, 'utf8'));
       const assembly = snapshot.ToolAssembly;
       if (typeof assembly !== 'string' || !resolve(assembly).startsWith(resolve(engine, 'tools', 'Vecxy.Cli') + sep) ||
           !assembly.toLowerCase().endsWith('vecxy.cli.dll') || !existsSync(assembly)) continue;
       const inputs = snapshot.ToolInputs, outputs = snapshot.ToolOutputs;
       if (!inputs || !outputs || !Object.keys(outputs).length) continue;
       const expected = Object.keys(inputs).filter(key => key.startsWith('env:')).sort();
-      const actual = Object.keys(environment).filter(name => trackedEnvironment(name) && name !== 'VECXY_WAIT_FOR_DEBUGGER')
+      const actual = Object.keys(environment).filter(name => trackedEnvironment(name) && !['VECXY_WAIT_FOR_DEBUGGER', 'VECXY_CLI_BOOTSTRAP'].includes(name))
         .map(name => 'env:' + name).sort();
       if (JSON.stringify(expected) !== JSON.stringify(actual)) continue;
       if ([...Object.entries(inputs), ...Object.entries(outputs)].every(([key, value]) => currentValue(key, environment) === value))

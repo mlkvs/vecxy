@@ -16,7 +16,8 @@ internal static class BuildCommand
         string? keystore,
         string? alias,
         string? version,
-        string? versionCode)
+        string? versionCode,
+        bool reuseRestore = false)
     {
         var configuration = mode.ToLowerInvariant() switch
         {
@@ -46,18 +47,27 @@ internal static class BuildCommand
 
         if (platform == "android")
             return BuildAndroid(projectFile, configuration, output, packageDirectory, formatOption, keystore, alias, version, versionCode);
-        return BuildDesktop(projectFile, configuration, output, packageDirectory, runtimeOption ?? DefaultRuntime(platform));
+        return BuildDesktop(projectFile, configuration, output, packageDirectory, runtimeOption ?? DefaultRuntime(platform), reuseRestore);
     }
 
-    private static int BuildDesktop(string project, string configuration, string output, string packages, string runtime)
+    private static int BuildDesktop(string project, string configuration, string output, string packages, string runtime, bool reuseRestore)
     {
-        var arguments = new[]
+        var arguments = new List<string>
         {
             "publish", project, "--configuration", configuration, "--framework", "net10.0",
             "--runtime", runtime, "--self-contained", "true", "--output", output,
             "-p:VecxyPlatform=Desktop", "-p:VecxySkipAssetPipeline=true",
             $"-p:VecxyPackagesDirectory={packages}", "-p:ErrorOnDuplicatePublishOutputFiles=false"
         };
+        if (reuseRestore && RestoreGraphCache.CanReuseDesktop(project, configuration, runtime, packages))
+        {
+            Console.WriteLine("Using previously restored game dependencies.");
+            arguments.Add("--no-restore");
+        }
+        else
+        {
+            Console.WriteLine("Restoring game dependencies if needed...");
+        }
         var result = RunDotnet(arguments);
         if (result == 0) Console.WriteLine($"Desktop build: {output}");
         return result;

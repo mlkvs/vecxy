@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createHash } from 'node:crypto';
 import { cachedRunCli, directoryHash } from '../lib/run-cache.js';
+import { restoredGraphMatches } from '../lib/restore-cache.js';
 const hash = value => createHash('sha256').update(value).digest('hex').toUpperCase();
 function fixture(t) {
  const root=mkdtempSync(join(tmpdir(),'vecxy-tool-cache-'));t.after(()=>rmSync(root,{recursive:true,force:true}));
@@ -31,4 +32,33 @@ test('a cache from another engine cannot select the CLI',t=>{const f=fixture(t);
 test('ignored IDE/build entries do not repeatedly invalidate the compiled CLI',t=>{
  const f=fixture(t);mkdirSync(join(f.tool,'.idea'));writeFileSync(join(f.tool,'settings.user'),'local');
  assert.equal(cachedRunCli(f.project,f.engine,f.environment),f.assembly);
+});
+
+test('the CLI can be reused before any game build completes', t => {
+ const f = fixture(t);
+ const obj = join(f.tool, 'obj');
+ mkdirSync(obj);
+ writeFileSync(join(obj, 'vecxy-tool.json'), readFileSync(f.stamp));
+ rmSync(f.stamp);
+ assert.equal(cachedRunCli(null, f.engine, {...f.environment, VECXY_CLI_BOOTSTRAP: '123'}), f.assembly);
+});
+
+test('restore graph reuse ignores audit metadata and keeps package and runtime checks', () => {
+ const spec = (version, runtime, enableAudit) => ({
+  format: 1,
+  restore: {},
+  projects: {
+   'Vecxy.Cli.csproj': {
+    restore: {restoreAuditProperties: {enableAudit}},
+    frameworks: {net10: {dependencies: {Package: {version}}}},
+    runtimes: {[runtime]: {}}
+   }
+  }
+ });
+ const restored = spec('1.0', 'linux-x64', 'false');
+ const current = spec('1.0', 'linux-x64', 'true');
+ current.restore['Vecxy.Cli.csproj'] = {};
+ assert.equal(restoredGraphMatches(current, restored), true);
+ assert.equal(restoredGraphMatches(spec('2.0', 'linux-x64', 'true'), restored), false);
+ assert.equal(restoredGraphMatches(spec('1.0', 'linux-arm64', 'true'), restored), false);
 });
