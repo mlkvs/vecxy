@@ -157,6 +157,7 @@ internal static class BuildCommand
     private static int RunDotnet(IEnumerable<string> arguments, IReadOnlyDictionary<string, string>? environment = null)
     {
         var start = new ProcessStartInfo("dotnet") { UseShellExecute = false };
+        start.Environment["VecxyCliAssembly"] = typeof(BuildCommand).Assembly.Location;
         foreach (var argument in arguments) start.ArgumentList.Add(argument);
         if (environment is not null)
             foreach (var item in environment) start.Environment[item.Key] = item.Value;

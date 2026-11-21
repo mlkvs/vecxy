@@ -67,6 +67,10 @@
   <PropertyGroup>
     <VecxyCliProject>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\..\..\tools\Vecxy.Cli\Vecxy.Cli.csproj'))</VecxyCliProject>
     <VecxyCliArtifactsPath>$(MSBuildProjectDirectory)\obj\vecxy-cli-artifacts</VecxyCliArtifactsPath>
+    <_VecxyCliCommand Condition="Exists('$(VecxyCliAssembly)')">dotnet &quot;$(VecxyCliAssembly)&quot;</_VecxyCliCommand>
+    <_VecxyCliCommand Condition="'$(_VecxyCliCommand)' == ''">dotnet run --project &quot;$(VecxyCliProject)&quot; --</_VecxyCliCommand>
+    <_VecxyIsolatedCliCommand Condition="Exists('$(VecxyCliAssembly)')">dotnet &quot;$(VecxyCliAssembly)&quot;</_VecxyIsolatedCliCommand>
+    <_VecxyIsolatedCliCommand Condition="'$(_VecxyIsolatedCliCommand)' == ''">dotnet run --project &quot;$(VecxyCliProject)&quot; -p:UseArtifactsOutput=true -p:ArtifactsPath=&quot;$(VecxyCliArtifactsPath)&quot; --</_VecxyIsolatedCliCommand>
     <VecxyNetworkingWeaverProject>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\..\Vecxy.Networking.Weaver\Vecxy.Networking.Weaver.csproj'))</VecxyNetworkingWeaverProject>
   </PropertyGroup>
   <ItemGroup Condition="'$(VecxyBuildVPack)' == 'true'">
@@ -81,7 +85,7 @@
     Condition="'$(VecxySkipAssetPipeline)' != 'true' and '$(VecxyBuildVPack)' != 'true' and Exists('$(MSBuildProjectDirectory)\Assets') and Exists('$(VecxyCliProject)')">
     <Message Text="Vecxy: preparing assets for $(MSBuildProjectName)" Importance="high" />
     <Delete Files="$(MSBuildProjectDirectory)\obj\vecxy.asset-errors.txt" Condition="Exists('$(MSBuildProjectDirectory)\obj\vecxy.asset-errors.txt')" />
-    <Exec Command="dotnet run --project &quot;$(VecxyCliProject)&quot; -- --project &quot;$(MSBuildProjectDirectory)&quot; assets prepare" IgnoreExitCode="true">
+    <Exec Command="$(_VecxyCliCommand) --project &quot;$(MSBuildProjectDirectory)&quot; assets prepare" IgnoreExitCode="true">
       <Output TaskParameter="ExitCode" PropertyName="_VecxyPrepareExitCode" />
     </Exec>
     <ReadLinesFromFile File="$(MSBuildProjectDirectory)\obj\vecxy.asset-errors.txt" Condition="Exists('$(MSBuildProjectDirectory)\obj\vecxy.asset-errors.txt')">
@@ -107,7 +111,7 @@
     <Error Condition="'$(_VecxyVPackPlatform)' == ''" Text="Vecxy VPack does not support the current build platform. Set VecxyBuildVPack=false or select windows, linux, or android." />
     <Message Text="Vecxy: building $(_VecxyVPackPlatform) VPack packages for $(MSBuildProjectName)" Importance="high" />
     <Delete Files="$(MSBuildProjectDirectory)\obj\vecxy.asset-errors.txt" Condition="Exists('$(MSBuildProjectDirectory)\obj\vecxy.asset-errors.txt')" />
-    <Exec Command="dotnet run --project &quot;$(VecxyCliProject)&quot; -p:UseArtifactsOutput=true -p:ArtifactsPath=&quot;$(VecxyCliArtifactsPath)&quot; -- --project &quot;$(MSBuildProjectDirectory)&quot; assets pack --platform $(_VecxyVPackPlatform)" IgnoreExitCode="true">
+    <Exec Command="$(_VecxyIsolatedCliCommand) --project &quot;$(MSBuildProjectDirectory)&quot; assets pack --platform $(_VecxyVPackPlatform)" IgnoreExitCode="true">
       <Output TaskParameter="ExitCode" PropertyName="_VecxyPackExitCode" />
     </Exec>
     <ReadLinesFromFile File="$(MSBuildProjectDirectory)\obj\vecxy.asset-errors.txt" Condition="Exists('$(MSBuildProjectDirectory)\obj\vecxy.asset-errors.txt')">
@@ -192,6 +196,6 @@
   <Target Name="VecxyFinalizeAuthoring" AfterTargets="Build" DependsOnTargets="VecxyWeaveNetworking"
           Condition="'$(DesignTimeBuild)' != 'true' and '$(VecxyGenerateAuthoring)' == 'true' and Exists('$(TargetPath)') and Exists('$(VecxyCliProject)')">
     <Message Text="Vecxy: finalizing project authoring metadata" Importance="high" />
-    <Exec Command="dotnet run --project &quot;$(VecxyCliProject)&quot; -p:UseArtifactsOutput=true -p:ArtifactsPath=&quot;$(VecxyCliArtifactsPath)&quot; -- --project &quot;$(MSBuildProjectDirectory)&quot; assets generate --assembly &quot;$(TargetPath)&quot; --catalog &quot;$(VecxyAuthoringCatalog)&quot;" />
+    <Exec Command="$(_VecxyIsolatedCliCommand) --project &quot;$(MSBuildProjectDirectory)&quot; assets generate --assembly &quot;$(TargetPath)&quot; --catalog &quot;$(VecxyAuthoringCatalog)&quot;" />
   </Target>
 </Project>
