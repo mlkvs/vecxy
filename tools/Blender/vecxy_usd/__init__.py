@@ -1,5 +1,5 @@
 bl_info = {
-    'name': 'Vecxy USD Tools', 'author': 'Vecxy', 'version': (1, 6, 0),
+    'name': 'Vecxy USD Tools', 'author': 'Vecxy', 'version': (1, 9, 0),
     'blender': (5, 2, 0), 'location': '3D View > Sidebar > Vecxy',
     'description': 'Components, collider previews, shared prototypes and referenced USD export',
     'category': 'Import-Export',
@@ -777,17 +777,21 @@ def register():
     bpy.app.handlers.save_pre.append(collider_edit.cancel_edit)
     bpy.app.handlers.load_pre.append(collider_edit.cancel_edit)
     load_project_catalog(None)
-    from . import decals, level_design, prototype_library
+    from . import characters, decals, face_sprites, level_design, prototype_library
     level_design.register()
     prototype_library.register()
     decals.register()
+    characters.register()
+    face_sprites.register()
     prototype_preview.register()
     if not bpy.app.background:
         if not bpy.app.timers.is_registered(watch_project_catalog):bpy.app.timers.register(watch_project_catalog,first_interval=1.0,persistent=True)
 
 def unregister():
-    from . import decals, level_design, prototype_library
+    from . import characters, decals, face_sprites, level_design, prototype_library
     prototype_preview.unregister()
+    face_sprites.unregister()
+    characters.unregister()
     decals.unregister()
     prototype_library.unregister()
     level_design.unregister()

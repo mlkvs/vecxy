@@ -52,6 +52,18 @@ public sealed class ScenePrototypeSystem : APrototypeSystem<AComponent, ScenePro
 {
     public override IReadOnlyList<Type> TargetBaseTypes { get; } = [typeof(AComponent), typeof(SceneObject)];
 
+    public static void ApplyAuthoredComponent(IPrototypes prototypes, SceneObject owner, string type, string data)
+    {
+        var definition = prototypes.Types.SingleOrDefault(info => info.TargetType.FullName == type)
+            ?? throw new InvalidDataException($"No Vecxy prototype for '{type}' on '{owner.Name}'.");
+        if (!typeof(AComponent).IsAssignableFrom(definition.TargetType))
+            throw new InvalidDataException($"Authored component must derive from AComponent: '{type}'.");
+        var document = PrototypeSerializer.Deserialize($"format: 1\ntype: {type}\ndata: {data}");
+        var options = PrototypeSerializer.DeserializeOptions(document.Data, definition.OptionsType);
+        prototypes.Instantiate(definition.TargetType,
+            new ScenePrototypeContext { Scene = owner.SceneInstance, Object = owner }, options);
+    }
+
     protected override object Instantiate(IPrototype prototype, object options, ScenePrototypeContext context)
     {
         object? result = null;

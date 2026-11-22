@@ -12,6 +12,7 @@ public sealed class Mesh : IDisposable
     private bool _disposed;
 
     public string Name { get; }
+    public bool HasFaceCoordinates { get; internal init; }
     public uint IndexCount { get; }
     public Vector3 BoundsMin { get; }
     public Vector3 BoundsMax { get; }

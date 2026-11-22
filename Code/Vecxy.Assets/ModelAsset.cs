@@ -14,6 +14,8 @@ public readonly record struct ModelVertex(
     Vector4 Joints,
     Vector4 Weights)
 {
+    public Vector2 FaceCoordinates { get; init; }
+
     public ModelVertex(
         Vector3 position,
         Vector3 normal,
@@ -25,6 +27,7 @@ public readonly record struct ModelVertex(
 
 public sealed class ModelPrimitive
 {
+    public bool HasFaceCoordinates { get; internal init; }
     public IReadOnlyList<ModelVertex> Vertices { get; }
     public IReadOnlyList<uint> Indices { get; }
     public int? MaterialIndex { get; }
@@ -503,6 +506,13 @@ public sealed class ModelAssetImporter : IAssetImporter<ModelAsset>
             ? ReadWeightVectors(gltf, buffer, weightsAccessor, path)
             : null;
 
+        const string faceAttribute = "_VECXY_FACE_UV";
+        var faceCoordinates = primitive.Attributes.TryGetValue(faceAttribute, out var faceAccessor)
+            ? ReadVectors2(gltf, buffer, faceAccessor, faceAttribute, path)
+            : null;
+        if (faceCoordinates is not null && faceCoordinates.Length != positions.Length)
+            throw new InvalidDataException($"{faceAttribute} count does not match POSITION count in '{path}'.");
+
         if (normals is not null && normals.Length != positions.Length)
         {
             throw new InvalidDataException(
@@ -550,14 +560,20 @@ public sealed class ModelAssetImporter : IAssetImporter<ModelAsset>
                 normals[index],
                 texCoords?[index] ?? Vector2.Zero,
                 joints?[index] ?? Vector4.Zero,
-                weights is null ? Vector4.Zero : NormalizeWeights(weights[index]));
+                weights is null ? Vector4.Zero : NormalizeWeights(weights[index]))
+            {
+                FaceCoordinates = faceCoordinates?[index] ?? new Vector2(-1)
+            };
         }
 
         return new ModelPrimitive(
             vertices,
             indices,
             primitive.Material,
-            hasJoints);
+            hasJoints)
+        {
+            HasFaceCoordinates = faceCoordinates is not null
+        };
     }
 
     private static TextureAsset?[] ImportImages(

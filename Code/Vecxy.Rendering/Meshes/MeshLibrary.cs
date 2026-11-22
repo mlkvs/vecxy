@@ -101,7 +101,7 @@ public sealed class MeshLibrary : IDisposable
                         _device,
                         vertices,
                         indices,
-                        16,
+                        18,
                         boundsMin,
                         boundsMax,
                         $"{path} / Mesh {meshIndex} / Primitive {primitiveIndex}",
@@ -109,7 +109,11 @@ public sealed class MeshLibrary : IDisposable
                         new VertexAttribute(1, 3, 3),
                         new VertexAttribute(2, 2, 6),
                         new VertexAttribute(3, 4, 8),
-                        new VertexAttribute(4, 4, 12));
+                        new VertexAttribute(4, 4, 12),
+                        new VertexAttribute(5, 2, 16))
+                    {
+                        HasFaceCoordinates = primitive.HasFaceCoordinates
+                    };
 
                     primitives[primitiveIndex] = mesh;
                     created.Add(mesh);
@@ -132,12 +136,12 @@ public sealed class MeshLibrary : IDisposable
     private static float[] PackVertices(
         IReadOnlyList<ModelVertex> vertices)
     {
-        var result = new float[checked(vertices.Count * 16)];
+        var result = new float[checked(vertices.Count * 18)];
 
         for (var index = 0; index < vertices.Count; index++)
         {
             var vertex = vertices[index];
-            var offset = index * 16;
+            var offset = index * 18;
 
             result[offset] = vertex.Position.X;
             result[offset + 1] = vertex.Position.Y;
@@ -155,6 +159,8 @@ public sealed class MeshLibrary : IDisposable
             result[offset + 13] = vertex.Weights.Y;
             result[offset + 14] = vertex.Weights.Z;
             result[offset + 15] = vertex.Weights.W;
+            result[offset + 16] = vertex.FaceCoordinates.X;
+            result[offset + 17] = vertex.FaceCoordinates.Y;
         }
 
         return result;

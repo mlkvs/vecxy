@@ -74,7 +74,8 @@ def metadata(settings,instance=False,mesh_source=None,base=None):
     return value
 
 
-def tag_objects(objects, depsgraph, old):
+def tag_objects(context, objects, depsgraph, old):
+    from . import face_sprites
     records={}
     for obj in objects:
         # Remove obsolete migration attributes; the finalizer authors current UI values.
@@ -86,6 +87,11 @@ def tag_objects(objects, depsgraph, old):
         col=instance_collection(obj)
         record={'settings':metadata(obj.vecxy,bool(col),{'depsgraph':depsgraph,'obj':obj},col.vecxy if col else None)}
         if col:record['prototype']=str(resolved_path(col.vecxy.export_path))
+        elif face := face_sprites.component(obj, context):
+            settings = record['settings']
+            entries = json.loads(settings['components'])
+            entries.append(face)
+            settings['components'] = json.dumps(entries, separators=(',', ':'))
         if obj.type=='LIGHT' and 'vecxy:range' in old[obj]:record['settings']['range']=float(old[obj]['vecxy:range'])
         records[key]=record
     return records
@@ -101,7 +107,7 @@ def native_export(context,objects,temporary):
         for obj in objects:obj.hide_set(False);obj.hide_render=False;obj.select_set(True)
         if objects:context.view_layer.objects.active=objects[0]
         context.view_layer.update()
-        records=tag_objects(objects,context.evaluated_depsgraph_get(),old)
+        records=tag_objects(context,objects,context.evaluated_depsgraph_get(),old)
         bpy.ops.wm.usd_export(filepath=str(temporary),check_existing=False,selected_objects_only=True,
             export_animation=False,use_instancing=True,export_materials=True,
             generate_preview_surface=True,generate_materialx_network=False,export_uvmaps=True,
@@ -167,6 +173,7 @@ def export_prototype(context,col):
 
 
 def export_prototypes(context, prototypes, refresh):
+    from . import characters
     visiting, exported, paths = set(), set(), {}
 
     def visit(col):
@@ -179,7 +186,8 @@ def export_prototypes(context, prototypes, refresh):
             raise RuntimeError(f'{paths[path].name} and {col.name} use the same USD export path: {path}')
         paths[path]=col
         visiting.add(col)
-        children={nested for obj in col.all_objects if (nested:=instance_collection(obj))}
+        children={nested for obj in col.all_objects if (nested:=instance_collection(obj))
+                  and not characters.is_character(nested)}
         for child in sorted(children,key=lambda c:c.name):
             visit(child)
         if refresh or not path.is_file():
@@ -192,11 +200,14 @@ def export_prototypes(context, prototypes, refresh):
 
 
 def write_prototype(context,col):
+    from . import characters
     path=resolved_path(col.vecxy.export_path);path.parent.mkdir(parents=True,exist_ok=True)
     linked=col.name in context.scene.collection.children
     if not linked:context.scene.collection.children.link(col)
     try:
-        objects=[o for o in col.all_objects if not o.get('_vecxy_decal_preview')]
+        excluded = characters.character_objects()
+        objects=[o for o in col.all_objects if not o.get('_vecxy_decal_preview')
+                 and characters.scene_object(o, excluded)]
         if not objects:raise RuntimeError('Prototype collection is empty')
         temp_root=workspace()/'.agents/local';temp_root.mkdir(parents=True,exist_ok=True)
         with tempfile.TemporaryDirectory(prefix='usd-prototype-',dir=temp_root) as tmp:
@@ -210,10 +221,13 @@ def write_prototype(context,col):
 
 
 def export_scene(context):
+    from . import characters
     finish_prototype_edits(context)
     output=resolved_path(context.scene.vecxy_usd.export_path);output.parent.mkdir(parents=True,exist_ok=True)
     source_objects={o for col in bpy.data.collections if col.vecxy.is_prototype or col.vecxy.is_edit_proxy for o in col.all_objects}
+    excluded = characters.character_objects()
     objects=[o for o in context.scene.objects if o not in source_objects and not o.hide_render
+             and characters.scene_object(o, excluded)
              and not o.get('_vecxy_decal_preview')]
     prototypes={instance_collection(o) for o in objects if instance_collection(o)}
     export_prototypes(context,prototypes,refresh=context.scene.vecxy_usd.export_prototypes)

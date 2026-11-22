@@ -16,7 +16,7 @@ internal sealed class MaterialBinder
         _textures = textures;
     }
 
-    public Shader Bind(Material material)
+    public Shader Bind(Material material, Texture? faceAtlas, TextureSamplerState faceSampler)
     {
         try
         {
@@ -76,8 +76,16 @@ internal sealed class MaterialBinder
             {
                 _textures.GetWhite().Bind(textureSlot);
                 shader.Set("uTexture", (int)textureSlot);
+                textureSlot++;
                 shader.Set("uTextureTiling", System.Numerics.Vector2.One);
                 shader.Set("uTextureOffset", System.Numerics.Vector2.Zero);
+            }
+
+            shader.Set("uFaceSpritesEnabled", faceAtlas is null ? 0 : 1);
+            if (faceAtlas is not null)
+            {
+                faceAtlas.Bind(textureSlot, faceSampler);
+                shader.Set("uFaceSprites", (int)textureSlot);
             }
 
             return shader;

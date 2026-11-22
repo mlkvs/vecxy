@@ -66,6 +66,21 @@ public sealed class Texture : IDisposable
             : throw new ArgumentOutOfRangeException(nameof(handle));
     }
 
+    internal unsafe void UpdatePixels(int width, int height, ReadOnlySpan<byte> pixels)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        var gl = _device.GL;
+        gl.BindTexture(TextureTarget.Texture2D, _handle);
+        fixed (byte* pointer = pixels)
+        {
+            gl.TexSubImage2D(TextureTarget.Texture2D, 0, 0, 0, (uint)width, (uint)height,
+                PixelFormat.Rgba, PixelType.UnsignedByte, pointer);
+        }
+        if (_hasMipmaps)
+            gl.GenerateMipmap(TextureTarget.Texture2D);
+        gl.BindTexture(TextureTarget.Texture2D, 0);
+    }
+
     public void Bind(uint slot)
     {
         Bind(slot, TextureSamplerState.Default);

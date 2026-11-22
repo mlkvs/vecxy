@@ -7,6 +7,7 @@ layout(location = 1) in vec3 aNormal;
 layout(location = 2) in vec2 aTexCoord;
 layout(location = 3) in vec4 aJoints;
 layout(location = 4) in vec4 aWeights;
+layout(location = 5) in vec2 aFaceCoordinate;
 
 uniform mat4 uModel;
 uniform mat4 uTransform;
@@ -16,6 +17,7 @@ uniform mat4 uBones[64];
 out vec3 vNormal;
 out vec3 vWorldPosition;
 out vec2 vTexCoord;
+out vec2 vFaceCoordinate;
 
 void main()
 {
@@ -37,6 +39,7 @@ void main()
     vNormal = normalMatrix * localNormal;
     vWorldPosition = (uModel * localPosition).xyz;
     vTexCoord = aTexCoord;
+    vFaceCoordinate = aFaceCoordinate;
 
     gl_Position = uTransform * localPosition;
 }
@@ -48,6 +51,7 @@ void main()
 in vec3 vNormal;
 in vec3 vWorldPosition;
 in vec2 vTexCoord;
+in vec2 vFaceCoordinate;
 
 uniform sampler2D uTexture;
 uniform sampler2D uNormalTexture;
@@ -62,6 +66,8 @@ uniform vec2 uTextureOffset;
 uniform vec4 uColor;
 uniform vec4 uTint;
 uniform float uAlphaCutoff;
+uniform int uFaceSpritesEnabled;
+uniform sampler2D uFaceSprites;
 uniform int uDecalEnabled;
 uniform sampler2D uDecalTexture;
 uniform mat4 uWorldToDecal;
@@ -249,6 +255,7 @@ void main()
     vec2 uv = vTexCoord * uTextureTiling + uTextureOffset;
     vec4 textureColor;
     vec4 tint;
+    vec4 face = vec4(0.0);
     if (decal)
     {
         vec3 surfaceNormal = normalize(cross(dFdx(vWorldPosition), dFdy(vWorldPosition)));
@@ -262,6 +269,9 @@ void main()
     else
     {
         textureColor = texture(uTexture, uv);
+        if (uFaceSpritesEnabled != 0 && all(greaterThanEqual(vFaceCoordinate, vec2(0.0))) &&
+            all(lessThanEqual(vFaceCoordinate, vec2(1.0))))
+            face = texture(uFaceSprites, vFaceCoordinate);
         tint = uColor * uTint;
     }
 
@@ -270,6 +280,8 @@ void main()
         discard;
 
     vec3 baseColor = pow(textureColor.rgb, vec3(2.2)) * tint.rgb;
+    if (face.a > 0.0)
+        baseColor = mix(baseColor, pow(face.rgb / face.a, vec3(2.2)) * uTint.rgb, face.a);
     float metallic = decal ? 0.0 : clamp(uMetallicFactor, 0.0, 1.0);
     float roughness = decal ? 0.85 : clamp(uRoughnessFactor, 0.04, 1.0);
     if (!decal && uHasMetallicRoughnessTexture >= 0.5)

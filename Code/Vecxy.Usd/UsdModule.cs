@@ -148,14 +148,8 @@ public sealed class UsdSceneInstance : AComponent
         {
             foreach (var component in record.Components.Where(c => c.Enabled))
             {
-                var definition = prototypes.Types.SingleOrDefault(info => info.TargetType.FullName == component.Type)
-                    ?? throw new InvalidDataException($"No Vecxy prototype for USD component '{component.Type}' at '{record.Path}'.");
-                if (!typeof(AComponent).IsAssignableFrom(definition.TargetType))
-                    throw new InvalidDataException($"USD components must create AComponent: '{component.Type}'.");
-                var document = PrototypeSerializer.Deserialize("format: 1\ntype: " + component.Type + "\ndata: " + component.Data.GetRawText());
-                var options = PrototypeSerializer.DeserializeOptions(document.Data, definition.OptionsType);
-                prototypes.Instantiate(definition.TargetType,
-                    new ScenePrototypeContext { Scene = SceneInstance, Object = _prims[record.Path] }, options);
+                ScenePrototypeSystem.ApplyAuthoredComponent(prototypes, _prims[record.Path],
+                    component.Type, component.Data.GetRawText());
             }
         }
     }

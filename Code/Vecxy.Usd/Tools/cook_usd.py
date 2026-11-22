@@ -204,9 +204,14 @@ class Cooker:
         if normal_primvar and normal_primvar.HasValue():
             normals = normal_primvar.ComputeFlattened(self.time)
             normal_interpolation = normal_primvar.GetInterpolation()
-        uv = self.Geom.PrimvarsAPI(prim).GetPrimvar('st')
+        primvars = self.Geom.PrimvarsAPI(prim)
+        face_uv = primvars.GetPrimvar('_VECXY_FACE_UV')
+        face_coordinates = face_uv.ComputeFlattened(self.time) if face_uv and face_uv.HasValue() else None
+        face_interpolation = face_uv.GetInterpolation() if face_coordinates is not None else None
+        uv = primvars.GetPrimvar('st')
         if not uv or not uv.HasValue():
-            uv = next((v for v in self.Geom.PrimvarsAPI(prim).GetPrimvars() if str(v.GetTypeName()) in ('texCoord2f[]', 'float2[]') and v.HasValue()), None)
+            uv = next((v for v in primvars.GetPrimvars() if v.GetPrimvarName() != '_VECXY_FACE_UV'
+                       and str(v.GetTypeName()) in ('texCoord2f[]', 'float2[]') and v.HasValue()), None)
         uvs = uv.ComputeFlattened(self.time) if uv else None
         uv_interpolation = uv.GetInterpolation() if uv else 'constant'
         def sample(data, interpolation, face, corner, point):
@@ -241,7 +246,7 @@ class Cooker:
                 flat = self.Gf.Cross(b - a, c - a).GetNormalized()
                 if flat.GetLength() < 1e-10:
                     continue
-                batch = batches.setdefault(face_materials[face], [[], [], [], []])
+                batch = batches.setdefault(face_materials[face], [[], [], [], [], []])
                 for corner in tri:
                     point = indices[corner]
                     position = tuple(float(v) for v in points[point])
@@ -251,16 +256,22 @@ class Cooker:
                     texcoord = (float(texcoord[0]), 1 - float(texcoord[1])) if texcoord is not None else (0, 0)
                     batch[0].append(position); batch[1].append(tuple(normal)); batch[2].append(texcoord)
                     batch[3].append(len(batch[3]))
+                    if face_coordinates is not None:
+                        coord = sample(face_coordinates, face_interpolation, face, corner, point)
+                        batch[4].append(tuple(coord) if coord is not None else (-1, -1))
         if not batches:
             return None
         signature = hashlib.sha256(repr(batches).encode()).hexdigest()
         if signature in self.mesh_cache:
             return self.mesh_cache[signature]
         primitives = []
-        for mat, (p, n, uv, ix) in batches.items():
-            primitives.append({'attributes': {'POSITION': self.accessor(p, len(p), 'VEC3'),
-                               'NORMAL': self.accessor(n, len(n), 'VEC3'), 'TEXCOORD_0': self.accessor(uv, len(uv), 'VEC2')},
-                               'indices': self.accessor(ix, len(ix), 'SCALAR', 5125), 'material': mat})
+        for mat, (p, n, uv, ix, face_uvs) in batches.items():
+            attributes = {'POSITION': self.accessor(p, len(p), 'VEC3'),
+                          'NORMAL': self.accessor(n, len(n), 'VEC3'), 'TEXCOORD_0': self.accessor(uv, len(uv), 'VEC2')}
+            if face_uvs:
+                attributes['_VECXY_FACE_UV'] = self.accessor(face_uvs, len(face_uvs), 'VEC2')
+            primitives.append({'attributes': attributes, 'indices': self.accessor(ix, len(ix), 'SCALAR', 5125),
+                               'material': mat})
         index = len(self.gltf['meshes'])
         self.gltf['meshes'].append({'name': str(prim.GetName()), 'primitives': primitives})
         self.mesh_cache[signature] = index

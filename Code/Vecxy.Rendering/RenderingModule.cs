@@ -1380,8 +1380,8 @@ public sealed class RenderingModule(
             var modelTransform =
                 renderer.Transform.WorldMatrix;
             ApplyMaterialState(renderer.Material);
-            var shader =
-                materials.Bind(renderer.Material);
+            var face = renderer.Mesh.HasFaceCoordinates ? FindFaceSprites(renderer.SceneObject) : null;
+            var shader = materials.Bind(renderer.Material, face?.ResolveAtlas(device), face?.Sampler ?? default);
 
             ApplyLighting(shader, camera, lighting);
             DrawMeshGeometry(renderer, shader, modelTransform, viewProjection);
@@ -1392,6 +1392,14 @@ public sealed class RenderingModule(
                 exception,
                 $"Could not render '{renderer.SceneObject?.Name ?? "destroyed object"}'.");
         }
+    }
+
+    private static FaceSprites? FindFaceSprites(SceneObject? owner)
+    {
+        for (; owner is not null; owner = owner.Parent)
+            if (owner.GetComponent<FaceSprites>() is { IsActive: true } face)
+                return face;
+        return null;
     }
 
     private void DrawMeshGeometry(MeshRenderer renderer, Shader shader, Matrix4x4 model, Matrix4x4 viewProjection)

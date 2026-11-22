@@ -12,10 +12,12 @@ public sealed class MaterialLibrary : IDisposable
         _binder = new MaterialBinder(shaders, textures);
     }
 
-    public Shader Bind(Material material)
+    public Shader Bind(Material material) => Bind(material, null, default);
+
+    internal Shader Bind(Material material, Texture? faceAtlas, Vecxy.Assets.TextureSamplerState faceSampler)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
-        return _binder.Bind(material);
+        return _binder.Bind(material, faceAtlas, faceSampler);
     }
 
     public void Clear()
