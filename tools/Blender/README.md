@@ -20,6 +20,9 @@ and writes components. Set **OpenUSD Python** in the sidebar, or use the reposit
 
 ## Authoring model
 
+For character collections, animation clips and the facial atlas workflow, see
+[Character face sprites](../../docs/face-sprites.md).
+
 - Marking a selected hierarchy as a prototype moves its geometry into a source
   collection and leaves an instance in the same position.
 - All instances use the source collection. **Edit original prototype** exposes that
@@ -99,8 +102,8 @@ Unchecked fields display the current inherited value. Disabling an inherited com
 locally suppresses it for that instance. Removing the local record restores inheritance.
 `Horror/LaundryMachine.cs` is a complete factory example.
 
-Shader-graph overrides, arbitrary mesh-deformation overrides, rigid-body constraints
-and skeletal animation are outside this version. Material editing on the source
+The USD scene workflow covers static geometry and components. Character collections
+export skeletal animation separately as GLB. Material editing on the source
 collection updates all instances; per-instance tint does not copy geometry.
 
 ## Test

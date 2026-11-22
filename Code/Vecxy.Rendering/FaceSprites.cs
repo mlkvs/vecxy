@@ -49,6 +49,12 @@ public sealed class FaceSprites : AComponent
 
     public IReadOnlyCollection<string> Zones => _zones.Keys;
     public string? GetSprite(string zoneId) => GetZone(zoneId).Current;
+    public IReadOnlyCollection<string> GetSpriteIds(string zoneId) => GetZone(zoneId).Sprites.Keys;
+    public string? GetDefaultSprite(string zoneId)
+    {
+        var id = GetZone(zoneId).Definition.DefaultSprite;
+        return string.IsNullOrEmpty(id) ? null : id;
+    }
 
     /// <summary>Selects a sprite by ID. Pass null to clear the zone.</summary>
     public void SetSprite(string zoneId, string? spriteId)
@@ -83,7 +89,8 @@ public sealed class FaceSprites : AComponent
                     Definition = new ZoneDefinition
                     {
                         Id = definition.Id, X = definition.X, Y = definition.Y,
-                        Width = definition.Width, Height = definition.Height
+                        Width = definition.Width, Height = definition.Height,
+                        DefaultSprite = definition.DefaultSprite
                     },
                     Sprites = new(StringComparer.Ordinal),
                     Current = string.IsNullOrEmpty(definition.DefaultSprite) ? null : definition.DefaultSprite
