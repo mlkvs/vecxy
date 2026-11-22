@@ -59,7 +59,7 @@ def resized(shape, axis, sign, distance):
     center = Vector(shape.collider_center)
     if shape.collider == 'BOX':
         size = Vector(shape.collider_size)
-        new = max(.001, size[axis] + distance)
+        new = max(getattr(shape, 'minimum_size', .001), size[axis] + distance)
         center[axis] += sign * (new - size[axis]) * .5
         size[axis] = new
         return {'size': size, 'center': center}
@@ -70,55 +70,30 @@ def resized(shape, axis, sign, distance):
     return {'radius': max(.001, shape.collider_radius + distance)}
 
 
-class VECXY_OT_edit_collider(bpy.types.Operator):
-    bl_idname = 'vecxy.edit_collider'
-    bl_label = 'Edit collider in viewport'
-    bl_options = {'REGISTER', 'UNDO'}
-    key: StringProperty(options={'SKIP_SAVE'})
+class FaceHandleEditor:
+    """One viewport interaction for colliders and authored navigation volumes."""
 
     @classmethod
     def poll(cls, context):
-        return context.mode == 'OBJECT' and context.object and context.area and context.area.type == 'VIEW_3D'
+        return context.mode == 'OBJECT' and context.area and context.area.type == 'VIEW_3D'
 
-    def invoke(self, context, event):
+    def begin(self, context, label):
         global _ACTIVE
-        from . import collider_frame, current_settings, settings_owner, schema
-
-        if _ACTIVE:
+        if _ACTIVE is not None:
             return {'CANCELLED'}
-        obj = settings_owner(context.object)
-        self.owner, _ = collider_frame(context, obj)
-        settings = current_settings(context)
-        self.component = next((c for c in settings.components if c.key == self.key and c.enabled), None)
-        if self.component is None or self.component.type_name not in schema.COLLIDERS or self.component.type_name == schema.MESH_COLLIDER:
-            return {'CANCELLED'}
-        self.obj = obj
         self.area = context.area
         self.region = next(r for r in self.area.regions if r.type == 'WINDOW')
         self.view = context.space_data.region_3d
         self.drag = None
-        self.snapshot = [(p, p.is_override, tuple(p.vector) if p.kind == 'VECTOR3' else p.number)
-                         for p in self.component.parameters if p.key in {'center', 'size', 'radius', 'height'}]
-        self.fields = {field['key']: field for field in schema.CATALOG[self.component.type_name]['fields']}
         self.draw_handle = bpy.types.SpaceView3D.draw_handler_add(self.draw_handles, (), 'WINDOW', 'POST_PIXEL')
         _ACTIVE = self
-        self.area.header_text_set('Drag a collider handle   ·   Enter: finish   ·   Esc: cancel')
+        self.area.header_text_set(f'Drag a {label} handle   ·   Enter: finish   ·   Esc: cancel')
         self.area.tag_redraw()
         context.window_manager.modal_handler_add(self)
         return {'RUNNING_MODAL'}
 
-    def shape(self):
-        from . import instance_collection, schema
-        if self.owner != self.obj:
-            return next(s for s in schema.collider_views(self.owner.vecxy) if s.key == self.key)
-        col = instance_collection(self.obj)
-        if col and self.obj.vecxy.edit_defaults:
-            return next(s for s in schema.collider_views(col.vecxy) if s.key == self.key)
-        return next(s for s in schema.collider_views(self.obj.vecxy, col.vecxy if col else None) if s.key == self.key)
-
     def screen_handles(self):
-        from . import collider_frame
-        _, matrix = collider_frame(bpy.context, self.obj)
+        matrix = self.frame(bpy.context)
         for axis, sign, anchor in handles(self.shape()):
             position = view3d_utils.location_3d_to_region_2d(self.region, self.view, matrix @ anchor)
             if position is not None:
@@ -153,8 +128,6 @@ class VECXY_OT_edit_collider(bpy.types.Operator):
         return (closest[0] - anchor).dot(direction) / direction.length_squared if closest else None
 
     def modal(self, context, event):
-        from . import collider_frame, schema
-
         if _ACTIVE != self:
             return {'CANCELLED'}
         if event.value == 'PRESS':
@@ -172,7 +145,7 @@ class VECXY_OT_edit_collider(bpy.types.Operator):
                 for axis, sign, anchor, position in sorted(self.screen_handles(), key=lambda h: (h[3] - mouse).length):
                     if (position - mouse).length > 14:
                         break
-                    _, matrix = collider_frame(context, self.obj)
+                    matrix = self.frame(context)
                     world_anchor = matrix @ anchor
                     direction = matrix.to_3x3() @ (_AXES[axis] * sign)
                     initial = self.axis_distance(mouse, world_anchor, direction)
@@ -184,8 +157,7 @@ class VECXY_OT_edit_collider(bpy.types.Operator):
             axis, sign, anchor, direction, initial, shape = self.drag
             distance = self.axis_distance(mouse, anchor, direction)
             if distance is not None:
-                for key, value in resized(shape, axis, sign, distance - initial).items():
-                    schema.set_param(self.component, self.fields[key], value)
+                self.apply(resized(shape, axis, sign, distance - initial))
                 self.area.tag_redraw()
             return {'RUNNING_MODAL'}
         if event.type in {'MIDDLEMOUSE', 'WHEELUPMOUSE', 'WHEELDOWNMOUSE', 'NDOF_MOTION'} or event.type.startswith('NUMPAD'):
@@ -197,12 +169,7 @@ class VECXY_OT_edit_collider(bpy.types.Operator):
         if _ACTIVE != self:
             return
         if cancel:
-            for param, overridden, value in self.snapshot:
-                param.is_override = overridden
-                if param.kind == 'VECTOR3':
-                    param.vector = value
-                else:
-                    param.number = value
+            self.restore()
         bpy.types.SpaceView3D.draw_handler_remove(self.draw_handle, 'WINDOW')
         self.area.header_text_set(None)
         self.area.tag_redraw()
@@ -210,6 +177,69 @@ class VECXY_OT_edit_collider(bpy.types.Operator):
 
     def cancel(self, context):
         self.finish(cancel=True)
+
+
+class VECXY_OT_edit_collider(FaceHandleEditor, bpy.types.Operator):
+    bl_idname = 'vecxy.edit_collider'
+    bl_label = 'Edit collider in viewport'
+    bl_options = {'REGISTER', 'UNDO'}
+    key: StringProperty(options={'SKIP_SAVE'})
+
+    @classmethod
+    def poll(cls, context):
+        return super().poll(context) and context.object is not None
+
+    def invoke(self, context, event):
+        from . import collider_frame, current_settings, settings_owner, schema
+
+        self.obj = settings_owner(context.object)
+        self.owner, _ = collider_frame(context, self.obj)
+        settings = current_settings(context)
+        self.component = next((c for c in settings.components if c.key == self.key and c.enabled), None)
+        if self.component is None or self.component.type_name not in schema.COLLIDERS or self.component.type_name == schema.MESH_COLLIDER:
+            return {'CANCELLED'}
+        self.snapshot = snapshot_parameters(self.component, {'center', 'size', 'radius', 'height'})
+        self.fields = {field['key']: field for field in schema.CATALOG[self.component.type_name]['fields']}
+        return self.begin(context, 'collider')
+
+    def frame(self, context):
+        from . import collider_frame
+        return collider_frame(context, self.obj)[1]
+
+    def shape(self):
+        from . import instance_collection, schema
+        if self.owner != self.obj:
+            return next(s for s in schema.collider_views(self.owner.vecxy) if s.key == self.key)
+        col = instance_collection(self.obj)
+        if col and self.obj.vecxy.edit_defaults:
+            return next(s for s in schema.collider_views(col.vecxy) if s.key == self.key)
+        return next(s for s in schema.collider_views(self.obj.vecxy, col.vecxy if col else None) if s.key == self.key)
+
+    def apply(self, values):
+        from . import schema
+        for key, value in values.items():
+            schema.set_param(self.component, self.fields[key], value)
+
+    def restore(self):
+        restore_parameters(self.snapshot)
+
+
+def snapshot_parameters(component, keys):
+    return [(param, param.is_override, tuple(param.vector) if param.kind == 'VECTOR3' else param.number)
+            for param in component.parameters if param.key in keys]
+
+
+def restore_parameters(snapshot):
+    for param, overridden, value in snapshot:
+        param.is_override = overridden
+        if param.kind == 'VECTOR3':
+            param.vector = value
+        else:
+            param.number = value
+
+
+def edit_active():
+    return _ACTIVE is not None
 
 
 @bpy.app.handlers.persistent

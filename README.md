@@ -22,6 +22,7 @@ It is designed for building real playable scenes early, then growing into more a
 - [Asset Pipeline (Russian)](../../Docs/AssetPipeline.md)
 - [CLI installation, setup, assets and builds (Russian)](docs/cli.md)
 - [Character face sprites, Blender workflow and runtime API (Russian)](docs/face-sprites.md)
+- [Navigation baking, agents and runtime debug drawing (Russian)](docs/navigation.md)
 
 ## Why Vecxy
 

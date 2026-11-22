@@ -97,6 +97,14 @@ public static partial class Assets
 
         public static class Shaders
         {
+            public static class Outline
+            {
+                [AssetReference("be52c74d-d8c6-4cd4-898f-141b388685b5")]
+                public static ShaderHandle Composite => new(new Guid("be52c74d-d8c6-4cd4-898f-141b388685b5"));
+                [AssetReference("fd144fb1-f5bb-44d0-a34f-cee9c7d5a626")]
+                public static ShaderHandle Mask => new(new Guid("fd144fb1-f5bb-44d0-a34f-cee9c7d5a626"));
+            }
+
             public static class PostProcessing
             {
                 [AssetReference("13baafcb-3599-4756-87aa-cff11e3fe409")]

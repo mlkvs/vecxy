@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using Vecxy.AssetPipeline;
+using Vecxy.Pathfinding;
 using Pipeline = Vecxy.AssetPipeline.AssetPipeline;
 
 RunBuildCache.RecordCompiledTool();
@@ -53,6 +54,31 @@ try
     }
     if (engineOption is not null) throw new ArgumentException("--engine can only be used with 'new'.");
     var project = ResolveProject(projectOption);
+    if (arguments is ["navigation", "bake", var input])
+    {
+        if (outputOption is null)
+            throw new ArgumentException("Usage: vecxy navigation bake <input.json> --output <map.navigation.json>.");
+        var source = Path.GetFullPath(input);
+        var output = Path.GetFullPath(outputOption);
+        if (string.Equals(source, output, OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal))
+            throw new ArgumentException("Navigation input and output must use different paths.");
+        using var inputStream = File.OpenRead(source);
+        var data = NavigationBaker.Bake(NavigationData.ReadInput(inputStream));
+        Directory.CreateDirectory(Path.GetDirectoryName(output)!);
+        var temporary = output + "." + Guid.NewGuid().ToString("N") + ".tmp";
+        try
+        {
+            using (var stream = File.Create(temporary))
+                data.Write(stream);
+            File.Move(temporary, output, overwrite: true);
+        }
+        finally
+        {
+            File.Delete(temporary);
+        }
+        Console.WriteLine($"Baked {data.Heights.Count(height => height.HasValue)} walkable cells -> {output}");
+        return 0;
+    }
     if (arguments is ["build"] or ["build", "dev"] or ["build", "release"])
     {
         var mode = arguments.Count == 2 ? arguments[1] : "release";

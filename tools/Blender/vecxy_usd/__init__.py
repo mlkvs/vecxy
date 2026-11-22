@@ -1,7 +1,7 @@
 bl_info = {
-    'name': 'Vecxy USD Tools', 'author': 'Vecxy', 'version': (1, 9, 0),
+    'name': 'Vecxy USD Tools', 'author': 'Vecxy', 'version': (1, 10, 2),
     'blender': (5, 2, 0), 'location': '3D View > Sidebar > Vecxy',
-    'description': 'Components, collider previews, shared prototypes and referenced USD export',
+    'description': 'Components, navigation, shared prototypes and USD export',
     'category': 'Import-Export',
 }
 
@@ -625,6 +625,7 @@ class VECXY_OT_reload_catalog(bpy.types.Operator):
 class VECXY_PT_tools(bpy.types.Panel):
     bl_label='Vecxy USD';bl_idname='VECXY_PT_tools';bl_space_type='VIEW_3D';bl_region_type='UI';bl_category='Vecxy'
     def draw(self,context):
+        from . import navigation, navigation_edit
         layout=self.layout;scene=context.scene.vecxy_usd
         layout.prop(scene,'preview_on_hover')
         if scene.editing:
@@ -685,7 +686,11 @@ class VECXY_PT_tools(bpy.types.Panel):
                 op=row.operator('vecxy.component',text='',icon='X');op.index=i
                 if not definition:
                     sub.label(text='Not in project catalog. Build and reload.',icon='ERROR');continue
+                obstacle = navigation_edit.obstacle_settings(obj, settings) if comp.type_name == navigation.OBSTACLE else None
+                custom_box = obstacle is not None and not obstacle[1].get('useColliders', True)
                 for field in definition['fields']:
+                    if comp.type_name == navigation.OBSTACLE and field['key'] in {'center', 'size'} and not custom_box:
+                        continue
                     param=next((p for p in comp.parameters if p.key==field['key']),None)
                     if param is None:continue
                     row=sub.row(align=True)
@@ -710,6 +715,9 @@ class VECXY_PT_tools(bpy.types.Panel):
                     row=sub.row(align=True)
                     row.operator('vecxy.fit_collider',text='Fit to model').key=comp.key
                     row.operator('vecxy.edit_collider',text='Edit in viewport').key=comp.key
+                if custom_box:
+                    op=sub.operator('vecxy.edit_navigation_box',text='Edit Box in Viewport',icon='GIZMO')
+                    op.kind='OBSTACLE';op.key=comp.key
             body.prop(scene,'selected_component',text='')
             # Never inherit a previous Remove button's index from Blender's
             # last-used operator properties. Add and Remove share this operator.
@@ -777,25 +785,27 @@ def register():
     bpy.app.handlers.save_pre.append(collider_edit.cancel_edit)
     bpy.app.handlers.load_pre.append(collider_edit.cancel_edit)
     load_project_catalog(None)
-    from . import characters, decals, face_sprites, level_design, prototype_library
+    from . import characters, decals, face_sprites, level_design, navigation, prototype_library
     level_design.register()
     prototype_library.register()
     decals.register()
     characters.register()
     face_sprites.register()
+    navigation.register()
     prototype_preview.register()
     if not bpy.app.background:
         if not bpy.app.timers.is_registered(watch_project_catalog):bpy.app.timers.register(watch_project_catalog,first_interval=1.0,persistent=True)
 
 def unregister():
-    from . import characters, decals, face_sprites, level_design, prototype_library
+    from . import characters, decals, face_sprites, level_design, navigation, prototype_library
+    collider_edit.cancel_edit(None)
     prototype_preview.unregister()
+    navigation.unregister()
     face_sprites.unregister()
     characters.unregister()
     decals.unregister()
     prototype_library.unregister()
     level_design.unregister()
-    collider_edit.cancel_edit(None)
     bpy.app.handlers.save_pre.remove(collider_edit.cancel_edit)
     bpy.app.handlers.load_pre.remove(collider_edit.cancel_edit)
     if bpy.app.timers.is_registered(watch_project_catalog):bpy.app.timers.unregister(watch_project_catalog)

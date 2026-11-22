@@ -1,5 +1,6 @@
 <Solution>
   <Folder Name="/Engine/">
+    <Project Path="Code/Vecxy.AI/Vecxy.AI.csproj" />
     <Project Path="Code/Vecxy.Animations.Tests/Vecxy.Animations.Tests.csproj" />
     <Project Path="Code/Vecxy.Animations/Vecxy.Animations.csproj" />
     <Project Path="Code/Vecxy.AssetCompiler/Vecxy.AssetCompiler.csproj" />

@@ -201,12 +201,13 @@ def export_prototypes(context, prototypes, refresh):
 
 def write_prototype(context,col):
     from . import characters
+    from .navigation import is_authoring_volume
     path=resolved_path(col.vecxy.export_path);path.parent.mkdir(parents=True,exist_ok=True)
     linked=col.name in context.scene.collection.children
     if not linked:context.scene.collection.children.link(col)
     try:
         excluded = characters.character_objects()
-        objects=[o for o in col.all_objects if not o.get('_vecxy_decal_preview')
+        objects=[o for o in col.all_objects if not o.get('_vecxy_decal_preview') and not is_authoring_volume(o)
                  and characters.scene_object(o, excluded)]
         if not objects:raise RuntimeError('Prototype collection is empty')
         temp_root=workspace()/'.agents/local';temp_root.mkdir(parents=True,exist_ok=True)
@@ -222,13 +223,14 @@ def write_prototype(context,col):
 
 def export_scene(context):
     from . import characters
+    from .navigation import is_authoring_volume
     finish_prototype_edits(context)
     output=resolved_path(context.scene.vecxy_usd.export_path);output.parent.mkdir(parents=True,exist_ok=True)
     source_objects={o for col in bpy.data.collections if col.vecxy.is_prototype or col.vecxy.is_edit_proxy for o in col.all_objects}
     excluded = characters.character_objects()
     objects=[o for o in context.scene.objects if o not in source_objects and not o.hide_render
              and characters.scene_object(o, excluded)
-             and not o.get('_vecxy_decal_preview')]
+             and not o.get('_vecxy_decal_preview') and not is_authoring_volume(o)]
     prototypes={instance_collection(o) for o in objects if instance_collection(o)}
     export_prototypes(context,prototypes,refresh=context.scene.vecxy_usd.export_prototypes)
     temp_root=workspace()/'.agents/local';temp_root.mkdir(parents=True,exist_ok=True)

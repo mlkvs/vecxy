@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="..\Vecxy.Pathfinding\Vecxy.Pathfinding.csproj" />
+    <ProjectReference Include="..\Vecxy.Physics\Vecxy.Physics.csproj" />
+    <ProjectReference Include="..\Vecxy.Rendering\Vecxy.Rendering.csproj" />
+  </ItemGroup>
+</Project>

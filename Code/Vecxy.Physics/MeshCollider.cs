@@ -13,6 +13,9 @@ public sealed class MeshCollider : Collider
 
     internal Geometry? Mesh { get; private set; }
 
+    public ReadOnlySpan<Vector3> Vertices => Mesh?.Vertices;
+    public ReadOnlySpan<int> Indices => Mesh?.Indices;
+
     public bool DoubleSided { get; set; }
 
     public void SetGeometry(ReadOnlySpan<Vector3> vertices, ReadOnlySpan<int> indices)

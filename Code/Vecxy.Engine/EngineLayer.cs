@@ -1,5 +1,6 @@
 using JetBrains.Annotations;
 using Vecxy.Assets;
+using Vecxy.AI;
 using Vecxy.Animations;
 using Vecxy.Audio;
 using Vecxy.Input;
@@ -32,7 +33,8 @@ public sealed class EngineLayer(
         public Definition(
             AssetsModule.Options? assets = null,
             PhysicsModule.Options? physics = null,
-            IReadOnlyList<Vecxy.Kernel.IDefinition>? additionalModules = null)
+            IReadOnlyList<Vecxy.Kernel.IDefinition>? additionalModules = null,
+            NavigationModule.Options? navigation = null)
         {
             Children =
             [
@@ -45,6 +47,7 @@ public sealed class EngineLayer(
                 new ScenesModule.Definition(),
                 new NetworkingModule.Definition(),
                 new PathfindingModule.Definition(),
+                new NavigationModule.Definition(navigation),
                 new PhysicsModule.Definition(physics),
                 new UiModule.Definition(),
                 new PointerInteractionModule.Definition(),

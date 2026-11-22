@@ -22,6 +22,8 @@ and writes components. Set **OpenUSD Python** in the sidebar, or use the reposit
 
 For character collections, animation clips and the facial atlas workflow, see
 [Character face sprites](../../docs/face-sprites.md).
+For navigation baking, the Blender preview and in-game debugging, see
+[Navigation](../../docs/navigation.md).
 
 - Marking a selected hierarchy as a prototype moves its geometry into a source
   collection and leaves an instance in the same position.

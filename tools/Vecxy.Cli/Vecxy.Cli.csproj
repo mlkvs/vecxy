@@ -8,5 +8,6 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\Vecxy.AssetPipeline\Vecxy.AssetPipeline.csproj" />
+    <ProjectReference Include="..\..\Code\Vecxy.Pathfinding\Vecxy.Pathfinding.csproj" />
   </ItemGroup>
 </Project>

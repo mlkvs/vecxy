@@ -6,13 +6,20 @@ public sealed class WeightedGrid
     private static readonly (int X, int Y)[] DiagonalOffsets = [(1, 1), (1, -1), (-1, 1), (-1, -1)];
     private readonly float[] _costs;
     private readonly bool[] _blocked;
+    private readonly Func<GridPoint, GridPoint, bool>? _connection;
 
     public WeightedGrid(int columns, int rows)
+        : this(columns, rows, null)
+    {
+    }
+
+    internal WeightedGrid(int columns, int rows, Func<GridPoint, GridPoint, bool>? connection)
     {
         if (columns <= 0) throw new ArgumentOutOfRangeException(nameof(columns));
         if (rows <= 0) throw new ArgumentOutOfRangeException(nameof(rows));
         Columns = columns;
         Rows = rows;
+        _connection = connection;
         _costs = new float[checked(columns * rows)];
         _blocked = new bool[_costs.Length];
         Array.Fill(_costs, 1f);
@@ -54,21 +61,26 @@ public sealed class WeightedGrid
         foreach (var offset in CardinalOffsets)
         {
             var neighbor = new GridPoint(point.X + offset.X, point.Y + offset.Y);
-            if (IsWalkable(neighbor)) yield return (neighbor, 1f);
+            if (CanTraverse(point, neighbor)) yield return (neighbor, 1f);
         }
 
         if (!allowDiagonal) yield break;
         foreach (var offset in DiagonalOffsets)
         {
             var neighbor = new GridPoint(point.X + offset.X, point.Y + offset.Y);
-            if (!IsWalkable(neighbor)) continue;
+            if (!CanTraverse(point, neighbor)) continue;
             if (!allowCornerCutting &&
-                (!IsWalkable(new GridPoint(point.X + offset.X, point.Y)) ||
-                 !IsWalkable(new GridPoint(point.X, point.Y + offset.Y))))
+                (!Through(new(point.X + offset.X, point.Y)) ||
+                 !Through(new(point.X, point.Y + offset.Y))))
                 continue;
             yield return (neighbor, MathF.Sqrt(2f));
+
+            bool Through(GridPoint via) => CanTraverse(point, via) && CanTraverse(via, neighbor);
         }
     }
+
+    private bool CanTraverse(GridPoint from, GridPoint to) =>
+        IsWalkable(to) && (_connection?.Invoke(from, to) ?? true);
 
     private int Index(GridPoint point) => point.Y * Columns + point.X;
 

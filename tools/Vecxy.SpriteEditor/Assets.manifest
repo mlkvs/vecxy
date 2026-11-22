@@ -231,7 +231,27 @@
       "path": "Shaders/Lit.glsl",
       "type": "Shader",
       "name": "Lit",
-      "hash": "723c40dd239d671188e81451bc03cb24da9e85a251438909701804d3f6cc6c87",
+      "hash": "c5d984cd8e467b7fdd8242dc299001dacf01515261af6368696fbab669898b64",
+      "dependencies": [],
+      "package": "79e6ac0f-5f3f-e20a-2227-c63732e7dd1e"
+    },
+    {
+      "id": "37e5e937-84eb-4254-bd98-b4c00c4d7404",
+      "source": "Engine",
+      "path": "Shaders/Outline/Composite.glsl",
+      "type": "Shader",
+      "name": "Composite",
+      "hash": "8c14dfbee8146889ca202040137e9ebdacea7de2ee20cdff03cba02b5204e866",
+      "dependencies": [],
+      "package": "79e6ac0f-5f3f-e20a-2227-c63732e7dd1e"
+    },
+    {
+      "id": "cd5a5e9f-a8f9-4f7d-9584-8d4659a44dd6",
+      "source": "Engine",
+      "path": "Shaders/Outline/Mask.glsl",
+      "type": "Shader",
+      "name": "Mask",
+      "hash": "abe31dfbe17d67c553918232cf2b2521db9ab305cd899bff32adafbccb598bf2",
       "dependencies": [],
       "package": "79e6ac0f-5f3f-e20a-2227-c63732e7dd1e"
     },

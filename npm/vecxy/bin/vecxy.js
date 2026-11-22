@@ -59,6 +59,7 @@ Usage:
   vecxy run [dev|release] [--debug|--wait-for-debugger] [--no-build|--rebuild] [-- <game arguments>]
   vecxy build [dev|release] [-p|--project <path>] -t|--platform <linux|windows|android>
   vecxy generate [-p|--project <path>]
+  vecxy navigation bake <input.json> --output <map.navigation.json>
   vecxy assets <scan|generate|analyze|validate|packages|pack|prepare>
 
 Environment:
