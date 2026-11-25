@@ -39,8 +39,9 @@ try
             throw new ArgumentException("Unsupported build-only option for run.");
         if (arguments.Count > 2 || (arguments.Count == 2 && arguments[1] is not ("dev" or "release")))
             throw new ArgumentException("Usage: vecxy run [dev|release] [--debug|--wait-for-debugger] [--no-build|--rebuild] [-- <game arguments>]");
-        return await RunCommand.RunAsync(ResolveProject(projectOption), arguments.Count == 2 ? arguments[1] : "dev",
-            platformOption, runtimeOption, outputOption, debug || waitForDebugger, noBuild, rebuild, gameArguments);
+        return await CliProcess.WithCancellation(token => RunCommand.RunAsync(ResolveProject(projectOption),
+            arguments.Count == 2 ? arguments[1] : "dev", platformOption, runtimeOption,
+            outputOption, debug || waitForDebugger, noBuild, rebuild, gameArguments, token));
     }
     if (debug || waitForDebugger || noBuild || rebuild || gameArguments.Length > 0)
         throw new ArgumentException("--debug, --wait-for-debugger, --no-build and game arguments are only supported by run.");
@@ -82,8 +83,8 @@ try
     if (arguments is ["build"] or ["build", "dev"] or ["build", "release"])
     {
         var mode = arguments.Count == 2 ? arguments[1] : "release";
-        return await BuildCommand.RunAsync(project, mode, platformOption, runtimeOption, outputOption, formatOption,
-            keystoreOption, aliasOption, versionOption, versionCodeOption);
+        return await CliProcess.WithCancellation(token => BuildCommand.RunAsync(project, mode, platformOption,
+            runtimeOption, outputOption, formatOption, keystoreOption, aliasOption, versionOption, versionCodeOption, token));
     }
     if (outputOption is not null || runtimeOption is not null || formatOption is not null || keystoreOption is not null ||
         aliasOption is not null || versionOption is not null || versionCodeOption is not null)
@@ -103,7 +104,7 @@ try
         }
         if (catalogOption is not null) throw new ArgumentException("Use the VecxyAuthoringCatalog project property to customize the catalog path.");
         if (Prepare(project) != 0) return 1;
-        return await GenerateCommand.RunAsync(project);
+        return await CliProcess.WithCancellation(token => GenerateCommand.RunAsync(project, token));
     }
     if (arguments is ["assets", "validate"])
         return Validate(project);

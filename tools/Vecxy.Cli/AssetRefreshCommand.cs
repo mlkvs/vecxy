@@ -7,7 +7,7 @@ using Pipeline = Vecxy.AssetPipeline.AssetPipeline;
 /// <summary>Refresh runtime data without invoking MSBuild, the compiler or the weaver.</summary>
 internal static class AssetRefreshCommand
 {
-    public static async Task<bool> RunAsync(string project, string platform, string output)
+    public static async Task<bool> RunAsync(string project, string platform, string output, CancellationToken cancellationToken)
     {
         var engine = Environment.GetEnvironmentVariable("VECXY_ENGINE_PATH")
             ?? throw new InvalidOperationException("Select the engine through vecxy before refreshing assets.");
@@ -23,9 +23,7 @@ internal static class AssetRefreshCommand
                 var start = new ProcessStartInfo(python) { UseShellExecute = false };
                 foreach (var argument in new[] { Path.Combine(engine, "Code", "Vecxy.Usd", "Tools", "cook_usd.py"), source, "--assets", assets })
                     start.ArgumentList.Add(argument);
-                using var process = Process.Start(start) ?? throw new InvalidOperationException("Could not start USD cooking.");
-                await process.WaitForExitAsync();
-                if (process.ExitCode != 0) throw new InvalidDataException("USD cooking failed. The game was not started.");
+                if (await CliProcess.RunAsync(start, cancellationToken) != 0) throw new InvalidDataException("USD cooking failed. The game was not started.");
             }
         }
         var manifest = Pipeline.Scan(project);
@@ -39,7 +37,7 @@ internal static class AssetRefreshCommand
         if (missing.Count > 0 || packageErrors.Count > 0)
             throw new InvalidDataException(AssetValidationReport.Summarize(missing, packageErrors));
         var target = platform == "windows" ? Vecxy.Assets.VPackPlatform.Windows : Vecxy.Assets.VPackPlatform.Linux;
-        await VPackPipeline.BuildAsync(project, target);
+        await VPackPipeline.BuildAsync(project, target, cancellationToken);
         var packages = Path.Combine(project, "Build", target.ToString());
         var files = Directory.GetFiles(packages).Where(IsPackageFile).ToArray();
         var names = files.Select(Path.GetFileName).ToHashSet(StringComparer.OrdinalIgnoreCase);

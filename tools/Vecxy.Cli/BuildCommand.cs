@@ -16,7 +16,8 @@ internal static class BuildCommand
         string? keystore,
         string? alias,
         string? version,
-        string? versionCode)
+        string? versionCode,
+        CancellationToken cancellationToken)
     {
         var configuration = mode.ToLowerInvariant() switch
         {
@@ -31,9 +32,10 @@ internal static class BuildCommand
 
         // Cook project sources (including USD) before scanning and packaging.
         Console.WriteLine("Preparing game assets...");
-        var prepared = RunDotnet(["msbuild", projectFile, "-t:VecxyPrepareAssets",
-            "-p:VecxyBuildVPack=false", "-p:Configuration=Debug"]);
+        var prepared = await RunDotnetAsync(["msbuild", projectFile, "-t:VecxyPrepareAssets",
+            "-p:VecxyBuildVPack=false", "-p:Configuration=Debug"], cancellationToken);
         if (prepared != 0) return prepared;
+        cancellationToken.ThrowIfCancellationRequested();
         Prepare(project);
         var vpackPlatform = platform switch
         {
@@ -42,15 +44,18 @@ internal static class BuildCommand
             "linux" => VPackPlatform.Linux,
             _ => throw new ArgumentException($"Unsupported build platform '{platform}'.")
         };
-        await VPackPipeline.BuildAsync(project, vpackPlatform);
+        Console.WriteLine("Packaging game assets...");
+        await VPackPipeline.BuildAsync(project, vpackPlatform, cancellationToken);
         var packageDirectory = Path.Combine(project, "Build", vpackPlatform.ToString());
 
         if (platform == "android")
-            return BuildAndroid(projectFile, configuration, output, packageDirectory, formatOption, keystore, alias, version, versionCode);
-        return BuildDesktop(projectFile, configuration, output, packageDirectory, runtimeOption ?? DefaultRuntime(platform));
+            return await BuildAndroidAsync(projectFile, configuration, output, packageDirectory, formatOption, keystore, alias, version, versionCode, cancellationToken);
+        return await BuildDesktopAsync(projectFile, configuration, output, packageDirectory,
+            runtimeOption ?? DefaultRuntime(platform), cancellationToken);
     }
 
-    private static int BuildDesktop(string project, string configuration, string output, string packages, string runtime)
+    private static async Task<int> BuildDesktopAsync(string project, string configuration, string output,
+        string packages, string runtime, CancellationToken cancellationToken)
     {
         var arguments = new[]
         {
@@ -60,12 +65,12 @@ internal static class BuildCommand
             $"-p:VecxyPackagesDirectory={packages}", "-p:ErrorOnDuplicatePublishOutputFiles=false"
         };
         Console.WriteLine("Restoring and building game...");
-        var result = RunDotnet(arguments);
+        var result = await RunDotnetAsync(arguments, cancellationToken);
         if (result == 0) Console.WriteLine($"Desktop build: {output}");
         return result;
     }
 
-    private static int BuildAndroid(
+    private static async Task<int> BuildAndroidAsync(
         string project,
         string configuration,
         string output,
@@ -74,7 +79,8 @@ internal static class BuildCommand
         string? keystore,
         string? alias,
         string? version,
-        string? versionCode)
+        string? versionCode,
+        CancellationToken cancellationToken)
     {
         var formats = (formatOption ?? "both").ToLowerInvariant() switch
         {
@@ -83,7 +89,7 @@ internal static class BuildCommand
             "both" => "aab;apk",
             _ => throw new ArgumentException("Android format must be 'apk', 'aab', or 'both'.")
         };
-        var restore = RunDotnet(["restore", project, "--runtime", "android-arm64", "-p:VecxyPlatform=Android"]);
+        var restore = await RunDotnetAsync(["restore", project, "--runtime", "android-arm64", "-p:VecxyPlatform=Android"], cancellationToken);
         if (restore != 0) return restore;
 
         var arguments = new List<string>
@@ -108,7 +114,7 @@ internal static class BuildCommand
             if (string.IsNullOrEmpty(storePassword)) throw new InvalidOperationException("Set VECXY_ANDROID_STORE_PASSWORD for a signed Android build.");
             arguments.AddRange(["-p:AndroidKeyStore=true", $"-p:AndroidSigningKeyStore={Path.GetFullPath(keystore)}",
                 $"-p:AndroidSigningKeyAlias={alias}"]);
-            var signedResult = RunDotnet(arguments, new Dictionary<string, string>
+            var signedResult = await RunDotnetAsync(arguments, cancellationToken, new Dictionary<string, string>
             {
                 ["AndroidSigningStorePass"] = storePassword,
                 ["AndroidSigningKeyPass"] = keyPassword!
@@ -116,7 +122,7 @@ internal static class BuildCommand
             if (signedResult == 0) Console.WriteLine($"Android build: {output}");
             return signedResult;
         }
-        var result = RunDotnet(arguments);
+        var result = await RunDotnetAsync(arguments, cancellationToken);
         if (result == 0) Console.WriteLine($"Android build: {output}");
         return result;
     }
@@ -154,15 +160,15 @@ internal static class BuildCommand
         return $"{platform}-{architecture}";
     }
 
-    private static int RunDotnet(IEnumerable<string> arguments, IReadOnlyDictionary<string, string>? environment = null)
+    private static Task<int> RunDotnetAsync(IEnumerable<string> arguments, CancellationToken cancellationToken,
+        IReadOnlyDictionary<string, string>? environment = null)
     {
         var start = new ProcessStartInfo("dotnet") { UseShellExecute = false };
         start.Environment["VecxyCliAssembly"] = typeof(BuildCommand).Assembly.Location;
         foreach (var argument in arguments) start.ArgumentList.Add(argument);
+        start.ArgumentList.Add("-tl:off");
         if (environment is not null)
             foreach (var item in environment) start.Environment[item.Key] = item.Value;
-        using var process = Process.Start(start) ?? throw new InvalidOperationException("Could not start dotnet.");
-        process.WaitForExit();
-        return process.ExitCode;
+        return CliProcess.RunAsync(start, cancellationToken);
     }
 }

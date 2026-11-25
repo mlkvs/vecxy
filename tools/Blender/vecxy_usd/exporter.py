@@ -125,7 +125,33 @@ def native_export(context,objects,temporary):
     return records
 
 
+def apply_principled_opacity(path):
+    # Blender writes every Preview Surface opacity as 1 and drops Principled Alpha.
+    import re
+    alphas={}
+    for material in bpy.data.materials:
+        if not material.use_nodes:continue
+        for node in material.node_tree.nodes:
+            if node.type!='BSDF_PRINCIPLED':continue
+            socket=node.inputs.get('Alpha')
+            if socket is None or socket.is_linked:continue
+            alpha=float(socket.default_value)
+            if alpha<0.999:alphas[material.name]=alpha
+    if not alphas:return
+    lines=path.read_text(encoding='utf8').splitlines(keepends=True)
+    current=None
+    for index,line in enumerate(lines):
+        found=re.search(r'userProperties:blender:data_name = "([^"]+)"', line)
+        if found and found.group(1) in alphas:current=found.group(1)
+        elif current and 'float inputs:opacity =' in line:
+            lines[index]=re.sub(r'float inputs:opacity = [-+0-9.eE]+',
+                f'float inputs:opacity = {alphas[current]:.6g}', line, count=1)
+            current=None
+    path.write_text(''.join(lines), encoding='utf8')
+
+
 def finalize(context,input_path,output,records,root_settings=None,collection_offset=None):
+    apply_principled_opacity(input_path)
     # Blender's USD exporter omits Image Texture interpolation. Preserve the
     # connected base-color node's setting alongside the native export.
     filters={}

@@ -317,6 +317,8 @@ function forward(values) {
   const forwarded = [...values];
   if (values[0] === 'new' && !values.includes('--engine')) forwarded.push('--engine', engine);
   const environment = toolEnvironment(engine);
+  // Build workers belong to this invocation, not to a future IDE or CLI build.
+  environment.MSBUILDDISABLENODEREUSE = '1';
   delete environment.VECXY_CLI_BOOTSTRAP;
   const cached = cachedRunCli(root, engine, environment);
   let invocation;
@@ -331,7 +333,19 @@ function forward(values) {
     environment.VECXY_CLI_BOOTSTRAP = String(started);
   }
   const child = spawn(dotnet, invocation, { stdio: 'inherit', env: environment });
-  child.on('exit', (code, signal) => process.exit(signal ? 1 : code ?? 1));
+  let interrupted = false;
+  const interrupt = () => {
+    if (interrupted) return;
+    interrupted = true;
+    // Windows broadcasts console Ctrl+C to the child. Node's child.kill on
+    // Windows would forcibly terminate it before managed cleanup could run.
+    if (platform() !== 'win32') child.kill('SIGINT');
+  };
+  process.on('SIGINT', interrupt);
+  child.on('exit', (code, signal) => {
+    process.off('SIGINT', interrupt);
+    process.exit(interrupted || signal === 'SIGINT' ? 130 : signal ? 1 : code ?? 1);
+  });
   child.on('error', fail);
 }
 

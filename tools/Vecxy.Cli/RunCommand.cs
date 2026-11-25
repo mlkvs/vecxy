@@ -3,7 +3,7 @@ using System.Diagnostics;
 internal static class RunCommand
 {
     public static async Task<int> RunAsync(string project, string mode, string? platformOption,
-        string? runtimeOption, string? outputOption, bool debug, bool noBuild, bool rebuild, string[] arguments)
+        string? runtimeOption, string? outputOption, bool debug, bool noBuild, bool rebuild, string[] arguments, CancellationToken cancellationToken)
     {
         var platform = BuildCommand.ResolvePlatform(platformOption);
         var host = BuildCommand.ResolvePlatform(null);
@@ -21,7 +21,7 @@ internal static class RunCommand
             {
                 var before = cache.CaptureInputs();
                 Console.WriteLine("Only runtime assets changed; refreshing packages without compiling code.");
-                ready = await AssetRefreshCommand.RunAsync(project, platform, output);
+                ready = await AssetRefreshCommand.RunAsync(project, platform, output, cancellationToken);
                 if (ready) SaveCache(before);
             }
             if (!ready)
@@ -29,13 +29,15 @@ internal static class RunCommand
                 cache.Invalidate();
                 var before = cache.CaptureInputs();
                 var result = await BuildCommand.RunAsync(project, mode, platform, runtimeOption, output,
-                    null, null, null, null, null);
+                    null, null, null, null, null, cancellationToken);
                 if (result != 0) return result;
                 SaveCache(before);
             }
         }
         void SaveCache(Dictionary<string, string> before)
         {
+            cancellationToken.ThrowIfCancellationRequested();
+            Console.WriteLine("Saving run build cache...");
             try { cache.Save(before); }
             catch (Exception error) when (error is IOException or UnauthorizedAccessException)
             { Console.Error.WriteLine("Run cache could not be saved; the next run will build again."); }
@@ -72,25 +74,10 @@ internal static class RunCommand
         // Do not let a stale environment flag accidentally pause ordinary launches.
         if (debug) start.Environment["VECXY_WAIT_FOR_DEBUGGER"] = "1";
         else start.Environment.Remove("VECXY_WAIT_FOR_DEBUGGER");
-        using var child = Process.Start(start) ?? throw new InvalidOperationException("Could not start the game.");
-        Console.WriteLine($"Game process: {name}, PID {child.Id}");
-        Console.WriteLine($"Working directory: {output}");
-        ConsoleCancelEventHandler cancel = (_, e) =>
+        return await CliProcess.RunAsync(start, cancellationToken, child =>
         {
-            e.Cancel = true;
-            try { if (!child.HasExited) child.Kill(entireProcessTree: true); }
-            catch (InvalidOperationException) { }
-        };
-        Console.CancelKeyPress += cancel;
-        try
-        {
-            await child.WaitForExitAsync();
-            return child.ExitCode;
-        }
-        finally
-        {
-            Console.CancelKeyPress -= cancel;
-            if (!child.HasExited) child.Kill(entireProcessTree: true);
-        }
+            Console.WriteLine($"Game process: {name}, PID {child.Id}");
+            Console.WriteLine($"Working directory: {output}");
+        });
     }
 }
