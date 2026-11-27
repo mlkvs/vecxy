@@ -33,6 +33,7 @@ public interface IRenderer
 
     Mesh CreateQuad();
     Mesh CreatePlane();
+    Mesh CreateModelMesh(ModelPrimitive source, IReadOnlyList<uint> indices, string? name = null);
     void PreloadTexture(AssetRef<TextureAsset> texture);
 }
 
@@ -548,6 +549,16 @@ public sealed class RenderingModule(
             new VertexAttribute(0, 3, 0),
             new VertexAttribute(1, 3, 3),
             new VertexAttribute(2, 2, 6));
+    }
+
+    public Mesh CreateModelMesh(ModelPrimitive source, IReadOnlyList<uint> indices, string? name = null)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(indices);
+        if (indices.Count == 0 || indices.Count % 3 != 0 || indices.Any(index => index >= source.Vertices.Count))
+            throw new ArgumentException("Expected complete triangles referencing the source vertices.", nameof(indices));
+
+        return meshes.CreatePrimitiveMesh(source, indices, name);
     }
 
     public Texture Resolve(AssetRef<TextureAsset> texture)

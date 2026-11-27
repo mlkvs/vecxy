@@ -88,32 +88,8 @@ public sealed class MeshLibrary : IDisposable
                 {
                     var primitive =
                         sourceMesh.Primitives[primitiveIndex];
-                    var vertices =
-                        PackVertices(primitive.Vertices);
-                    var indices = primitive.Indices.ToArray();
-
-                    CalculateBounds(
-                        primitive.Vertices,
-                        out var boundsMin,
-                        out var boundsMax);
-
-                    var mesh = new Mesh(
-                        _device,
-                        vertices,
-                        indices,
-                        18,
-                        boundsMin,
-                        boundsMax,
-                        $"{path} / Mesh {meshIndex} / Primitive {primitiveIndex}",
-                        new VertexAttribute(0, 3, 0),
-                        new VertexAttribute(1, 3, 3),
-                        new VertexAttribute(2, 2, 6),
-                        new VertexAttribute(3, 4, 8),
-                        new VertexAttribute(4, 4, 12),
-                        new VertexAttribute(5, 2, 16))
-                    {
-                        HasFaceCoordinates = primitive.HasFaceCoordinates
-                    };
+                    var mesh = CreatePrimitiveMesh(primitive, primitive.Indices,
+                        $"{path} / Mesh {meshIndex} / Primitive {primitiveIndex}");
 
                     primitives[primitiveIndex] = mesh;
                     created.Add(mesh);
@@ -131,6 +107,23 @@ public sealed class MeshLibrary : IDisposable
 
             throw;
         }
+    }
+
+    internal Mesh CreatePrimitiveMesh(ModelPrimitive primitive, IReadOnlyList<uint> indices, string? name)
+    {
+        var vertices = PackVertices(primitive.Vertices);
+        CalculateBounds(primitive.Vertices, out var boundsMin, out var boundsMax);
+        return new Mesh(
+            _device, vertices, indices.ToArray(), 18, boundsMin, boundsMax, name,
+            new VertexAttribute(0, 3, 0),
+            new VertexAttribute(1, 3, 3),
+            new VertexAttribute(2, 2, 6),
+            new VertexAttribute(3, 4, 8),
+            new VertexAttribute(4, 4, 12),
+            new VertexAttribute(5, 2, 16))
+        {
+            HasFaceCoordinates = primitive.HasFaceCoordinates
+        };
     }
 
     private static float[] PackVertices(

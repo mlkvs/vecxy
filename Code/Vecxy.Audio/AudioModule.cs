@@ -1,8 +1,13 @@
+using System.Numerics;
 using Autofac;
 using Vecxy.Assets;
 using Vecxy.Kernel;
 
 namespace Vecxy.Audio;
+
+public readonly record struct SpatialSound(
+    Vector3 Position, float MinDistance = 1f, float MaxDistance = 100f,
+    float Volume = 1f, float Occlusion = 0f);
 
 public interface IAudioManager
 {
@@ -10,6 +15,8 @@ public interface IAudioManager
     void Preload(SoundHandle asset, bool loop = false);
     void Play(string assetPath, bool loop = false, float volume = 1.0f);
     void Play(SoundHandle asset, bool loop = false, float volume = 1.0f);
+    void PlayAt(SoundHandle asset, SpatialSound source, bool loop = false);
+    void SetListener(Vector3 position, Vector3 forward, Vector3 up);
     void Stop(string assetPath, bool loop = false);
     void Stop(SoundHandle asset, bool loop = false);
     void Pause(string assetPath, bool loop = false);
@@ -32,11 +39,14 @@ public sealed class AudioModule(IAssetsManager assets) : IModule, IModule.IUpdat
 
 #if ANDROID
     private readonly Dictionary<(string Path, bool Loop), global::Android.Media.MediaPlayer> _androidPlayers = [];
+    private readonly Dictionary<(string Path, bool Loop), SpatialSound> _androidSources = [];
+    private Vector3 _listenerPosition;
+    private Vector3 _listenerRight = Vector3.UnitX;
 #else
     private sealed record Playback(string Path, bool Loop, FMOD.Channel Channel);
     private FMOD.System? _system;
     private readonly List<Playback> _playbacks = [];
-    private readonly Dictionary<(string Path, bool Loop), FMOD.Sound> _sounds = [];
+    private readonly Dictionary<(string Path, bool Loop, bool Spatial), FMOD.Sound> _sounds = [];
 #endif
     private bool _initialized;
     private bool _disposed;
@@ -53,7 +63,7 @@ public sealed class AudioModule(IAssetsManager assets) : IModule, IModule.IUpdat
         {
             Check(FMOD.Factory.System_Create(out var system));
             Check(system.setSoftwareChannels(64));
-            Check(system.init(128, FMOD.INITFLAGS.NORMAL, nint.Zero));
+            Check(system.init(128, FMOD.INITFLAGS._3D_RIGHTHANDED | FMOD.INITFLAGS.CHANNEL_LOWPASS, nint.Zero));
             _system = system;
         }
         catch (Exception exception)
@@ -107,6 +117,7 @@ public sealed class AudioModule(IAssetsManager assets) : IModule, IModule.IUpdat
             throw new InvalidOperationException("AudioModule is not initialized.");
 #if ANDROID
         var player = GetOrCreateAndroidPlayer(assetPath, loop);
+        _androidSources.Remove((ResolveAudioPath(assetPath), loop));
         var clampedVolume = Math.Clamp(volume, 0.0f, 1.0f);
         player.SetVolume(clampedVolume, clampedVolume);
         if (player.IsPlaying)
@@ -124,6 +135,68 @@ public sealed class AudioModule(IAssetsManager assets) : IModule, IModule.IUpdat
 
     public void Play(SoundHandle asset, bool loop = false, float volume = 1.0f) => Play(ResolveAssetPath(asset), loop, volume);
 
+    public void PlayAt(SoundHandle asset, SpatialSound source, bool loop = false)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        if (!_initialized)
+            throw new InvalidOperationException("AudioModule is not initialized.");
+        if (!(source.MinDistance > 0 && source.MaxDistance >= source.MinDistance))
+            throw new ArgumentOutOfRangeException(nameof(source), "Expected positive, ordered distance limits.");
+
+        var path = ResolveAssetPath(asset);
+        var volume = Math.Clamp(source.Volume, 0f, 1f);
+        var occlusion = Math.Clamp(source.Occlusion, 0f, 1f);
+#if ANDROID
+        var player = GetOrCreateAndroidPlayer(path, loop);
+        var settings = source with { Volume = volume, Occlusion = occlusion };
+        _androidSources[(path, loop)] = settings;
+        ApplyAndroidSpatialMix(player, settings);
+        if (player.IsPlaying)
+            player.SeekTo(0);
+        player.Start();
+#else
+        if (_system is null)
+            return;
+        var sound = GetOrCreateSound(path, loop, spatial: true);
+        Check(_system.Value.playSound(sound, new FMOD.ChannelGroup(), true, out var channel));
+        try
+        {
+            var position = ToFmodVector(source.Position);
+            var velocity = default(FMOD.VECTOR);
+            Check(channel.set3DAttributes(ref position, ref velocity));
+            Check(channel.set3DMinMaxDistance(source.MinDistance, source.MaxDistance));
+            Check(channel.set3DSpread(0));
+            Check(channel.set3DOcclusion(occlusion, 0f));
+            Check(channel.setVolume(volume));
+            Check(channel.setPaused(false));
+        }
+        catch
+        {
+            channel.stop();
+            throw;
+        }
+        _playbacks.Add(new Playback(path, loop, channel));
+#endif
+    }
+
+    public void SetListener(Vector3 position, Vector3 forward, Vector3 up)
+    {
+#if ANDROID
+        _listenerPosition = position;
+        _listenerRight = Vector3.Normalize(Vector3.Cross(forward, up));
+        foreach (var (key, source) in _androidSources)
+            ApplyAndroidSpatialMix(_androidPlayers[key], source);
+#else
+        if (_system is not { } system)
+            return;
+        var location = ToFmodVector(position);
+        var velocity = default(FMOD.VECTOR);
+        var facing = ToFmodVector(forward);
+        var vertical = ToFmodVector(up);
+        Check(system.set3DListenerAttributes(0, ref location, ref velocity, ref facing, ref vertical));
+#endif
+    }
+
     public void Stop(string assetPath, bool loop = false)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
@@ -131,6 +204,7 @@ public sealed class AudioModule(IAssetsManager assets) : IModule, IModule.IUpdat
             throw new InvalidOperationException("AudioModule is not initialized.");
         var fullPath = ResolveAudioPath(assetPath);
 #if ANDROID
+        _androidSources.Remove((fullPath, loop));
         if (_androidPlayers.TryGetValue((fullPath, loop), out var player))
         {
             if (player.IsPlaying)
@@ -199,6 +273,7 @@ public sealed class AudioModule(IAssetsManager assets) : IModule, IModule.IUpdat
             }
         }
         _androidPlayers.Clear();
+        _androidSources.Clear();
 #else
         for (var index = _playbacks.Count - 1; index >= 0; index--)
             _playbacks[index].Channel.stop();
@@ -260,6 +335,17 @@ public sealed class AudioModule(IAssetsManager assets) : IModule, IModule.IUpdat
     }
 
 #if ANDROID
+    private void ApplyAndroidSpatialMix(global::Android.Media.MediaPlayer player, SpatialSound source)
+    {
+        var offset = source.Position - _listenerPosition;
+        var distance = offset.Length();
+        var pan = distance > .001f ? Vector3.Dot(offset / distance, _listenerRight) : 0f;
+        var gain = source.Volume * (1f - source.Occlusion) *
+                   (source.MinDistance / Math.Clamp(distance, source.MinDistance, source.MaxDistance));
+        player.SetVolume(gain * MathF.Sqrt(Math.Clamp(1f - pan, 0f, 1f)),
+            gain * MathF.Sqrt(Math.Clamp(1f + pan, 0f, 1f)));
+    }
+
     private global::Android.Media.MediaPlayer GetOrCreateAndroidPlayer(string assetPath, bool loop)
     {
         var fullPath = ResolveAudioPath(assetPath);
@@ -284,14 +370,16 @@ public sealed class AudioModule(IAssetsManager assets) : IModule, IModule.IUpdat
         }
     }
 #else
-    private FMOD.Sound GetOrCreateSound(string assetPath, bool loop)
+    private static FMOD.VECTOR ToFmodVector(Vector3 value) => new() { x = value.X, y = value.Y, z = value.Z };
+
+    private FMOD.Sound GetOrCreateSound(string assetPath, bool loop, bool spatial = false)
     {
         var fullPath = ResolveAudioPath(assetPath);
-        var key = (fullPath, loop);
+        var key = (fullPath, loop, spatial);
         if (_sounds.TryGetValue(key, out var cached))
             return cached;
 
-        var mode = FMOD.MODE._2D |
+        var mode = (spatial ? FMOD.MODE._3D | FMOD.MODE._3D_WORLDRELATIVE : FMOD.MODE._2D) |
                    (loop ? FMOD.MODE.LOOP_NORMAL | FMOD.MODE.CREATESTREAM : FMOD.MODE.LOOP_OFF);
         Check(_system!.Value.createSound(fullPath, mode, out var sound));
         _sounds.Add(key, sound);
