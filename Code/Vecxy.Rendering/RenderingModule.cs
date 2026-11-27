@@ -177,6 +177,7 @@ public sealed class RenderingModule(
     private readonly HashSet<IRenderTarget> _presentedTargets = [];
     private readonly List<Camera> _activeCameras = [];
     private readonly List<MeshRenderer> _meshRenderers = [];
+    private readonly List<MeshRenderer> _viewModelRenderers = [];
     private readonly List<Decal> _decals = [];
     private readonly List<SpriteRenderer> _spriteRenderers = [];
     private AssetRef<ShaderAsset>? _litShader;
@@ -1061,6 +1062,7 @@ public sealed class RenderingModule(
 
         DrawMeshRenderers(scene, camera, viewProjection, lighting, _sceneTarget);
         DrawWorld(new RenderWorldContext(scene, camera, viewProjection, renderWidth, renderHeight));
+        DrawViewModels(camera, viewProjection, lighting, _sceneTarget);
 
         PresentScene(
             camera,
@@ -1116,6 +1118,7 @@ public sealed class RenderingModule(
 
         DrawMeshRenderers(scene, camera, viewProjection, lighting, target);
         DrawWorld(new RenderWorldContext(scene, camera, viewProjection, target.Width, target.Height));
+        DrawViewModels(camera, viewProjection, lighting, target);
     }
 
     private void DrawSkybox(
@@ -1517,9 +1520,10 @@ public sealed class RenderingModule(
         device.GL.Enable(EnableCap.DepthTest);
     }
 
-    private void CollectMeshRenderers(SceneInstance scene)
+    private void CollectMeshRenderers(SceneInstance scene, Camera camera)
     {
         _meshRenderers.Clear();
+        _viewModelRenderers.Clear();
         foreach (var sceneObject in scene.Objects)
         {
             if (!sceneObject.IsActive)
@@ -1530,9 +1534,21 @@ public sealed class RenderingModule(
                     IsConfigured: true
                 } renderer)
             {
-                _meshRenderers.Add(renderer);
+                var viewModel = FindViewModel(sceneObject);
+                if (viewModel is null)
+                    _meshRenderers.Add(renderer);
+                else if (ReferenceEquals(viewModel.Camera, camera))
+                    _viewModelRenderers.Add(renderer);
             }
         }
+    }
+
+    private static ViewModel? FindViewModel(SceneObject sceneObject)
+    {
+        for (SceneObject? owner = sceneObject; owner is not null; owner = owner.Parent)
+            if (owner.GetComponent<ViewModel>() is { IsActive: true } viewModel)
+                return viewModel;
+        return null;
     }
 
     private void DrawMeshRenderers(
@@ -1542,19 +1558,11 @@ public sealed class RenderingModule(
         SceneLighting lighting,
         SceneRenderTarget target)
     {
-        CollectMeshRenderers(scene);
+        CollectMeshRenderers(scene, camera);
         if (_meshRenderers.Count == 0)
             return;
 
-        _meshRenderers.Sort(static (left, right) =>
-            GetEffectiveRenderPhase(left).CompareTo(GetEffectiveRenderPhase(right)));
-        foreach (var renderer in _meshRenderers)
-        {
-            if (GetEffectiveRenderPhase(renderer) == ERenderPhase.Transparent)
-                continue;
-            Draw(renderer, camera, viewProjection, lighting);
-        }
-
+        DrawOpaqueMeshes(_meshRenderers, camera, viewProjection, lighting);
         DrawDecals(scene, camera, viewProjection, lighting);
         if (!Wireframe && _fullscreenQuad is { } quad)
         {
@@ -1562,14 +1570,51 @@ public sealed class RenderingModule(
             _outlineRenderer.Draw(scene, target, quad, viewProjection, _meshRenderers);
         }
 
-        _meshRenderers.Sort((left, right) =>
-            Vector3.DistanceSquared(
-                    right.Transform.WorldPosition,
-                    camera.Transform.WorldPosition)
-                .CompareTo(Vector3.DistanceSquared(
-                    left.Transform.WorldPosition,
-                    camera.Transform.WorldPosition)));
-        foreach (var renderer in _meshRenderers)
+        DrawTransparentMeshes(_meshRenderers, camera, viewProjection, lighting);
+    }
+
+    private void DrawViewModels(Camera camera, Matrix4x4 viewProjection, SceneLighting lighting, SceneRenderTarget target)
+    {
+        if (_viewModelRenderers.Count == 0)
+            return;
+
+        // Keep the scene depth texture intact for post-processing.
+        target.BindViewModelDepth();
+        var gl = device.GL;
+        gl.Enable(EnableCap.DepthTest);
+        gl.DepthFunc(DepthFunction.Less);
+        gl.DepthMask(true);
+        gl.Clear(ClearBufferMask.DepthBufferBit);
+        try
+        {
+            DrawOpaqueMeshes(_viewModelRenderers, camera, viewProjection, lighting);
+            DrawTransparentMeshes(_viewModelRenderers, camera, viewProjection, lighting);
+        }
+        finally
+        {
+            gl.DepthMask(true);
+            gl.Disable(EnableCap.Blend);
+            target.RestoreSceneDepth();
+        }
+    }
+
+    private void DrawOpaqueMeshes(List<MeshRenderer> renderers, Camera camera, Matrix4x4 viewProjection, SceneLighting lighting)
+    {
+        renderers.Sort(static (left, right) =>
+            GetEffectiveRenderPhase(left).CompareTo(GetEffectiveRenderPhase(right)));
+        foreach (var renderer in renderers)
+            if (GetEffectiveRenderPhase(renderer) != ERenderPhase.Transparent)
+                Draw(renderer, camera, viewProjection, lighting);
+    }
+
+    private void DrawTransparentMeshes(
+        List<MeshRenderer> renderers, Camera camera, Matrix4x4 viewProjection, SceneLighting lighting)
+    {
+        var cameraPosition = camera.Transform.WorldPosition;
+        renderers.Sort((left, right) =>
+            Vector3.DistanceSquared(right.Transform.WorldPosition, cameraPosition)
+                .CompareTo(Vector3.DistanceSquared(left.Transform.WorldPosition, cameraPosition)));
+        foreach (var renderer in renderers)
         {
             if (GetEffectiveRenderPhase(renderer) != ERenderPhase.Transparent)
                 continue;

@@ -11,6 +11,7 @@ public sealed class SceneRenderTarget : IRenderTarget, IDisposable
     private Texture? _colorTexture;
     private uint _depthRenderbuffer;
     private Texture? _depthTexture;
+    private uint _viewModelDepth;
     private bool _disposed;
 
     public int Width { get; private set; }
@@ -63,6 +64,33 @@ public sealed class SceneRenderTarget : IRenderTarget, IDisposable
     {
         var depth = _depthTexture ?? throw new InvalidOperationException("The target has no sampled depth texture.");
         depth.Bind(slot, TextureSamplerState.PointClamp);
+    }
+
+    internal void BindViewModelDepth()
+    {
+        Bind(_device);
+        var gl = _device.GL;
+        if (_viewModelDepth == 0)
+        {
+            _viewModelDepth = gl.GenRenderbuffer();
+            gl.BindRenderbuffer(RenderbufferTarget.Renderbuffer, _viewModelDepth);
+            gl.RenderbufferStorage(RenderbufferTarget.Renderbuffer, InternalFormat.DepthComponent24,
+                (uint)Width, (uint)Height);
+            gl.BindRenderbuffer(RenderbufferTarget.Renderbuffer, 0);
+        }
+        gl.FramebufferRenderbuffer(FramebufferTarget.Framebuffer, FramebufferAttachment.DepthAttachment,
+            RenderbufferTarget.Renderbuffer, _viewModelDepth);
+    }
+
+    internal void RestoreSceneDepth()
+    {
+        var gl = _device.GL;
+        if (_depthTexture is { } depth)
+            gl.FramebufferTexture2D(FramebufferTarget.Framebuffer, FramebufferAttachment.DepthAttachment,
+                TextureTarget.Texture2D, depth.Handle, 0);
+        else
+            gl.FramebufferRenderbuffer(FramebufferTarget.Framebuffer, FramebufferAttachment.DepthAttachment,
+                RenderbufferTarget.Renderbuffer, _depthRenderbuffer);
     }
 
     internal void CopyDepthTo(SceneRenderTarget destination)
@@ -165,6 +193,12 @@ public sealed class SceneRenderTarget : IRenderTarget, IDisposable
     private void DisposeHandles()
     {
         var gl = _device.GL;
+
+        if (_viewModelDepth != 0)
+        {
+            gl.DeleteRenderbuffer(_viewModelDepth);
+            _viewModelDepth = 0;
+        }
 
         if (_depthRenderbuffer != 0)
         {
