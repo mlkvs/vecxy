@@ -20,4 +20,12 @@ public interface IPhysicsSystem
         float maxDistance,
         SceneObject? ignoreSceneObject,
         out PhysicsRaycastHit hit);
+
+    bool Raycast(
+        Vector3 origin,
+        Vector3 direction,
+        float maxDistance,
+        SceneObject? ignoreSceneObject,
+        Predicate<Collider>? filter,
+        out PhysicsRaycastHit hit);
 }

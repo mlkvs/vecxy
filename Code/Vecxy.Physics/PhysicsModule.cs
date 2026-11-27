@@ -111,6 +111,10 @@ public sealed class PhysicsModule(
     }
 
     public bool Raycast(Vector3 origin, Vector3 direction, float maxDistance, SceneObject? ignoreSceneObject, out PhysicsRaycastHit hit)
+        => Raycast(origin, direction, maxDistance, ignoreSceneObject, null, out hit);
+
+    public bool Raycast(Vector3 origin, Vector3 direction, float maxDistance, SceneObject? ignoreSceneObject,
+        Predicate<Collider>? filter, out PhysicsRaycastHit hit)
     {
         hit = default;
 
@@ -123,6 +127,7 @@ public sealed class PhysicsModule(
                    direction,
                    maxDistance,
                    ignoreSceneObject,
+                   filter,
                    out hit);
     }
 

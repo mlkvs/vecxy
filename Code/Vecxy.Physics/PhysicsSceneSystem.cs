@@ -212,6 +212,7 @@ public sealed class PhysicsSceneSystem : ASceneSystem
         Vector3 direction,
         float maxDistance,
         SceneObject? ignoreSceneObject,
+        Predicate<Collider>? filter,
         out PhysicsRaycastHit hit)
     {
         hit = default;
@@ -230,7 +231,8 @@ public sealed class PhysicsSceneSystem : ASceneSystem
             maxDistance,
             candidate => candidate is RigidBodyShape shape &&
                 runtime.CollidersByShapeId.TryGetValue(shape.ShapeId, out var binding) &&
-                !ReferenceEquals(binding.Body.SceneObject, ignoreSceneObject),
+                !ReferenceEquals(binding.Body.SceneObject, ignoreSceneObject) &&
+                (filter is null || filter(binding.Collider)),
             result => result.Lambda >= 0.0f,
             out var proxy,
             out var normal,

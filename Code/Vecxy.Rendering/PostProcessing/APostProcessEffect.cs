@@ -11,6 +11,7 @@ public abstract class APostProcessEffect : IDisposable
     public abstract string ShaderPath { get; }
     public abstract bool Enabled { get; }
     public abstract int Order { get; }
+    public virtual bool RequiresSceneDepth => false;
     public abstract void Apply(Shader shader, in PostProcessContext context);
     public virtual object? InspectorSettings => null;
     public virtual string? InspectorSourcePath => null;

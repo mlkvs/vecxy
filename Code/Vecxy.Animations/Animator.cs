@@ -167,6 +167,13 @@ public sealed class Animator : AComponent
         return result;
     }
 
+    /// <summary>Updates skinning after a procedural adjustment to animated bone transforms.</summary>
+    public void RefreshSkinning()
+    {
+        if (IsActive && _modelInstance is not null)
+            UpdateBonePalettes();
+    }
+
     internal void Evaluate(float deltaTime)
     {
         if (_modelInstance is null || _bindPose is null || _finalPose is null || _sampling is null || !IsActive)

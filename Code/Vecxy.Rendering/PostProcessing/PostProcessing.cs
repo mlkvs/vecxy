@@ -15,6 +15,8 @@ public sealed class PostProcessing : AComponent
 
     public IReadOnlyList<APostProcessEffect> CustomEffects => _customEffects;
 
+    public PostProcessing() { }
+
     public PostProcessing(IConfigProvider configs, string basePath = "PostProcessing")
     {
         ArgumentNullException.ThrowIfNull(configs);

@@ -216,7 +216,7 @@ public sealed class RenderingModule(
         _litShader = assets.Load<ShaderAsset>("Shaders/Lit.glsl");
         _spriteShader = assets.Load<ShaderAsset>("Shaders/Sprite.glsl");
         _copyPostShader = assets.Load<ShaderAsset>("Shaders/PostProcessing/Copy.glsl");
-        _sceneTarget = new SceneRenderTarget(device);
+        _sceneTarget = new SceneRenderTarget(device, sampleDepth: true);
         _postProcessTargetA = new SceneRenderTarget(device);
         _postProcessTargetB = new SceneRenderTarget(device);
         _fullscreenQuad = CreateQuad();
@@ -258,7 +258,7 @@ public sealed class RenderingModule(
             ? _sceneViewportHeight
             : backbuffer.Height;
 
-        _sceneTarget ??= new SceneRenderTarget(device);
+        _sceneTarget ??= new SceneRenderTarget(device, sampleDepth: true);
         _sceneTarget.EnsureSize(gameOutputWidth, gameOutputHeight);
         _presentedSceneTarget = null;
 
@@ -323,7 +323,7 @@ public sealed class RenderingModule(
         var usesGameOutputTarget = target is null;
         if (usesGameOutputTarget)
         {
-            _sceneTarget ??= new SceneRenderTarget(device);
+            _sceneTarget ??= new SceneRenderTarget(device, sampleDepth: true);
             _sceneTarget.EnsureSize(
                 Math.Max(1, backbuffer.Width),
                 Math.Max(1, backbuffer.Height));
@@ -1022,7 +1022,7 @@ public sealed class RenderingModule(
                 ? _sceneViewportHeight
                 : backbuffer.Height;
 
-        _sceneTarget ??= new SceneRenderTarget(device);
+        _sceneTarget ??= new SceneRenderTarget(device, sampleDepth: true);
         _sceneTarget.EnsureSize(renderWidth, renderHeight);
         _sceneTarget.Bind(device);
         device.GL.Enable(EnableCap.DepthTest);
@@ -1334,6 +1334,11 @@ public sealed class RenderingModule(
         shader.Bind();
         input.BindColorTexture(0);
         shader.Set("uSceneTexture", 0);
+        if (effect?.RequiresSceneDepth == true)
+        {
+            _sceneTarget!.BindDepthTexture(1);
+            shader.Set("uSceneDepth", 1);
+        }
 
         var context = new PostProcessContext(
             resolution,
