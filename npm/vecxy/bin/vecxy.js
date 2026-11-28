@@ -37,6 +37,8 @@ if (args[0] === 'update') {
   setup(args.slice(1)).then(code => process.exit(code), fail);
 } else if (args[0] === 'sprite-editor') {
   launchSpriteEditor(args.slice(1));
+} else if (args[0] === 'assets' && args[1] === 'cubemap') {
+  try { convertCubemap(args.slice(2)); } catch (error) { fail(error); }
 } else {
   forward(args);
 }
@@ -61,6 +63,7 @@ Usage:
   vecxy generate [-p|--project <path>]
   vecxy navigation bake <input.json> --output <map.navigation.json>
   vecxy assets <scan|generate|analyze|validate|packages|pack|prepare>
+  vecxy assets cubemap <panorama.png> --output <directory> [--size <face pixels>]
 
 Environment:
   VECXY_HOME         Tool data directory (default: ~/.vecxy)
@@ -381,6 +384,27 @@ function run(command, values, extraEnvironment = {}) {
   const result = spawnSync(command, values, { stdio: 'inherit', env: { ...process.env, DOTNET_ROOT: join(home, 'dotnet'), ANDROID_SDK_ROOT: androidSdk, ...extraEnvironment } });
   if (result.error) throw result.error;
   if (result.status !== 0) throw new Error(`${command} failed with exit code ${result.status}.`);
+}
+
+function convertCubemap(options) {
+  const output = takeOption(options, '--output');
+  const size = takeOption(options, '--size') ?? '512';
+  if (!output || options.length !== 1 || options[0].startsWith('-')) {
+    throw new Error('Usage: vecxy assets cubemap <panorama.png> --output <directory> [--size <face pixels>]');
+  }
+
+  const project = findProjectRoot(process.cwd(), false);
+  const projectPython = project && join(project, '.vecxy', 'usd-env',
+    ...(platform() === 'win32' ? ['Scripts', 'python.exe'] : ['bin', 'python']));
+  const candidates = platform() === 'win32' ? [['py', '-3'], ['python']] : [['python3'], ['python']];
+  if (projectPython && existsSync(projectPython)) candidates.unshift([projectPython]);
+  const python = candidates.find(([command, ...prefix]) => spawnSync(command,
+    [...prefix, '-c', 'from PIL import Image'], { stdio: 'ignore' }).status === 0);
+  if (!python) throw new Error('Cubemap conversion requires Python with Pillow. Run vecxy setup for a USD project.');
+
+  const [command, ...prefix] = python;
+  const converter = fileURLToPath(new URL('../lib/cubemap.py', import.meta.url));
+  run(command, [...prefix, converter, options[0], output, size]);
 }
 
 async function confirm(question) {
